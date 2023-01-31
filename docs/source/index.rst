@@ -12,6 +12,7 @@ Sitemap
 
 ..  toctree::
     :glob:
-    :caption: Support
+
+    /architecture/*
 
     /support/*
