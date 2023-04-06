@@ -1,4 +1,4 @@
-# Terraform script to create the baseline MWAA environemnt for Nucleus
+# Terraform script to create the baseline MWAA environment for Nucleus
 
 resource "aws_security_group" "nucleus_security_group" {
   name        = "nucleus_security_group"
@@ -31,12 +31,8 @@ resource "aws_s3_bucket" "nucleus_airflow_dags_bucket" {
   }
 }
 
-resource "aws_s3_bucket" "example_23" {
-  bucket = "my-tf-test-bucket-23"
-}
-
 resource "aws_s3_bucket_object" "dags" {
-  bucket = aws_s3_bucket.nucleus_airflow_dags_bucket.id
+  bucket = aws_s3_bucket.nucleus_airflow_dags_bucket
   acl    = "private"
   key    = "dags/"
   source = "/dev/null"
