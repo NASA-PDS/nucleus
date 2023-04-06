@@ -72,13 +72,11 @@ the system admin team of your AWS account.
 terraform init
 ```
 
-
 6. [Optional] Check the Terraform plan to see the changes to be applied.
 
 ```shell
 terraform plan
 ```
-
 
 7. Deploy Nucleus baseline system using Terraform apply.
 
