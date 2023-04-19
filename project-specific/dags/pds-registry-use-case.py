@@ -1,5 +1,6 @@
 # PDS Registry Load Use Case DAG
-# This DAG is under development. This was just added as an example DAG for Nucleus baseline deployment.
+# This DAG is under development. This was just added as an example DAG for
+# Nucleus baseline deployment.
 
 import boto3
 from airflow import DAG
@@ -27,13 +28,13 @@ with DAG(
     download_data = BashOperator(task_id='Download_Data',
                                  bash_command='echo "Download_Data"')
 
-    # Validate data 1 - This task is under development. This just added as an example DAG for Nucleus baseline
-    # deployment
+    # Validate data 1 - This task is under development. This just added as
+    # an example DAG for Nucleus baseline deployment
     validate_data_1 = BashOperator(task_id='Validate_Data_1',
                                    bash_command='echo "Validate_Data"')
 
-    # Validate data 2 - This task is under development. This just added as an example DAG for Nucleus baseline
-    # deployment
+    # Validate data 2 - This task is under development. This just added as
+    # an example DAG for Nucleus baseline deployment
     validate_data_2 = BashOperator(task_id='Validate_Data_2',
                                    bash_command='echo "Validate_Data"')
 
@@ -69,8 +70,8 @@ with DAG(
                 {
                     "name": "pds-airflow-integration-test-container",
                     "command": ["run",
-                                "https://raw.githubusercontent.com/NASA-PDS/registry/main/docker/postman"
-                                "/postman_collection.json",
+                                "https://raw.githubusercontent.com/NASA-PDS/registry"
+                                "/main/docker/postman/postman_collection.json",
                                 "--env-var", "baseUrl=http://10.21.246.222:8080"],
                 },
             ],
@@ -93,5 +94,6 @@ with DAG(
     )
 
     # Workflow
-    download_data >> validate_data_1 >> harvest_and_load_data >> run_integration_tests
+    download_data >> validate_data_1 >> harvest_and_load_data
+    harvest_and_load_data >> run_integration_tests
     run_integration_tests >> validate_data_2 >> print_end_date
