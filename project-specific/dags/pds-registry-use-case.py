@@ -70,7 +70,7 @@ with DAG(
                 {
                     "name": "pds-airflow-integration-test-container",
                     "command": ["run",
-                                "https://raw.githubusercontent.com/NASA-PDS
+                                "https://raw.githubusercontent.com/NASA-PDS"
                                 "/registry/main/docker/postman/"
                                 "postman_collection.json",
                                 "--env-var",
