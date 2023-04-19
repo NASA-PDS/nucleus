@@ -55,7 +55,7 @@ with DAG(
             "containerOverrides": [],
         },
         awslogs_group=ECS_AWS_LOGS_GROUP,
-        awslogs_stream_prefix=f"ecs/reg loader"
+        awslogs_stream_prefix="ecs/reg loader"
     )
 
     # Execute integration tests
@@ -85,7 +85,7 @@ with DAG(
             },
         },
         awslogs_group=ECS_AWS_LOGS_GROUP,
-        awslogs_stream_prefix=f"ecs/integration_tests"
+        awslogs_stream_prefix="ecs/integration_tests"
     )
 
     # Print end date
