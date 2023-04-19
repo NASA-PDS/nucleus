@@ -70,9 +70,11 @@ with DAG(
                 {
                     "name": "pds-airflow-integration-test-container",
                     "command": ["run",
-                                "https://raw.githubusercontent.com/NASA-PDS/registry"
-                                "/main/docker/postman/postman_collection.json",
-                                "--env-var", "baseUrl=http://10.21.246.222:8080"],
+                                "https://raw.githubusercontent.com/NASA-PDS
+                                "/registry/main/docker/postman/"
+                                "postman_collection.json",
+                                "--env-var",
+                                "baseUrl=http://10.21.246.222:8080"],
                 },
             ],
         },
