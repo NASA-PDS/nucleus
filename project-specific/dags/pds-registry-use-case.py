@@ -39,7 +39,6 @@ with DAG(
     validate_data_2 = BashOperator(task_id='Validate_Data_2',
                                    bash_command='echo "Validate_Data"')
 
-
     # Copy config files and scripts from S3
     copy_configs_and_scripts_from_s3 = ECSOperator(
         task_id="Copy_Configs_And_Scripts",
