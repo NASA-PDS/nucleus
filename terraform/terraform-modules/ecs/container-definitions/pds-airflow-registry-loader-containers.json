@@ -1,0 +1,50 @@
+[
+    {
+        "name": "pds-airflow-registry-loader",
+        "image": "<ACCOUNT_ID>.dkr.ecr.us-west-2.amazonaws.com/pds-airflow-registry-loader:latest",
+        "cpu": 0,
+        "memoryReservation": 500,
+        "portMappings": [],
+        "essential": true,
+        "entryPoint": [],
+        "command": [],
+        "environment": [
+            {
+                "name": "ES_URL",
+                "value": "https://10.21.247.34:9200/"
+            },
+            {
+                "name": "TEST_DATA_LIDVID",
+                "value": "urn:nasa:pds:insight_rad::2.1"
+            },
+            {
+                "name": "RUN_TESTS",
+                "value": "true"
+            },
+            {
+                "name": "TEST_DATA_URL",
+                "value": "https://pds-gamma.jpl.nasa.gov/data/pds4/test-data/registry/urn-nasa-pds-insight_rad.tar.gz"
+            }
+        ],
+        "mountPoints": [
+            {
+                "sourceVolume": "pds-airflow-efs-registry-loader-scripts",
+                "containerPath": "/usr/local/bin/",
+                "readOnly": false
+            },
+            {
+                "sourceVolume": "pds-airflow-efs-registry-loader-default-configs",
+                "containerPath": "/def-cfg/"
+            }
+        ],
+        "volumesFrom": [],
+        "logConfiguration": {
+            "logDriver": "awslogs",
+            "options": {
+                "awslogs-group": "/ecs/pds-airflow-registry-loader",
+                "awslogs-region": "us-west-2",
+                "awslogs-stream-prefix": "ecs"
+            }
+        }
+    }
+]

@@ -1,0 +1,33 @@
+[
+    {
+        "name": "pds-airflow-integration-test-container",
+        "image": "<ACCOUNT_ID>.dkr.ecr.us-west-2.amazonaws.com/pds-airflow-int-test:latest",
+        "cpu": 0,
+        "memory": 128,
+        "portMappings": [],
+        "essential": true,
+        "entryPoint": [],
+        "command": [],
+        "environment": [
+            {
+                "name": "REG_API_URL",
+                "value": "http://10.21.247.34:8080"
+            }
+        ],
+        "mountPoints": [
+            {
+                "sourceVolume": "pds-airflow-efs-registry-loader-default-configs",
+                "containerPath": "/def-cfg/"
+            }
+        ],
+        "volumesFrom": [],
+        "logConfiguration": {
+            "logDriver": "awslogs",
+            "options": {
+                "awslogs-group": "/ecs/pds-airflow-integration-test-2",
+                "awslogs-region": "us-west-2",
+                "awslogs-stream-prefix": "ecs"
+            }
+        }
+    }
+]
