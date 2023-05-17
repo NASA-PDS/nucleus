@@ -1,9 +1,7 @@
 Overview
 ========
 
-Welcome to your PDS template package! Have Fun!
-
-
+Nucleus is a proposed extendable, performant pipeline service to integrate and automate PDS tool execution.
 
 Sitemap
 =======
@@ -14,5 +12,7 @@ Sitemap
     :glob:
 
     /architecture/*
+
+    /tutorial/*
 
     /support/*
