@@ -1,5 +1,5 @@
 =================================
-PDS Nucleus Baseline Architecture
+Architecture
 =================================
 
 What is Nucleus?
