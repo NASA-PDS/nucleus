@@ -9,10 +9,8 @@ Sitemap
 .. /overview
 
 ..  toctree::
-    :glob:
+    :maxdepth: 1
 
-    /architecture/*
-
-    /tutorial/*
-
-    /support/*
+    /tutorial/nucleus-tutorial
+    /architecture/baseline-architecture
+    /support/support
