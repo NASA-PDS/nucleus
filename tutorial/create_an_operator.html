@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Create an Operator &mdash; My PDS Project 0.0 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/theme_overrides.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Architecture" href="../architecture/baseline-architecture.html" />
+    <link rel="prev" title="Create an Airflow DAG (Workflow)" href="create_a_dag.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            My PDS Project
+              <img src="../_static/PDS_Planets.png" class="logo" alt="Logo"/>
+          </a>
+              <div class="version">
+                0.0
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="nucleus-tutorial.html">User’s Guide</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="create_a_dag.html">Create Airflow DAG</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Create an Operator</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#detailed-tutorial">Detailed Tutorial</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#step-1-create-and-push-the-docker-image-to-ecr">Step 1: Create and push the docker image to ECR</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#step-2-make-sure-that-you-have-an-ecs-cluster-to-execute-ecs-tasks">Step 2: Make sure that you have an ECS Cluster to execute ECS tasks</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#step-3-create-an-ecs-task-definition">Step 3: Create an ECS Task Definition</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../architecture/baseline-architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../support/support.html">Support</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">My PDS Project</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="nucleus-tutorial.html">User’s Guide</a></li>
+      <li class="breadcrumb-item active">Create an Operator</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/nasa-pds/template-repo-python/blob/main/docs/source/tutorial/create_an_operator.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="create-an-operator">
+<h1>Create an Operator<a class="headerlink" href="#create-an-operator" title="Permalink to this heading"></a></h1>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Permalink to this heading"></a></h2>
+<p>An operator is an AWS resource to be used by the Airflow DAG, to run a step of the workflow.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This tutorial need to be executed with access to create AWS resources.</p>
+</div>
+<p>The steps are:</p>
+<ol class="arabic simple">
+<li><p>Create and push the docker image to ECR.</p></li>
+<li><p>Create an EFS volume to share data/configuration files between docker containers (optional, only if the use case must share data/configuration between tasks).</p></li>
+<li><p>Make sure that you have an ECS Cluster to execute ECS tasks.</p></li>
+<li><p>Create an ECS task (This can be done through AWS Console or Terraform).</p>
+<ol class="loweralpha simple">
+<li><p>Create container definition</p></li>
+<li><p>Create ECS task definition (<a class="reference external" href="https://docs.aws.amazon.com/AmazonECS/latest/developerguide/create-task-definition.html">https://docs.aws.amazon.com/AmazonECS/latest/developerguide/create-task-definition.html</a> )</p></li>
+</ol>
+</li>
+</ol>
+</section>
+<section id="detailed-tutorial">
+<h2>Detailed Tutorial<a class="headerlink" href="#detailed-tutorial" title="Permalink to this heading"></a></h2>
+<section id="step-1-create-and-push-the-docker-image-to-ecr">
+<h3>Step 1: Create and push the docker image to ECR<a class="headerlink" href="#step-1-create-and-push-the-docker-image-to-ecr" title="Permalink to this heading"></a></h3>
+<p>For this example, we will be using the PDS Validate image.</p>
+<ol class="arabic">
+<li><p>Login to AWS (NGAP) with  NGAPShApplicationDeveloper role.</p></li>
+<li><p>Create a new ECR repository called “pds-validate-tutorial”.</p>
+<blockquote>
+<div><ol class="loweralpha simple">
+<li><p>Follow the instructions in <a class="reference external" href="https://docs.aws.amazon.com/AmazonECR/latest/userguide/repository-create.html">https://docs.aws.amazon.com/AmazonECR/latest/userguide/repository-create.html</a> (In Step 6 for the repository name, enter pds-validate-tutorial.</p></li>
+<li><p>For all other values, you may select default values for the purpose of this tutorial).</p></li>
+</ol>
+</div></blockquote>
+</li>
+<li><p>Login to AWS (NGAP) on a web browser and visit Amazon ECR ( <a class="reference external" href="https://us-west-2.console.aws.amazon.com/ecr/repositories?region=us-west-2">https://us-west-2.console.aws.amazon.com/ecr/repositories?region=us-west-2</a>).</p></li>
+<li><p>Click on the repository pds-validate-tutorial.</p></li>
+<li><p>Click on the “View push commands” button.</p></li>
+<li><p>Notice the “Push commands for pds-validate-tutorial” specific to your operating system (macOS/Linux or Windows).</p></li>
+<li><p>Make sure that the docker desktop or docker daemon is running on your local computer.</p></li>
+<li><p>Open a terminal window in the local machine.</p></li>
+<li><p>Clone the git repository of the validate tool.</p></li>
+</ol>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">git</span> <span class="n">clone</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">github</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">NASA</span><span class="o">-</span><span class="n">PDS</span><span class="o">/</span><span class="n">validate</span><span class="o">.</span><span class="n">git</span>
+</pre></div>
+</div>
+<ol class="arabic simple" start="10">
+<li><p>Change directory to validate/docker/.</p></li>
+</ol>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cd</span> <span class="n">validate</span><span class="o">/</span><span class="n">docker</span><span class="o">/</span>
+</pre></div>
+</div>
+<ol class="arabic simple" start="11">
+<li><p>Make sure AWS CLI version 2.7 or above is set up on your local computer with the following NGAP AWS environment variables. Values for these variables can be obtained from the NGAP Kion.</p></li>
+</ol>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">AWS_ACCESS_KEY_ID</span>
+<span class="n">AWS_SECRET_ACCESS_KEY</span>
+<span class="n">AWS_SESSION_TOKEN</span>
+<span class="n">AWS_DEFAULT_REGION</span>
+</pre></div>
+</div>
+<ol class="arabic simple" start="12">
+<li><p>Execute the “Push commands for pds-validate-tutorial” that you noticed in the Step 6 above, one after another. This will push the docker image of the PDS validate tool to pds-validate-tutorial ECR repository.</p></li>
+<li><p>Wait for image push to be completed, visit the pds-validate-tutorial ECR repository on the web browser and check if the image is available in the pds-validate-tutorial ECR repository.</p></li>
+<li><p>Notice the ECR image URL of the PDS Validate tool.</p></li>
+</ol>
+</section>
+<section id="step-2-make-sure-that-you-have-an-ecs-cluster-to-execute-ecs-tasks">
+<h3>Step 2: Make sure that you have an ECS Cluster to execute ECS tasks<a class="headerlink" href="#step-2-make-sure-that-you-have-an-ecs-cluster-to-execute-ecs-tasks" title="Permalink to this heading"></a></h3>
+<ol class="arabic">
+<li><p>Login to AWS (NGAP) with  NGAPShApplicationDeveloper role.</p></li>
+<li><p>Visit Amazon Elastic Container Service (ECS) on NGAP (<a class="reference external" href="https://us-west-2.console.aws.amazon.com/ecs/v2/clusters?region=us-west-2">https://us-west-2.console.aws.amazon.com/ecs/v2/clusters?region=us-west-2</a> ).</p></li>
+<li><p>Make sure that there is an ECS Cluster available for you to execute ECS tasks.</p></li>
+<li><p>If an ECS Cluster is not available, create a new ECS Cluster.</p>
+<blockquote>
+<div><ol class="loweralpha simple">
+<li><p>Visit ECS Cluster creation page (<a class="reference external" href="https://us-west-2.console.aws.amazon.com/ecs/v2/create-cluster?region=us-west-2">https://us-west-2.console.aws.amazon.com/ecs/v2/create-cluster?region=us-west-2</a>).</p></li>
+<li><p>For the cluster name, enter pds-nucleus-ecs-cluster.</p></li>
+<li><p>Select a VPC and subnets (if you are not sure about the correct VPC and subnets to select, please contact the NGAP system admin team).</p></li>
+<li><p>Under the “Infrastructure” section, make sure that “AWS Fargate (serverless)” is selected.</p></li>
+<li><p>Press the “Create” button to create the cluster.</p></li>
+</ol>
+</div></blockquote>
+</li>
+</ol>
+</section>
+<section id="step-3-create-an-ecs-task-definition">
+<h3>Step 3: Create an ECS Task Definition<a class="headerlink" href="#step-3-create-an-ecs-task-definition" title="Permalink to this heading"></a></h3>
+<p>It is required to create ECS task definitions for each docker container to be used in the workflow. In this tutorial we use only one docker container (the docker container of PDS Validate tool) and therefore we will create only one ECS task definition.</p>
+<ol class="arabic">
+<li><p>Login to AWS (NGAP) with  NGAPShApplicationDeveloper role.</p></li>
+<li><p>Visit Amazon Elastic Container Service – Task Definitions on NGAP (<a class="reference external" href="https://us-west-2.console.aws.amazon.com/ecs/v2/task-definitions?region=us-west-2">https://us-west-2.console.aws.amazon.com/ecs/v2/task-definitions?region=us-west-2</a> ).</p></li>
+<li><p>Click on “Create new task definition”.</p></li>
+<li><p>Select “Create new task definition with JSON”.</p>
+<blockquote>
+<div><ol class="loweralpha simple">
+<li><p>Copy the following JSON text and paste it to overwrite the default content in the task definition JSON.</p></li>
+</ol>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;family&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;pds-validate-tutorial-task&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;containerDefinitions&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">        </span><span class="p">{</span>
+<span class="w">            </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot; pds-validate- tutorial-task&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;image&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;ECR IMAGE URL OF VALIDATE TOOL&gt;&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;cpu&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;memory&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">128</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;portMappings&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<span class="w">            </span><span class="nt">&quot;essential&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;entryPoint&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<span class="w">            </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<span class="w">            </span><span class="nt">&quot;environment&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<span class="w">            </span><span class="nt">&quot;mountPoints&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<span class="w">            </span><span class="nt">&quot;volumesFrom&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<span class="w">            </span><span class="nt">&quot;logConfiguration&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="nt">&quot;logDriver&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;awslogs&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="nt">&quot;options&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="nt">&quot;awslogs-group&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/ecs/pds-validate-tool&quot;</span><span class="p">,</span>
+<span class="w">                    </span><span class="nt">&quot;awslogs-region&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;us-west-2&quot;</span><span class="p">,</span>
+<span class="w">                    </span><span class="nt">&quot;awslogs-stream-prefix&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ecs&quot;</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">],</span>
+<span class="w">    </span><span class="nt">&quot;taskRoleArn&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;TASK ROLE ARN&gt;&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;executionRoleArn&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;EXECUTION ROLE ARN&gt;&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;networkMode&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;awsvpc&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;volumes&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<span class="w">    </span><span class="nt">&quot;requiresCompatibilities&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">        </span><span class="s2">&quot;EC2&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="s2">&quot;FARGATE&quot;</span>
+<span class="w">    </span><span class="p">],</span>
+<span class="w">    </span><span class="nt">&quot;cpu&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;4096&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;memory&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;8192&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;runtimePlatform&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;operatingSystemFamily&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;LINUX&quot;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<ol class="loweralpha simple" start="2">
+<li><p>Replace the “&lt;IMAGE&gt;” value with the image URL of PDS Validate ECR image URL (which can be found by visiting the ECR image of PDS Validate tool). E.g.: 12345678.dkr.ecr.us-west-2.amazonaws.com/pds-validate-tutorial:latest.</p></li>
+<li><p>Replace the “&lt;TASK ROLE ARN&gt;” value with the Task Role, IAM role ARN (This can be obtained from the NGAP system admin team or by checking the IAM roles on your NGAP account).</p></li>
+<li><p>Replace the “&lt;EXECUTION ROLE ARN&gt;” value with the Execution Role, IAM role ARN (This can be obtained from the NGAP system admin team or by checking the IAM roles on your NGAP account).</p></li>
+<li><p>Change the CPU and memory values of the above JSON, if it is required to allocate higher values.</p></li>
+</ol>
+</div></blockquote>
+</li>
+<li><p>Press the “Create” button to create the Task Definition.</p></li>
+<li><p>Visit Cloud Watch (<a class="reference external" href="https://us-west-2.console.aws.amazon.com/cloudwatch/home?region=us-west-2#logsV2:log-groups">https://us-west-2.console.aws.amazon.com/cloudwatch/home?region=us-west-2#logsV2:log-groups</a> ) and create a Cloud Watch Log Group called “/ecs/pds-validate-tutorial-task” to save the logs related to this ECS task.</p></li>
+</ol>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="create_a_dag.html" class="btn btn-neutral float-left" title="Create an Airflow DAG (Workflow)" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../architecture/baseline-architecture.html" class="btn btn-neutral float-right" title="Architecture" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2022 California Institute of Technology.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

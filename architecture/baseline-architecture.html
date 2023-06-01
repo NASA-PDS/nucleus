@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Architecture &mdash; My PDS Project 0.0 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/theme_overrides.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Support" href="../support/support.html" />
+    <link rel="prev" title="Create an Operator" href="../tutorial/create_an_operator.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            My PDS Project
+              <img src="../_static/PDS_Planets.png" class="logo" alt="Logo"/>
+          </a>
+              <div class="version">
+                0.0
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../tutorial/nucleus-tutorial.html">User’s Guide</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Architecture</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#what-is-nucleus">What is Nucleus?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#nucleus-baseline-architecture">Nucleus Baseline Architecture</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#amazon-mwaa-airflow-environment">Amazon MWAA Airflow environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#s3-bucket-to-keep-airflow-dags-and-python-requirements-file">S3 Bucket to keep Airflow DAGs and Python requirements file</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#amazon-elastic-container-registry-amazon-ecr-to-keep-registry-docker-images">Amazon Elastic Container Registry (Amazon ECR) to keep Registry docker images</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#amazon-elastic-container-service-amazon-ecs-with-fargate-launch-type">Amazon Elastic Container Service (Amazon ECS) with Fargate Launch Type</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#pds-registry-use-case-for-nucleus-baseline-architecture">PDS Registry Use Case for Nucleus Baseline Architecture</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#delivery-manager">Delivery Manager</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#validate-tool">Validate Tool</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#registry-loader">Registry Loader</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#pds-deep-archive-and-backup-service">PDS Deep Archive and Backup Service</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#pds-data-publish-scheduler">PDS Data Publish Scheduler</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#automating-pds-node-specific-nucleus-baseline-product-deployment">Automating PDS Node Specific Nucleus Baseline Product Deployment</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../support/support.html">Support</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">My PDS Project</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Architecture</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/nasa-pds/template-repo-python/blob/main/docs/source/architecture/baseline-architecture.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="architecture">
+<h1>Architecture<a class="headerlink" href="#architecture" title="Permalink to this heading"></a></h1>
+<section id="what-is-nucleus">
+<h2>What is Nucleus?<a class="headerlink" href="#what-is-nucleus" title="Permalink to this heading"></a></h2>
+<p>Currently all PDS EN validation, ingestion, and archiving software have their own installations and manual executions. Nucleus is a proposed extendable, performant pipeline service to integrate and automate PDS tool execution. With Nucleus, The validation, ingestion, and archival of PDS data is almost entirely automated through a pipeline, minimizing manual overhead. Additionally, the pipeline would be extendable, especially by discipline nodes, for future additions to the pipeline of specific steps.</p>
+</section>
+<section id="nucleus-baseline-architecture">
+<h2>Nucleus Baseline Architecture<a class="headerlink" href="#nucleus-baseline-architecture" title="Permalink to this heading"></a></h2>
+<p>The Nucleus Baseline Architecture represents a minimum viable product (MVP) to be delivered to the customers of Nucleus. This contains all necessary components and services required to get started with Nucleus.</p>
+<p>The following diagram shows the PDS Nucleus Baseline Architecture.</p>
+<img alt="PDS Nucleus Baseline Architecture" src="../_images/PDS_Nucleus_Baseline_Architecture.png" />
+<p>Nucleus will be deployed on an Amazon AWS cloud environment. The following AWS Services are required for the Nucleus baseline architecture.</p>
+<section id="amazon-mwaa-airflow-environment">
+<h3>Amazon MWAA Airflow environment<a class="headerlink" href="#amazon-mwaa-airflow-environment" title="Permalink to this heading"></a></h3>
+<p>Amazon Managed Workflows for Apache Airflow (MWAA) is a managed orchestration service for Apache Airflow. The Airflow workflows are defined using Directed Acyclic Graphs (DAGs) written in Python. This environment also provides capabilities to execute and monitor DAGs from the AWS Management Console, a command line interface (CLI), a software development kit (SDK), or the Apache Airflow user interface (UI). The pricing for MWAA is primarily based on the size of the Airflow environment (workflow capacity, based on number of DAGs supported),  additional worker instances, additional scheduler instances and meta database storage capacity. <a class="reference external" href="https://aws.amazon.com/managed-workflows-for-apache-airflow/pricing/">https://aws.amazon.com/managed-workflows-for-apache-airflow/pricing/</a></p>
+</section>
+<section id="s3-bucket-to-keep-airflow-dags-and-python-requirements-file">
+<h3>S3 Bucket to keep Airflow DAGs and Python requirements file<a class="headerlink" href="#s3-bucket-to-keep-airflow-dags-and-python-requirements-file" title="Permalink to this heading"></a></h3>
+<p>The DAGs and Python requirements file required for the Amazon MWAA Airflow environment are stored in an S3 bucket. Deploying a new DAG to this environment is as simple as uploading a python file representing the DAG to this S3 bucket. <a class="reference external" href="https://aws.amazon.com/s3/pricing/">https://aws.amazon.com/s3/pricing/</a></p>
+</section>
+<section id="amazon-elastic-container-registry-amazon-ecr-to-keep-registry-docker-images">
+<h3>Amazon Elastic Container Registry (Amazon ECR) to keep Registry docker images<a class="headerlink" href="#amazon-elastic-container-registry-amazon-ecr-to-keep-registry-docker-images" title="Permalink to this heading"></a></h3>
+<p>Most of the components of PDS will be deployed as docker containers and these docker images will be stored in Amazon ECR. <a class="reference external" href="https://aws.amazon.com/ecr/pricing/">https://aws.amazon.com/ecr/pricing/</a></p>
+</section>
+<section id="amazon-elastic-container-service-amazon-ecs-with-fargate-launch-type">
+<h3>Amazon Elastic Container Service (Amazon ECS) with Fargate Launch Type<a class="headerlink" href="#amazon-elastic-container-service-amazon-ecs-with-fargate-launch-type" title="Permalink to this heading"></a></h3>
+<p>The PDS docker containers used by Nucleus will be launched using Amazon ECS. The AWS Fargate Launch Type Model will be used for this and with AWS Fargate, the fees will be charged for the amount of vCPU and memory resources that the containerized PDS components request.
+<a class="reference external" href="https://aws.amazon.com/ecs/pricing/">https://aws.amazon.com/ecs/pricing/</a>
+<a class="reference external" href="https://aws.amazon.com/fargate/pricing/">https://aws.amazon.com/fargate/pricing/</a></p>
+</section>
+</section>
+<section id="pds-registry-use-case-for-nucleus-baseline-architecture">
+<h2>PDS Registry Use Case for Nucleus Baseline Architecture<a class="headerlink" href="#pds-registry-use-case-for-nucleus-baseline-architecture" title="Permalink to this heading"></a></h2>
+<p>The Nucleus baseline architecture can easily support the following PDS archive management  use cases:</p>
+<ol class="arabic simple">
+<li><dl class="simple">
+<dt>Read a PDS bundle :</dt><dd><ol class="arabic simple">
+<li><p>from a URL</p></li>
+<li><p>from an S3 bucket</p></li>
+</ol>
+</dd>
+</dl>
+</li>
+<li><p>Validate the products entering the archive</p></li>
+<li><p>Load data to Elasticsearch/OpenSearch</p></li>
+<li><p>Validate the Referential Integrity of the loaded data using Validate tool</p></li>
+<li><p>Backup data in PDS Deep Archive (Amazon S3 Glacier)</p></li>
+<li><p>Schedule data to be published online</p></li>
+<li><p>Publish data based on the schedule defined above</p></li>
+<li><p>Monitor the pipeline</p></li>
+<li><p>Produce metrics for pipeline executions</p></li>
+<li><p>Run Engineering node specific DAG on schedule (e.g. provenance script to select the latest vid)</p></li>
+</ol>
+<p>In order to support the above PDS data management  use cases, the following existing archive management components and services  will be included in the Nucleus Baseline Architecture.</p>
+<section id="delivery-manager">
+<h3>Delivery Manager<a class="headerlink" href="#delivery-manager" title="Permalink to this heading"></a></h3>
+<p>The Delivery Manager component is responsible for managing data deliveries and triggering Nucleus workflows. The data delivery is triggered when data hits the directory on a file system, S3 bucket or manually triggered to pull from data holdings.</p>
+</section>
+<section id="validate-tool">
+<h3>Validate Tool<a class="headerlink" href="#validate-tool" title="Permalink to this heading"></a></h3>
+<p>The Validate Tool project contains software for validating PDS4 product labels and product data. More details about Validate tool can be found at <a class="reference external" href="https://nasa-pds.github.io/validate/">https://nasa-pds.github.io/validate/</a></p>
+</section>
+<section id="registry-loader">
+<h3>Registry Loader<a class="headerlink" href="#registry-loader" title="Permalink to this heading"></a></h3>
+<p>The Registry Loader contains the Harvest tool and Registry Manager tools. This component is used to load data into the Registry. More details about the Registry  Loader docker image can be found at <a class="reference external" href="https://github.com/NASA-PDS/registry-loader/tree/main/docker">https://github.com/NASA-PDS/registry-loader/tree/main/docker</a></p>
+</section>
+<section id="pds-deep-archive-and-backup-service">
+<h3>PDS Deep Archive and Backup Service<a class="headerlink" href="#pds-deep-archive-and-backup-service" title="Permalink to this heading"></a></h3>
+<p>These services push data to AWS Deep Archive in regions different from S3 data.</p>
+</section>
+<section id="pds-data-publish-scheduler">
+<h3>PDS Data Publish Scheduler<a class="headerlink" href="#pds-data-publish-scheduler" title="Permalink to this heading"></a></h3>
+<p>PDS Data Publish Scheduler publishes data online, based on a scheduled release date/time. When Airflow executes this task, it will call the PDS Registry to publish relevant data.</p>
+</section>
+</section>
+<section id="automating-pds-node-specific-nucleus-baseline-product-deployment">
+<h2>Automating PDS Node Specific Nucleus Baseline Product Deployment<a class="headerlink" href="#automating-pds-node-specific-nucleus-baseline-product-deployment" title="Permalink to this heading"></a></h2>
+<p>The Nucleus baseline product will be deployed on the NGAP AWS Cloud environment. The terraform scripts will be developed to accelerate the deployment process.</p>
+<p>PDS Node specific deployment parameters will be configured in a terraform variable file and a PDS Node specific deployment will be done by executing a few terraform commands.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../tutorial/create_an_operator.html" class="btn btn-neutral float-left" title="Create an Operator" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../support/support.html" class="btn btn-neutral float-right" title="Support" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2022 California Institute of Technology.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

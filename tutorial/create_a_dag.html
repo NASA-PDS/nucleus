@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Create an Airflow DAG (Workflow) &mdash; My PDS Project 0.0 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/theme_overrides.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Create an Operator" href="create_an_operator.html" />
+    <link rel="prev" title="User’s Guide" href="nucleus-tutorial.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            My PDS Project
+              <img src="../_static/PDS_Planets.png" class="logo" alt="Logo"/>
+          </a>
+              <div class="version">
+                0.0
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="nucleus-tutorial.html">User’s Guide</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Create Airflow DAG</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#detailed-tutorial">Detailed Tutorial</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#step-1-implement-dag-with-airflow-ecs-operator">Step 1: Implement DAG with Airflow ECS Operator</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#step-2-upload-the-dag-to-s3-bucket">Step 2: Upload the DAG to S3 Bucket</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#step-3-observe-if-the-dag-is-loaded-in-airflow-ui">Step 3: Observe if the DAG is Loaded in Airflow UI</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#step-4-trigger-the-dag">Step 4:  Trigger the DAG</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="create_an_operator.html">Create an Operator</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../architecture/baseline-architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../support/support.html">Support</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">My PDS Project</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="nucleus-tutorial.html">User’s Guide</a></li>
+      <li class="breadcrumb-item active">Create an Airflow DAG (Workflow)</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/nasa-pds/template-repo-python/blob/main/docs/source/tutorial/create_a_dag.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="create-an-airflow-dag-workflow">
+<h1>Create an Airflow DAG (Workflow)<a class="headerlink" href="#create-an-airflow-dag-workflow" title="Permalink to this heading"></a></h1>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Permalink to this heading"></a></h2>
+<p>This tutorial shows a way to develop a very basic Airflow workflow. The following section will elaborate each of the above steps with more details as we go through the tutorial.</p>
+<p>This tutorial will build a very basic workflow with 3 tasks as follows.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">|</span> <span class="n">Print</span> <span class="n">Start</span> <span class="n">Time</span> <span class="o">|</span>  <span class="o">-&gt;</span>      <span class="o">|</span> <span class="n">Execute</span> <span class="n">PDS</span> <span class="n">Validate</span> <span class="n">Tool</span> <span class="n">Help</span> <span class="o">|</span>    <span class="o">-&gt;</span>      <span class="o">|</span> <span class="n">Print</span> <span class="n">End</span> <span class="n">Time</span> <span class="o">|</span>
+</pre></div>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<blockquote>
+<div><p>For this tutorial you need an ECS task definition to be created as described in <a class="reference internal" href="create_an_operator.html"><span class="doc">Create an Operator</span></a> .</p>
+</div></blockquote>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The tutorial should be executed by a PDS Node operator</p>
+</div>
+</div>
+<p>The steps are:</p>
+<ol class="arabic">
+<li><p>Implement a DAG (workflow) primarily using the Airflow ECS Operator.</p>
+<blockquote>
+<div><ol class="loweralpha simple">
+<li><p><a class="reference external" href="https://airflow.apache.org/docs/apache-airflow/stable/tutorial/fundamentals.html">https://airflow.apache.org/docs/apache-airflow/stable/tutorial/fundamentals.html</a></p></li>
+<li><p><a class="reference external" href="https://docs.aws.amazon.com/mwaa/latest/userguide/samples-ecs-operator.html">https://docs.aws.amazon.com/mwaa/latest/userguide/samples-ecs-operator.html</a></p></li>
+</ol>
+</div></blockquote>
+</li>
+<li><p>Upload DAGs to S3 bucket.</p></li>
+<li><p>Observe if the DAG is loaded in the Airflow UI.</p></li>
+<li><p>Trigger the DAG (workflow).</p></li>
+</ol>
+</section>
+<section id="detailed-tutorial">
+<h2>Detailed Tutorial<a class="headerlink" href="#detailed-tutorial" title="Permalink to this heading"></a></h2>
+<section id="step-1-implement-dag-with-airflow-ecs-operator">
+<h3>Step 1: Implement DAG with Airflow ECS Operator<a class="headerlink" href="#step-1-implement-dag-with-airflow-ecs-operator" title="Permalink to this heading"></a></h3>
+<p>In Airflow, a DAG (Directed Acyclic Graph) is a collection of tasks that you want to execute, organized in a way that reflects their relationships and dependencies. A DAG is defined in a Python script, which represents the DAGs structure (tasks and their dependencies) as code.</p>
+<p>The following Airflow document explains the basic concepts such as DAGs.
+<a class="reference external" href="https://airflow.apache.org/docs/apache-airflow/1.10.10/concepts">https://airflow.apache.org/docs/apache-airflow/1.10.10/concepts</a>.html#</p>
+<p>While DAGs describe how to run a workflow, Operators determine what gets done by a task.</p>
+<p>Some of the common operators are:</p>
+<p>BashOperator - executes a bash command
+PythonOperator - calls an arbitrary Python function
+EmailOperator - sends an email
+SimpleHttpOperator - sends an HTTP request
+ECSOperator - runs a task defined in AWS ECS (runs a docker container on an ECS Cluster)</p>
+<p>Since most of the PDS components can be executed as a docker container (which is defined as an ECS task), we can use the ECSOperator to execute tasks.
+For example:</p>
+<p>The validate tool can be represented as a task in an Airflow Dag as follows. Note that the name of the ECS task definition to be executed (pds-validate-tutorial-task) is given as the value for task_definition.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># PDS Validate Tool</span>
+<span class="n">pds_validate</span> <span class="o">=</span> <span class="n">ECSOperator</span><span class="p">(</span>
+    <span class="n">task_id</span><span class="o">=</span><span class="s2">&quot;Validate_Task&quot;</span><span class="p">,</span>
+    <span class="n">dag</span><span class="o">=</span><span class="n">dag</span><span class="p">,</span>
+    <span class="n">cluster</span><span class="o">=</span><span class="n">ECS_CLUSTER_NAME</span><span class="p">,</span>
+    <span class="n">task_definition</span><span class="o">=</span><span class="s2">&quot;pds-validate-tutorial-task&quot;</span><span class="p">,</span>
+    <span class="n">launch_type</span><span class="o">=</span><span class="n">ECS_LAUNCH_TYPE</span><span class="p">,</span>
+    <span class="n">network_configuration</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;awsvpcConfiguration&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;securityGroups&quot;</span><span class="p">:</span> <span class="n">ECS_SECURITY_GROUPS</span><span class="p">,</span>
+            <span class="s2">&quot;subnets&quot;</span><span class="p">:</span> <span class="n">ECS_SUBNETS</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">},</span>
+    <span class="n">overrides</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;containerOverrides&quot;</span><span class="p">:</span> <span class="p">[],</span>
+    <span class="p">},</span>
+    <span class="n">awslogs_group</span><span class="o">=</span><span class="n">ECS_AWS_LOGS_GROUP</span><span class="p">,</span>
+    <span class="n">awslogs_stream_prefix</span><span class="o">=</span><span class="s2">&quot;ecs/pds-validate-tutorial-task&quot;</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>In addition, the following values should be set in the above JSON:</p>
+<blockquote>
+<div><p><strong>cluster:</strong> The ECS cluster created/checked in the previous steps of the tutorial.</p>
+<p><strong>securityGroups:</strong> A comma separated list of security groups. These are the same security groups used by the Managed Workflows for Apache Airflow (MWAA). It is possible to check this security group by visiting the <a class="reference external" href="https://us-west-2.console.aws.amazon.com/mwaa/home?region=us-west-2#environments/PDS-Nucleus-Airflow-Env">https://us-west-2.console.aws.amazon.com/mwaa/home?region=us-west-2#environments/PDS-Nucleus-Airflow-Env</a> and checking for VPC security group(s).</p>
+<p><strong>subnets:</strong> A comma separated list of subnets. These are the same subnets used by the Managed Workflows for Apache Airflow (MWAA). It is possible to check this security group by visiting the <a class="reference external" href="https://us-west-2.console.aws.amazon.com/mwaa/home?region=us-west-2#environments/PDS-Nucleus-Airflow-Env">https://us-west-2.console.aws.amazon.com/mwaa/home?region=us-west-2#environments/PDS-Nucleus-Airflow-Env</a> and checking for Subnets.</p>
+<p><strong>awslogs_stream_prefix:</strong> Any prefix that can be used to identify AWS logs for this ECS Task.</p>
+</div></blockquote>
+<p>Also, the Airflow BashOperator can be used to print the start date and end date as follows.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Print start date</span>
+ <span class="n">print_start_date</span> <span class="o">=</span> <span class="n">BashOperator</span><span class="p">(</span>
+     <span class="n">task_id</span><span class="o">=</span><span class="s1">&#39;Print_Start_Date&#39;</span><span class="p">,</span>
+     <span class="n">bash_command</span><span class="o">=</span><span class="s1">&#39;date&#39;</span><span class="p">,</span>
+     <span class="n">trigger_rule</span><span class="o">=</span><span class="n">TriggerRule</span><span class="o">.</span><span class="n">ALL_DONE</span>
+ <span class="p">)</span>
+</pre></div>
+</div>
+<p>Finally, the flow of tasks can be represented as follows.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Workflow</span>
+<span class="n">print_start_date</span> <span class="o">&gt;&gt;</span> <span class="n">pds_validate</span> <span class="o">&gt;&gt;</span> <span class="n">print_end_date</span>
+</pre></div>
+</div>
+<p>The above example is a very simple workflow. It is possible to define parallel paths in the workflows as follows.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Parallel Paths in the Workflow</span>
+    <span class="n">Task_a</span> <span class="o">&gt;&gt;</span> <span class="n">Task_b</span> <span class="o">&gt;&gt;</span> <span class="n">Task_c</span> <span class="o">&gt;&gt;</span> <span class="n">Task_d</span> <span class="o">&gt;&gt;</span> <span class="n">Task_e</span>
+    <span class="n">Task_b</span> <span class="o">&gt;&gt;</span> <span class="n">Task_f</span> <span class="o">&gt;&gt;</span> <span class="n">Task_d</span>
+</pre></div>
+</div>
+<p>Read more about creating DAGs in following links:</p>
+<ol class="loweralpha simple">
+<li><p><a class="reference external" href="https://airflow.apache.org/docs/apache-airflow/stable/tutorial/fundamentals.html">https://airflow.apache.org/docs/apache-airflow/stable/tutorial/fundamentals.html</a></p></li>
+<li><p><a class="reference external" href="https://docs.aws.amazon.com/mwaa/latest/userguide/samples-ecs-operator.html">https://docs.aws.amazon.com/mwaa/latest/userguide/samples-ecs-operator.html</a></p></li>
+</ol>
+<p>The completed DAG should look as follows. Save this DAG in a python file called pds-validate-tutorial.py.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># PDS Nucleus Tutorial Use Case DAG</span>
+
+<span class="kn">from</span> <span class="nn">airflow</span> <span class="kn">import</span> <span class="n">DAG</span>
+<span class="kn">from</span> <span class="nn">airflow.operators.bash</span> <span class="kn">import</span> <span class="n">BashOperator</span>
+<span class="kn">from</span> <span class="nn">airflow.providers.amazon.aws.operators.ecs</span> <span class="kn">import</span> <span class="n">ECSOperator</span>
+<span class="kn">from</span> <span class="nn">airflow.utils.dates</span> <span class="kn">import</span> <span class="n">days_ago</span>
+<span class="kn">from</span> <span class="nn">airflow.utils.trigger_rule</span> <span class="kn">import</span> <span class="n">TriggerRule</span>
+
+
+<span class="c1"># ECS configurations</span>
+<span class="n">ECS_CLUSTER_NAME</span> <span class="o">=</span> <span class="s2">&quot;pds-nucleus-ecc-tf&quot;</span>
+<span class="n">ECS_LAUNCH_TYPE</span> <span class="o">=</span> <span class="s2">&quot;FARGATE&quot;</span>
+<span class="n">ECS_SUBNETS</span> <span class="o">=</span> <span class="p">[</span><span class="o">&lt;</span><span class="n">COMMA</span> <span class="n">SEPERATED</span> <span class="n">LIST</span> <span class="n">OF</span> <span class="n">SUBNET</span> <span class="n">IDs</span><span class="o">&gt;</span><span class="p">]</span>
+<span class="n">ECS_SECURITY_GROUPS</span> <span class="o">=</span> <span class="p">[</span><span class="o">&lt;</span><span class="n">COMMA</span> <span class="n">SEPERATED</span> <span class="n">LIST</span> <span class="n">OF</span> <span class="n">SECURITY</span> <span class="n">GROUPS</span><span class="o">&gt;</span><span class="p">]</span>
+<span class="n">ECS_AWS_LOGS_GROUP</span> <span class="o">=</span> <span class="s2">&quot;/ecs/pds-airflow-ecs-tf&quot;</span>
+
+
+<span class="k">with</span> <span class="n">DAG</span><span class="p">(</span>
+       <span class="n">dag_id</span><span class="o">=</span><span class="s2">&quot;Nucleus_Tutorial&quot;</span><span class="p">,</span>
+       <span class="n">schedule_interval</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+       <span class="n">catchup</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+       <span class="n">start_date</span><span class="o">=</span><span class="n">days_ago</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="p">)</span> <span class="k">as</span> <span class="n">dag</span><span class="p">:</span>
+
+
+   <span class="c1"># Print start date</span>
+   <span class="n">print_start_date</span> <span class="o">=</span> <span class="n">BashOperator</span><span class="p">(</span>
+       <span class="n">task_id</span><span class="o">=</span><span class="s1">&#39;Print_Start_Date&#39;</span><span class="p">,</span>
+       <span class="n">bash_command</span><span class="o">=</span><span class="s1">&#39;date&#39;</span><span class="p">,</span>
+       <span class="n">trigger_rule</span><span class="o">=</span><span class="n">TriggerRule</span><span class="o">.</span><span class="n">ALL_DONE</span>
+   <span class="p">)</span>
+
+
+   <span class="c1"># PDS Validate Tool</span>
+   <span class="n">pds_validate</span> <span class="o">=</span> <span class="n">ECSOperator</span><span class="p">(</span>
+       <span class="n">task_id</span><span class="o">=</span><span class="s2">&quot;Validate_Task&quot;</span><span class="p">,</span>
+       <span class="n">dag</span><span class="o">=</span><span class="n">dag</span><span class="p">,</span>
+       <span class="n">cluster</span><span class="o">=</span><span class="n">ECS_CLUSTER_NAME</span><span class="p">,</span>
+       <span class="n">task_definition</span><span class="o">=</span><span class="s2">&quot;pds-validate-tutorial-task&quot;</span><span class="p">,</span>
+       <span class="n">launch_type</span><span class="o">=</span><span class="n">ECS_LAUNCH_TYPE</span><span class="p">,</span>
+       <span class="n">network_configuration</span><span class="o">=</span><span class="p">{</span>
+           <span class="s2">&quot;awsvpcConfiguration&quot;</span><span class="p">:</span> <span class="p">{</span>
+               <span class="s2">&quot;securityGroups&quot;</span><span class="p">:</span> <span class="n">ECS_SECURITY_GROUPS</span><span class="p">,</span>
+               <span class="s2">&quot;subnets&quot;</span><span class="p">:</span> <span class="n">ECS_SUBNETS</span><span class="p">,</span>
+           <span class="p">},</span>
+       <span class="p">},</span>
+       <span class="n">overrides</span><span class="o">=</span><span class="p">{</span>
+           <span class="s2">&quot;containerOverrides&quot;</span><span class="p">:</span> <span class="p">[],</span>
+       <span class="p">},</span>
+       <span class="n">awslogs_group</span><span class="o">=</span><span class="n">ECS_AWS_LOGS_GROUP</span><span class="p">,</span>
+       <span class="n">awslogs_stream_prefix</span><span class="o">=</span><span class="s2">&quot;ecs/pds-validate-tutorial-task&quot;</span>
+   <span class="p">)</span>
+
+
+   <span class="c1"># Print end date</span>
+   <span class="n">print_end_date</span> <span class="o">=</span> <span class="n">BashOperator</span><span class="p">(</span>
+       <span class="n">task_id</span><span class="o">=</span><span class="s1">&#39;Print_End_Date&#39;</span><span class="p">,</span>
+       <span class="n">bash_command</span><span class="o">=</span><span class="s1">&#39;date&#39;</span><span class="p">,</span>
+       <span class="n">trigger_rule</span><span class="o">=</span><span class="n">TriggerRule</span><span class="o">.</span><span class="n">ALL_DONE</span>
+   <span class="p">)</span>
+
+
+   <span class="c1"># Workflow</span>
+   <span class="n">print_start_date</span> <span class="o">&gt;&gt;</span> <span class="n">pds_validate</span> <span class="o">&gt;&gt;</span> <span class="n">print_end_date</span>
+</pre></div>
+</div>
+</section>
+<section id="step-2-upload-the-dag-to-s3-bucket">
+<h3>Step 2: Upload the DAG to S3 Bucket<a class="headerlink" href="#step-2-upload-the-dag-to-s3-bucket" title="Permalink to this heading"></a></h3>
+<p>To make the DAG that we created above available to Nucleus, it is required to upload the DAG file (pds-validate-tutorial.py) to a specific location in an S3 bucket.</p>
+<ol class="arabic simple">
+<li><p>Login to AWS (NGAP) with  NGAPShApplicationDeveloper role.</p></li>
+<li><p>Visit the dags directory of nucleus-airflow-dags-bucket (<a class="reference external" href="https://s3.console.aws.amazon.com/s3/buckets/nucleus-airflow-dags-bucket?region=us-west-2&amp;prefix=dags/&amp;showversions=false">https://s3.console.aws.amazon.com/s3/buckets/nucleus-airflow-dags-bucket?region=us-west-2&amp;prefix=dags/&amp;showversions=false</a> ).</p></li>
+<li><p>Upload the pds-validate-tutorial.py file using the “Upload” button.</p></li>
+</ol>
+</section>
+<section id="step-3-observe-if-the-dag-is-loaded-in-airflow-ui">
+<h3>Step 3: Observe if the DAG is Loaded in Airflow UI<a class="headerlink" href="#step-3-observe-if-the-dag-is-loaded-in-airflow-ui" title="Permalink to this heading"></a></h3>
+<ol class="arabic simple">
+<li><p>Login to AWS (NGAP) with  NGAPShApplicationDeveloper role.</p></li>
+<li><p>Visit Airflow UI of Nucleus (<a class="reference external" href="https://us-west-2.console.aws.amazon.com/mwaa/home?region=us-west-2#environments/PDS-Nucleus-Airflow-Env/sso">https://us-west-2.console.aws.amazon.com/mwaa/home?region=us-west-2#environments/PDS-Nucleus-Airflow-Env/sso</a>).</p></li>
+<li><p>Click on the DAGs menu.</p></li>
+<li><p>Wait until a DAG called “Nucleus_Tutorial’’ appears in the list of DAGs.</p></li>
+</ol>
+</section>
+<section id="step-4-trigger-the-dag">
+<h3>Step 4:  Trigger the DAG<a class="headerlink" href="#step-4-trigger-the-dag" title="Permalink to this heading"></a></h3>
+<ol class="arabic simple">
+<li><p>After the “Nucleus_Tutorial” appears in the list of DAGs, click on the “Play” button at the right side of the DAG (under the “Actions”).</p></li>
+<li><p>Select the option “Trigger DAG”.</p></li>
+<li><p>Click on the name of the DAG “Nucleus_Tutorial” to see the details of the DAG.</p></li>
+<li><p>Click on the tab called “Graph” to see the progress of the DAG.</p></li>
+</ol>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="nucleus-tutorial.html" class="btn btn-neutral float-left" title="User’s Guide" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="create_an_operator.html" class="btn btn-neutral float-right" title="Create an Operator" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2022 California Institute of Technology.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
