@@ -1,9 +1,8 @@
-==============================
 Nucleus Monitoring User Guide
 ==============================
 
 .. contents:: Table of Contents
-   :depth: 1
+   :depth: 3
    :local:
    :backlinks: none
 
@@ -12,9 +11,8 @@ The workflow execution on Nucleus can be monitored using the following 2 feature
 1. Airflow UI
 2. CloudWatch Dashboard
 
------------------
-Using Airflow UI
------------------
+Monitoring Using Airflow UI
+----------------------------
 
 Airflow UI contains many useful views to monitor the execution of a workflow.
 
@@ -38,9 +36,9 @@ More details about these views are available at: https://airflow.apache.org/docs
 
 |
 
----------------------------------------------
+
 Where in the pipeline is currently executing?
----------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The Graph view or Tree view can be used to check the progress of a workflow as shown in the following screenshots.
 
@@ -74,9 +72,8 @@ The status of each task is represented with following color codes.
 
 |
 
-------------------------------
 What/if something has failed?
-------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 If a task is failed, then it will be marked in red color in Grid view and Tree view. The following screenshot shows an example for a failed task (Execute_Integration_Tests).
 
@@ -86,23 +83,27 @@ If a task is failed, then it will be marked in red color in Grid view and Tree v
 
 |
 
------------------------------------
 When has it completed successfully?
------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 If a workflow is completed successfully, all tasks of the workflow will appear in dark green color as shown in the following screenshot.
 
 .. image:: ../_static/images/airflow_successful_workflow_graph_view.png
   :alt: Airflow Successful Workflow in Graph View
 
+|
+
 Please note that in the following screenshot, only the second execution tree from the left is successful.
 
 .. image:: ../_static/images/airflow_successful_workflow_tree_view.png
   :alt: Airflow Successful Workflow in Tree View
 
+|
+
 .. note::
 
     It is possible to write a DAG (workflow) in such a way, that the last task of the workflow can be successful, only if all the parent tasks are successful by using a trigger rule called `all_success` in the DAG python file. This is the default trigger rule.
+
 
 .. code-block::
 
@@ -128,9 +129,8 @@ In the examples shown above, the trigger rule for the last task is given as `all
 
 |
 
--------------------------------------------------------
 How to see the failure reports from the specific tools?
--------------------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 If there is a failed tasks there are 2 ways to check the logs coming from the task.
 
@@ -139,9 +139,8 @@ If there is a failed tasks there are 2 ways to check the logs coming from the ta
 
 |
 
-----------------------------------
 Checking logs using the Airflow UI
-----------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 It is possible to check an overview of logs by clicking on the failed task in Grid view or Tree view as shown in the following screenshots.
 
@@ -166,9 +165,8 @@ However, if it is required to read detailed logs, the CloudWatch dashboard can b
 
 |
 
---------------------------
-Using CloudWatch Dashboard
---------------------------
+Monitoring Using CloudWatch Dashboard
+-------------------------------------
 
 Most of the Nucleus components and tasks produce CloudWatch logs. These logs are stored in CloudWatch log groups. The CloudWatch dashboard is used to see these logs. Each PDS Node has a CloudWatch Dashboard specific to that Node.
 
@@ -191,14 +189,13 @@ It is possible to maximize these widgets to get a better view of logs of specifi
 
 |
 
-----------------------------------------------------
 Additional Views in Airflow UI to Monitor Workflows
 ----------------------------------------------------
 
 In addition to the Airflow Views explained above, following Airflow Views can be also used to monitor workflows.
 
 Calendar View
-=============
+~~~~~~~~~~~~~
 An overview of your entire DAG’s history over months, or years.
 
 .. image:: ../_static/images/airflow_calender_view.png
@@ -207,7 +204,7 @@ An overview of your entire DAG’s history over months, or years.
 |
 
 Task Duration
-=============
+~~~~~~~~~~~~~
 The duration of different tasks over the past N runs.
 
 .. image:: ../_static/images/airflow_task_duration_view.png
@@ -216,7 +213,7 @@ The duration of different tasks over the past N runs.
 |
 
 Task Tries
-==========
+~~~~~~~~~~
 Shows a line graph of the number of tries for each task in a DAG run over time.
 
 .. image:: ../_static/images/airflow_task_tries_view.png
@@ -225,7 +222,7 @@ Shows a line graph of the number of tries for each task in a DAG run over time.
 |
 
 Landing Times
-=============
+~~~~~~~~~~~~~
 Airflow landing times are calculated from the task’s scheduled time to the time the task finishes, either with success or another state.
 
 .. image:: ../_static/images/airflow_landing_times_view.png
@@ -234,7 +231,7 @@ Airflow landing times are calculated from the task’s scheduled time to the tim
 |
 
 Gantt Chart
-===========
+~~~~~~~~~~~
 Provides a way to analyze task durations and overlaps.
 
 .. image:: ../_static/images/airflow_gantt_view.png
