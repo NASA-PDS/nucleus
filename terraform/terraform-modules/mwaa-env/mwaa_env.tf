@@ -33,7 +33,24 @@ resource "aws_s3_bucket" "nucleus_airflow_dags_bucket" {
   force_destroy = true
 }
 
-resource "aws_s3_bucket_object" "dags" {
+resource "aws_s3_bucket_versioning" "nucleus_dags_bucket_versioning" {
+  bucket = aws_s3_bucket.nucleus_airflow_dags_bucket.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "nucleus_dags_bucket_encryption" {
+  bucket = aws_s3_bucket.nucleus_airflow_dags_bucket.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_object" "dags" {
   bucket        = aws_s3_bucket.nucleus_airflow_dags_bucket.id
   acl           = "private"
   key           = "dags/"
@@ -42,7 +59,7 @@ resource "aws_s3_bucket_object" "dags" {
   depends_on    = [aws_s3_bucket.nucleus_airflow_dags_bucket]
 }
 
-resource "aws_s3_bucket_object" "requirements" {
+resource "aws_s3_object" "requirements" {
 
   bucket        = aws_s3_bucket.nucleus_airflow_dags_bucket.id
   key           = "requirements.txt"
@@ -96,7 +113,7 @@ resource "aws_mwaa_environment" "pds_nucleus_airflow_env" {
 
   requirements_s3_path = var.airflow_requirements_path
 
-  depends_on = [aws_s3_bucket_object.dags, aws_security_group.nucleus_security_group]
+  depends_on = [aws_s3_object.dags, aws_security_group.nucleus_security_group]
 
   min_workers           = 1
   max_workers           = 25

@@ -36,36 +36,41 @@ variable "region" {
 
 variable "tags" {
   description = "Default tags"
-  default     = {"env": "dev"}
+  default     = { "env" : "dev" }
   type        = map(string)
 }
 
 variable "vpc_id" {
   description = "VPC ID"
   type        = string
-  default     = "<VPC ID>"
+  # default     = "<VPC ID>"
+  sensitive = true
 }
 
 variable "vpc_cidr" {
   description = "VPC CIDR for MWAA"
   type        = string
-  default     = "<VPC CIDR>"
+  # default     = "<VPC CIDR>"
+  sensitive = true
 }
 
 variable "nucleus_security_group_ingress_cidr" {
   description = "Ingress CIDR for Nucleus Security Group"
-  type        = list
-  default     = ["<Ingress CIDR>"]
+  type        = list(string)
+  # default     = ["<Ingress CIDR>"]
+  sensitive = true
 }
 
 variable "subnet_ids" {
   description = "Subnet IDs"
-  type = list
-  default = ["<COMMA SEPERATED LIST OF SUBNET IDs>"]
+  type        = list(string)
+  # default     = ["<COMMA SEPERATED LIST OF SUBNET IDs>"]
+  sensitive = true
 }
 
 variable "airflow_execution_role" {
   description = "Airflow AWS Execution Role"
-  type = string
-  default = "<Airflow AWS Execution Role>"
+  type        = string
+  # default     = "<Airflow AWS Execution Role>"
+  sensitive = true
 }
