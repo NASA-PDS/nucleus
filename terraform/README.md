@@ -11,8 +11,8 @@ Therefore, as a result of the Terraform scripts in this directory following thin
 
 
 Note: In addition to the above components, there are Terraform modules, container definitions and a DAG file
-included to deploy PDS Registry related ECS tasks, a DAG and an EFS file system that can be used to demonstrate 
-an example PDS Registry use case. However, these additional components are not part of the MVP of 
+included to deploy PDS Registry related ECS tasks, a DAG and an EFS file system that can be used to demonstrate
+an example PDS Registry use case. However, these additional components are not part of the MVP of
 PDS Nucleus data pipeline. These PDS Registry related terraform modules are still under development (not part of the PDS Nucleus Baseline Deployment task)
 and are kept disabled in the main.tf terraform file.
 
@@ -30,7 +30,7 @@ and are kept disabled in the main.tf terraform file.
 2. Ability to get AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and AWS_SESSION_TOKEN for the AWS account
 
 3. Terraform is installed in local environment (This was tested with Terraform v1.3.7. Any higher version should also work)
- - Instructions to install Terraform is available at https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli 
+ - Instructions to install Terraform is available at https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli
 
 4. A VPC and one or more subnets should be available on AWS (obtain the VPC ID and subnet IDs from AWS console or from the AWS
 system admin team of your AWS account)
@@ -56,15 +56,15 @@ cd nucleus/terraform
     - AWS_SESSION_TOKEN
     - AWS_DEFAULT_REGION
 
-4. Open the `variables.tf` file at `nucleus/terraform/terraform-modules/mwaa-env/variables.tf` and
-update the following variables to match with your AWS Setup. Most of the below values can be obtained by
-the system admin team of your AWS account.
+4. Create a `terraform.tfvars` file locally and enter the value for variables specified in `variables.tf` file at `nucleus/terraform/terraform-modules/mwaa-env/variables.tf`. Ensure these values match with your AWS Setup. Most of the below values can be obtained by the system admin team of your AWS account.
 
     - vpc_id:  VPC ID of your AWS VPC
     - vpc_cidr: VPC CIDR for MWAA (E.g.: "10.1.0.0/16")
     - nucleus_security_group_ingress_cidr: List of ingress CIDRs for the Nucleus Security Group to be created (E.g.: "10.21.240.0/20")
     - subnet_ids: List of Subnet IDs to be used for the MWAA
     - airflow_execution_role: Airflow AWS Execution Role
+
+> Note: `terraform.tfvars` is only used to test with your configuration with the actual values in your AWS account. This file will not be uploaded to GitHub as it's ignored by Git. Once testing is completed successfully work with your admin to get the values for these tested variables updated via GitHub secrets, which are dynamically passed in during runtime.
 
 5. Initialize Terraform working directory.
 
