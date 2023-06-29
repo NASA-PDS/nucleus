@@ -32,7 +32,7 @@ After you logged into the Airflow UI, the following views can be used to monitor
 * Landing Times - Airflow landing times are calculated from the task’s scheduled time to the time the task finishes, either with success or another state
 * Gantt Chart - Provides a way to analyze task durations and overlaps
 
-More details about these views are available at: https://airflow.apache.org/docs/apache-airflow/stable/ui.html#
+More details about these views are available at: https://airflow.apache.org/docs/apache-airflow/stable/ui.html
 
 |
 
