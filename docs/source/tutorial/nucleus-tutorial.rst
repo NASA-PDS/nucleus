@@ -14,3 +14,4 @@ Each workflow is made of steps which run **operators** deployed on AWS. To creat
 
   Create Airflow DAG <create_a_dag>
   Create an Operator <create_an_operator>
+  Monitoring Nucleus Workflows <monitoring_workflows>
