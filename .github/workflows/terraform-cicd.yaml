@@ -1,4 +1,4 @@
-name: 'Terraform-Plan'
+name: 'Terraform-Workflow'
 
 on:
   push:
@@ -15,10 +15,13 @@ jobs:
   deploy:
     name: 'Terraform'
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./terraform
     environment: NGAP DEV
     env:
       TF_LOG: INFO
-      working-directory: ./terraform
 
     steps:
     - name: Checkout
@@ -35,16 +38,18 @@ jobs:
       uses: hashicorp/setup-terraform@v2
 
     - name: Terraform Fmt, Init & Validate
-      id : init
-      working-directory: ${{ env.working-directory }}
+      id: fmt_init_validate
+      env:
+        AWS_BUCKET_NAME: ${{ secrets.AWS_BUCKET_NAME}}
+        AWS_BUCKET_KEY_NAME: ${{ secrets.AWS_BUCKET_KEY_NAME}}
       run: |
         terraform fmt
-        terraform init
+        terraform init -backend-config="bucket=${AWS_BUCKET_NAME}" -backend-config="key=${AWS_BUCKET_KEY_NAME}"
         terraform validate -no-color
 
     - name: Terraform Plan
       id: plan
-      working-directory: ${{ env.working-directory }}
+      if: github.event_name == 'push' || github.event_name == 'pull_request'
       env:
         TF_VAR_efs_file_system_id: "${{ secrets.EFS_FILE_SYSTEM_ID }}"
         TF_VAR_registry_loader_scripts_access_point_id: "${{ secrets.REGISTRY_LOADER_SCRIPTS_ACCESS_POINT_ID }}"
@@ -61,6 +66,20 @@ jobs:
 
     - name: Terraform Plan Status
       id : plan_status
-      working-directory: ${{ env.working-directory }}
       if: steps.plan.outcome == 'failure'
       run: exit 1
+
+    - name: Terraform Apply
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      env:
+        TF_VAR_efs_file_system_id: "${{ secrets.EFS_FILE_SYSTEM_ID }}"
+        TF_VAR_registry_loader_scripts_access_point_id: "${{ secrets.REGISTRY_LOADER_SCRIPTS_ACCESS_POINT_ID }}"
+        TF_VAR_registry_loader_default_configs_access_point_id: "${{ secrets.REGISTRY_LOADER_DEFAULT_CONFIGS_ACCESS_POINT_ID }}"
+        TF_VAR_task_role_arn: "${{ secrets.TASK_ROLE_ARN }}"
+        TF_VAR_execution_role_arn: "${{ secrets.EXECUTION_ROLE_ARN }}"
+        TF_VAR_vpc_id: "${{ secrets.VPC_ID }}"
+        TF_VAR_vpc_cidr: "${{ secrets.VPC_CIDR }}"
+        TF_VAR_nucleus_security_group_ingress_cidr: "${{ secrets.NUCLEUS_SG_INGRESS_CIDR }}"
+        TF_VAR_subnet_ids: "${{ secrets.SUBNET_IDS }}"
+        TF_VAR_airflow_execution_role: "${{ secrets.AIRFLOW_EXECUTION_ROLE }}"
+      run: terraform apply -auto-approve
