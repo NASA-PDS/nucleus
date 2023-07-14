@@ -1,11 +1,9 @@
 name: 'Terraform-Workflow'
 
+#Currently this workflow is disabled since resources were already deployed manually in NGAP.
+
 on:
-  push:
-    branches:
-      - '**'
-  pull_request:
-    types: [opened, edited, reopened, ready_for_review, review_requested]
+  # push:
   workflow_dispatch:
 
 permissions:
@@ -50,7 +48,6 @@ jobs:
 
     - name: Terraform Plan
       id: plan
-      if: github.event_name == 'push' || github.event_name == 'pull_request'
       env:
         TF_VAR_efs_file_system_id: "${{ secrets.EFS_FILE_SYSTEM_ID }}"
         TF_VAR_registry_loader_scripts_access_point_id: "${{ secrets.REGISTRY_LOADER_SCRIPTS_ACCESS_POINT_ID }}"
