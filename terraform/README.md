@@ -56,7 +56,7 @@ cd nucleus/terraform
     - AWS_SESSION_TOKEN
     - AWS_DEFAULT_REGION
 
-4. Create a `terraform.tfvars` file locally and enter the value for variables specified in `variables.tf` file at `nucleus/terraform/terraform-modules/mwaa-env/variables.tf`. Ensure these values match with your AWS Setup. Most of the below values can be obtained by the system admin team of your AWS account.
+4. Create a `terraform.tfvars` file locally under `./terraform/terraform.tfvars` and enter the value for variables specified in `variables.tf` file at `nucleus/terraform/terraform-modules/mwaa-env/variables.tf`. Ensure these values match with your AWS Setup and also the variable value types (ex: string `" "`, number `1`, list(string)`[" "]`, etc). Most of the below values can be obtained by the system admin team of your AWS account.
 
     - vpc_id:  VPC ID of your AWS VPC
     - vpc_cidr: VPC CIDR for MWAA (E.g.: "10.1.0.0/16")
@@ -65,6 +65,14 @@ cd nucleus/terraform
     - airflow_execution_role: Airflow AWS Execution Role
 
 > Note: `terraform.tfvars` is only used to test with your configuration with the actual values in your AWS account. This file will not be uploaded to GitHub as it's ignored by Git. Once testing is completed successfully work with your admin to get the values for these tested variables updated via GitHub secrets, which are dynamically passed in during runtime.
+
+```
+# Example terraform.tfvars
+
+region = "us-east-1"
+vpc_id = "vpc-123456789"
+subnet_ids = ["0.0.0.0/0"]
+```
 
 5. Initialize Terraform working directory.
 
