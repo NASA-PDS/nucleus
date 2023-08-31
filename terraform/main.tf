@@ -26,3 +26,7 @@ module "mwaa-env" {
 #   task_role_arn                                   = var.task_role_arn
 #   execution_role_arn                              = var.execution_role_arn
 # }
+
+ module "product-copy-completion-checker" {
+   source = "./terraform-modules/product-copy-completion-checker"
+ }
