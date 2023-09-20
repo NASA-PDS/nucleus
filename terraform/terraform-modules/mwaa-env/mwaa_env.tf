@@ -23,7 +23,7 @@ resource "aws_security_group" "nucleus_security_group" {
 }
 
 resource "aws_s3_bucket" "nucleus_airflow_dags_bucket" {
-  bucket = "nucleus-airflow-dags-bucket"
+  bucket = var.mwaa_dag_s3_bucket_name
 
   tags = {
     Name        = "Nucleus Airflow DAGS bucket terraform"
@@ -63,7 +63,7 @@ resource "aws_s3_object" "requirements" {
 
   bucket        = aws_s3_bucket.nucleus_airflow_dags_bucket.id
   key           = "requirements.txt"
-  acl           = "private" # or can be "public-read"
+  acl           = "private"
   force_destroy = true
   source        = "./terraform-modules/mwaa-env/requirements.txt"
 }

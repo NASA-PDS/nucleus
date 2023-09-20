@@ -64,3 +64,9 @@ variable "execution_role_arn" {
   sensitive   = true
 }
 
+variable "mwaa_dag_s3_bucket_name" {
+  type        = string
+  description = "The name of the S3 bucket containing MWAA DAG files"
+  sensitive   = true
+}
+

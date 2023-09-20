@@ -7,6 +7,7 @@ module "mwaa-env" {
   nucleus_security_group_ingress_cidr = var.nucleus_security_group_ingress_cidr
   subnet_ids                          = var.subnet_ids
   airflow_execution_role              = var.airflow_execution_role
+  mwaa_dag_s3_bucket_name             = var.mwaa_dag_s3_bucket_name
 }
 
 # The following modules are specific to PDS Registry and are under development. These modules are currently

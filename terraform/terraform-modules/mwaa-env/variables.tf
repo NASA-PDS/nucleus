@@ -74,3 +74,10 @@ variable "airflow_execution_role" {
   # default     = "<Airflow AWS Execution Role>"
   sensitive = true
 }
+
+variable "mwaa_dag_s3_bucket_name" {
+  description = "The name of the S3 bucket contaning MWAA DAG files"
+  type        = string
+  # default     = "pds-nucleus-airflow-dags-bucket-mcp-dev"
+  sensitive = true
+}
