@@ -35,6 +35,10 @@ and are kept disabled in the main.tf terraform file.
 4. A VPC and one or more subnets should be available on AWS (obtain the VPC ID and subnet IDs from AWS console or from the AWS
 system admin team of your AWS account)
 
+5. An EFS Filesystem is created with the following access points (Please note the File system ID and access point IDs to be used later in `terraform.tfvars` file).
+   * registry_loader_scripts_access_point_id - with name `scripts` and with path `/registry/docker/scripts` 
+   * registry_loader_default_configs_access_point_id - with name `default-config` and with path `/registry/docker/default-config`
+
 
 ## Steps to Deploy the PDS Nucleus Baseline System
 
@@ -63,15 +67,30 @@ cd nucleus/terraform
     - nucleus_security_group_ingress_cidr: List of ingress CIDRs for the Nucleus Security Group to be created (E.g.: "10.21.240.0/20")
     - subnet_ids: List of Subnet IDs to be used for the MWAA
     - airflow_execution_role: Airflow AWS Execution Role
+    - efs_file_system_id: The File system ID of the EFS volume mentioned under the prerequisites 
+    - registry_loader_scripts_access_point_id: The access point ID of the `scripts` access point of EFS volume mentioned under the prerequisites
+    - registry_loader_default_configs_access_point_id: The access point ID of the `default-config` access point of EFS volume mentioned under the prerequisites
+    - task_role_arn = "arn:aws:iam::<account-id>:role/pds-nucleus-mwaa-execution-role"
+    - execution_role_arn = "arn:aws:iam::<account-id>:role/pds-nucleus-mwaa-execution-role"
+    - mwaa_dag_s3_bucket_name = "pds-nucleus-airflow-dags-bucket-mcp-dev"
 
 > Note: `terraform.tfvars` is only used to test with your configuration with the actual values in your AWS account. This file will not be uploaded to GitHub as it's ignored by Git. Once testing is completed successfully work with your admin to get the values for these tested variables updated via GitHub secrets, which are dynamically passed in during runtime.
 
 ```
 # Example terraform.tfvars
 
-region = "us-east-1"
-vpc_id = "vpc-123456789"
-subnet_ids = ["0.0.0.0/0"]
+region = "us-west-2"
+vpc_id = "vpc-12345678"
+subnet_ids = ["subnet-12121212121","subnet-32323232323223"]
+vpc_cidr = "10.1.0.0/16"
+nucleus_security_group_ingress_cidr = ["0.0.0.0/0"]
+airflow_execution_role = "arn:aws:iam::<account-id>:role/pds-nucleus-mwaa-execution-role"
+efs_file_system_id = "fs-123232"
+registry_loader_scripts_access_point_id = "fsap-2121213232"
+registry_loader_default_configs_access_point_id = "fsap-1212323"
+task_role_arn = "arn:aws:iam::<account-id>:role/pds-nucleus-mwaa-execution-role"
+execution_role_arn = "arn:aws:iam::<account-id>:role/pds-nucleus-mwaa-execution-role"
+mwaa_dag_s3_bucket_name = "pds-nucleus-airflow-dags-bucket-mcp-dev"
 ```
 
 5. Initialize Terraform working directory.
