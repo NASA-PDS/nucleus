@@ -4,8 +4,8 @@ resource "aws_ecs_cluster" "main" {
   name = "pds-nucleus-ecc-tf"
 }
 
-resource "aws_ecs_task_definition" "pds-s3-to-efs-data-move-terraform" {
-  family                   = "pds-s3-to-efs-data-move-terraform"
+resource "aws_ecs_task_definition" "pds-s3-to-efs-data-move" {
+  family                   = "pds-s3-to-efs-data-move"
   requires_compatibilities = ["EC2", "FARGATE"]
   network_mode             = "awsvpc"
   cpu                      = 4096
