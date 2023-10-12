@@ -13,11 +13,9 @@ import urllib.parse
 import logging
 import shutil
 import boto3
-import botocore
 import os
 import time
 from xml.dom import minidom
-from botocore.exceptions import ClientError
 
 s3 = boto3.client('s3')
 logger = logging.getLogger("pds-nucleus-product-writer-logger")
@@ -58,49 +56,6 @@ def lambda_handler(event, context):
         logger.error(f"Error processing S3 event: {event}. Exception: {str(e)}")
         raise e
 
-
-# Returns the missing files detected for a product label
-def get_missing_files_for_product_label(s3_url_of_product_label, bucket, key):
-    s3_base_dir = s3_url_of_product_label.rsplit('/',1)[0]
-
-    logger.info('Get s3_response for key {} from bucket {}'.format(key, bucket))
-
-    try:
-        s3_response = s3.get_object(Bucket=bucket, Key=key)
-
-        # Get the Body object in the S3 get_object() response
-        s3_object_body = s3_response.get('Body')
-
-        # Read the data in bytes format and convert it to string
-        content_str = s3_object_body.read().decode()
-
-        # parse xml
-        xmldoc = minidom.parseString(content_str)
-        missing_files_from_product_label = xmldoc.getElementsByTagName('file_name')
-
-        missing_files = []
-
-        for x in missing_files_from_product_label:
-
-            s3_url_of_data_file = s3_base_dir + "/" + x.firstChild.nodeValue
-
-            # Check received file table
-            items = check_in_received_file_table(s3_url_of_data_file)
-
-            # File is already received
-            if items:
-                logger.debug(f"The file is already received: {items['s3_url_of_data_file']}")
-            else:
-
-                missing_files.append(str(s3_url_of_data_file))
-                update_expected_files(s3_url_of_data_file, s3_url_of_product_label)
-                logger.debug(f"Missing files: {str(missing_files)}")
-
-        return missing_files
-
-    except Exception as e:
-        logger.error(f"Error handling  missing files for product label: {s3_url_of_product_label}. Exception: {str(e)}")
-        raise e
 
 # Creates a mapping record in the database for product and relevant files
 def save_product_data_file_mapping_in_database(s3_url_of_product_label, s3_url_of_data_file):

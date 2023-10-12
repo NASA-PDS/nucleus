@@ -13,12 +13,9 @@ import urllib.parse
 import logging
 import shutil
 import boto3
-import botocore
 import os
 import time
 from xml.dom import minidom
-from boto3.dynamodb.conditions import Key, Attr
-from botocore.exceptions import ClientError
 
 s3 = boto3.client('s3')
 dynamodb = boto3.resource('dynamodb')
@@ -36,7 +33,7 @@ def lambda_handler(event, context):
     logger.info(f"Lambda Request ID: {context.aws_request_id}")
 
     try:
-        check_completed_products()
+        process_completed_products()
         return f"Processed."
     except Exception as e:
         logger.error(f"Error processing S3 event: {event}. Exception: {str(e)}")
@@ -67,7 +64,7 @@ def process_completed_products():
             for data_type, data_value in data_dict.items():
                 update_product_processing_status_in_database(data_value,'COMPLETE')
                 notify_completed_product(data_value)
-                time.sleep(1/1000)
+                time.sleep(1/100)
 
 # Updates the product processing status of the given s3_url_of_product_label
 def update_product_processing_status_in_database(s3_url_of_product_label, processing_status):
@@ -79,7 +76,7 @@ def update_product_processing_status_in_database(s3_url_of_product_label, proces
         WHERE s3_url_of_product_label = '{s3_url_of_product_label}'
             """
 
-    logger.debug((sql)
+    logger.debug(sql)
 
 
     response = rds_data.execute_statement(
