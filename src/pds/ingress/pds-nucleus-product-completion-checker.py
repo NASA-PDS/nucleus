@@ -9,13 +9,11 @@ with all required files. This lambda function is triggered periodically.
 """
 
 import json
-import urllib.parse
 import logging
-import shutil
-import boto3
 import os
 import time
-from xml.dom import minidom
+
+import boto3
 
 s3 = boto3.client('s3')
 dynamodb = boto3.resource('dynamodb')
@@ -24,9 +22,9 @@ db_clust_arn = os.environ.get('DB_CLUSTER_ARN')
 db_secret_arn = os.environ.get('DB_SECRET_ARN')
 rds_data = boto3.client('rds-data')
 
+
 # Main lambda handler
 def lambda_handler(event, context):
-
     logger.setLevel(logging.DEBUG)
     logger.addHandler(logging.StreamHandler())
 
@@ -39,9 +37,9 @@ def lambda_handler(event, context):
         logger.error(f"Error processing S3 event: {event}. Exception: {str(e)}")
         raise e
 
+
 # Identifies and processes completed products
 def process_completed_products():
-
     logger.info(f'Checking completed products')
 
     sql = """
@@ -52,38 +50,37 @@ def process_completed_products():
             """
 
     response = rds_data.execute_statement(
-        resourceArn = db_clust_arn,
-        secretArn = db_secret_arn,
-        database = 'pds_nucleus',
-        sql = sql)
+        resourceArn=db_clust_arn,
+        secretArn=db_secret_arn,
+        database='pds_nucleus',
+        sql=sql)
 
     logger.info("Number of completed product labels: " + str(len(response['records'])))
 
     for record in response['records']:
         for data_dict in record:
             for data_type, data_value in data_dict.items():
-                update_product_processing_status_in_database(data_value,'COMPLETE')
+                update_product_processing_status_in_database(data_value, 'COMPLETE')
                 notify_completed_product(data_value)
-                time.sleep(1/100)
+                time.sleep(1 / 100)
+
 
 # Updates the product processing status of the given s3_url_of_product_label
 def update_product_processing_status_in_database(s3_url_of_product_label, processing_status):
-
     sql = f"""
         UPDATE product
         SET processing_status = '{processing_status}'
-        # SET last_updated_epoch_time = {round(time.time()*1000)}
+        # SET last_updated_epoch_time = {round(time.time() * 1000)}
         WHERE s3_url_of_product_label = '{s3_url_of_product_label}'
             """
 
     logger.debug(sql)
 
-
     response = rds_data.execute_statement(
-        resourceArn = db_clust_arn,
-        secretArn = db_secret_arn,
-        database = 'pds_nucleus',
-        sql = sql)
+        resourceArn=db_clust_arn,
+        secretArn=db_secret_arn,
+        database='pds_nucleus',
+        sql=sql)
 
     logger.info("response = " + str(response))
 
