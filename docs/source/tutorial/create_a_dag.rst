@@ -83,8 +83,8 @@ The validate tool can be represented as a task in an Airflow Dag as follows. Not
            overrides={
                "containerOverrides": [],
            },
-           awslogs_group="/pds/ecs/harvest",
-           awslogs_stream_prefix="ecs/harvest",
+           awslogs_group="/pds/ecs/validate",
+           awslogs_stream_prefix="ecs/validate",
            awslogs_fetch_interval=timedelta(seconds=1),
            number_logs_exception=500
        )
@@ -163,8 +163,6 @@ The completed DAG should look as follows. Save this DAG in a python file called 
     ECS_LAUNCH_TYPE = "FARGATE"
     ECS_SUBNETS = [<COMMA SEPERATED LIST OF SUBNET IDs>]
     ECS_SECURITY_GROUPS = [<COMMA SEPERATED LIST OF SECURITY GROUPS>]
-    ECS_AWS_LOGS_GROUP = "/ecs/pds-airflow-ecs-tf"
-
 
     with DAG(
            dag_id="Nucleus_Tutorial",
@@ -198,8 +196,10 @@ The completed DAG should look as follows. Save this DAG in a python file called 
            overrides={
                "containerOverrides": [],
            },
-           awslogs_group=ECS_AWS_LOGS_GROUP,
-           awslogs_stream_prefix="ecs/pds-validate-tutorial-task"
+           awslogs_group="/pds/ecs/validate",
+           awslogs_stream_prefix="ecs/validate",
+           awslogs_fetch_interval=timedelta(seconds=1),
+           number_logs_exception=500
        )
 
 
