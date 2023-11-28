@@ -133,4 +133,4 @@ def save_data_file_in_database(s3_url_of_data_file):
         sql=sql,
         parameters=param_set)
 
-    logger.info(str(response))
+    logger.debug(f"response = {str(response)}")

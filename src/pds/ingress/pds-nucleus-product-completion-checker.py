@@ -77,7 +77,7 @@ def process_completed_products():
         database = 'pds_nucleus',
         sql = sql)
 
-    logger.debug("Number of completed product labels : " + str(len(response['records'])))
+    logger.debug(f"Number of completed product labels : {str(len(response['records']))}")
 
     n = 10
     count = 0;
@@ -105,22 +105,28 @@ def process_completed_products():
 # Updates the product processing status of the given s3_url_of_product_label
 def update_product_processing_status_in_database(s3_url_of_product_label, processing_status):
 
-    sql = f"""
-        UPDATE product
-        SET processing_status = '{processing_status}'
-        # SET last_updated_epoch_time = {round(time.time()*1000)}
-        WHERE s3_url_of_product_label = '{s3_url_of_product_label}'
-            """
+    sql = """
+            UPDATE product
+            SET processing_status = :processing_status_param,
+            last_updated_epoch_time = :last_updated_epoch_time_param
+            WHERE s3_url_of_product_label = :s3_url_of_product_label_param
+                """
 
-    logger.debug(sql)
+    processing_status_param = {'name': 'processing_status_param', 'value': {'stringValue': processing_status}}
+    last_updated_epoch_time_param = {'name': 'last_updated_epoch_time_param',
+                                     'value': {'longValue': round(time.time() * 1000)}}
+    s3_url_of_product_label_param = {'name': 's3_url_of_product_label_param', 'value': {'stringValue': s3_url_of_product_label}}
+
+    param_set = [processing_status_param, last_updated_epoch_time_param, s3_url_of_product_label_param]
 
     response = rds_data.execute_statement(
         resourceArn = db_clust_arn,
         secretArn = db_secret_arn,
         database = 'pds_nucleus',
-        sql = sql)
+        sql = sql,
+        parameters=param_set)
 
-    logger.debug("response = " + str(response))
+    logger.debug(f"response = {str(response)}")
 
 # Submit data to Nucleus
 def submit_data_to_nucleus(list_of_product_labels_to_process):
@@ -153,7 +159,7 @@ def create_harvest_config_xml_and_trigger_nucleus(list_of_product_labels_to_proc
         harvest_config_file_path = harvest_config_dir + '/harvest_' + file_name + '.cfg'
         harvest_manifest_file_path = harvest_config_dir + '/harvest_manifest_' + file_name + '.txt'
 
-        logger.debug('Manifest content:' + str(harvest_manifest_content))
+        logger.debug(f"Manifest content: {str(harvest_manifest_content)}")
 
         # Create harvest manifest file
         f = open(harvest_manifest_file_path, "w")
@@ -177,9 +183,9 @@ def create_harvest_config_xml_and_trigger_nucleus(list_of_product_labels_to_proc
             </harvest>
             """
 
-        with open(harvest_config_file_path, "w") as f: 
+        with open(harvest_config_file_path, "w") as f:
         	f.write(harvest_config_xml_content)
-    
+
         logger.info(f"Created harvest config XML file: {harvest_config_file_path}")
     except Exception as e:
         logger.error(f"Error creating harvest config files in : {harvest_config_dir}. Exception: {str(e)}")
