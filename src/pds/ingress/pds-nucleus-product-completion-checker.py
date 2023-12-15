@@ -44,25 +44,26 @@ db_secret_arn = os.environ.get('DB_SECRET_ARN')
 es_auth_file = efs_mount_path + '/configs/es-auth.cfg'
 replace_prefix = efs_mount_path
 
-# Main lambda handler
 def lambda_handler(event, context):
+    """ Main lambda handler """
 
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.INFO)
     logger.addHandler(logging.StreamHandler())
 
     logger.info(f"Lambda Request ID: {context.aws_request_id}")
 
     try:
         process_completed_products()
-        return f"Processed."
+        return f"Processed lambda request ID: {context.aws_request_id}"
     except Exception as e:
         logger.error(f"Error processing S3 event: {event}. Exception: {str(e)}")
         raise e
 
-# Identifies and processes completed products
-def process_completed_products():
 
-    logger.debug("Checking completed products")
+def process_completed_products():
+    """ Identifies and processes completed products """
+
+    logger.debug("Checking completed products...")
 
     sql = """
             select distinct s3_url_of_product_label from product where processing_status = 'INCOMPLETE' and s3_url_of_product_label
@@ -72,15 +73,15 @@ def process_completed_products():
             """
 
     response = rds_data.execute_statement(
-        resourceArn = db_clust_arn,
-        secretArn = db_secret_arn,
-        database = 'pds_nucleus',
-        sql = sql)
+        resourceArn=db_clust_arn,
+        secretArn=db_secret_arn,
+        database='pds_nucleus',
+        sql=sql)
 
     logger.debug(f"Number of completed product labels : {str(len(response['records']))}")
 
     n = 10
-    count = 0;
+    count = 0
     list_of_product_labels_to_process = []
 
     for record in response['records']:
@@ -89,9 +90,8 @@ def process_completed_products():
 
         for data_dict in record:
             for data_type, s3_url_of_product_label in data_dict.items():
-                update_product_processing_status_in_database(s3_url_of_product_label,'COMPLETE')
+                update_product_processing_status_in_database(s3_url_of_product_label, 'COMPLETE')
                 list_of_product_labels_to_process.append(s3_url_of_product_label)
-
 
         if count == n:
             submit_data_to_nucleus(list_of_product_labels_to_process)
@@ -102,9 +102,8 @@ def process_completed_products():
     count = 0
     list_of_product_labels_to_process = []
 
-# Updates the product processing status of the given s3_url_of_product_label
 def update_product_processing_status_in_database(s3_url_of_product_label, processing_status):
-
+    """ Updates the product processing status of the given s3_url_of_product_label """
     sql = """
             UPDATE product
             SET processing_status = :processing_status_param,
@@ -115,27 +114,29 @@ def update_product_processing_status_in_database(s3_url_of_product_label, proces
     processing_status_param = {'name': 'processing_status_param', 'value': {'stringValue': processing_status}}
     last_updated_epoch_time_param = {'name': 'last_updated_epoch_time_param',
                                      'value': {'longValue': round(time.time() * 1000)}}
-    s3_url_of_product_label_param = {'name': 's3_url_of_product_label_param', 'value': {'stringValue': s3_url_of_product_label}}
+    s3_url_of_product_label_param = {'name': 's3_url_of_product_label_param',
+                                     'value': {'stringValue': s3_url_of_product_label}}
 
     param_set = [processing_status_param, last_updated_epoch_time_param, s3_url_of_product_label_param]
 
     response = rds_data.execute_statement(
-        resourceArn = db_clust_arn,
-        secretArn = db_secret_arn,
-        database = 'pds_nucleus',
-        sql = sql,
+        resourceArn=db_clust_arn,
+        secretArn=db_secret_arn,
+        database='pds_nucleus',
+        sql=sql,
         parameters=param_set)
 
-    logger.debug(f"response = {str(response)}")
+    logger.debug(f"Response for update_product_processing_status_in_database: {str(response)}")
 
-# Submit data to Nucleus
 def submit_data_to_nucleus(list_of_product_labels_to_process):
+    """ Submits data to Nucleus """
 
     if len(list_of_product_labels_to_process) > 0:
         create_harvest_config_xml_and_trigger_nucleus(list_of_product_labels_to_process)
 
-# Create harvest manifest file and harvest config file and triger Nucelues workflow
+
 def create_harvest_config_xml_and_trigger_nucleus(list_of_product_labels_to_process):
+""" Creates harvest manifest file and harvest config file and trigger Nucleus workflow """
 
     logger.debug('List of product labels to process:' + str(list_of_product_labels_to_process))
 
@@ -143,11 +144,10 @@ def create_harvest_config_xml_and_trigger_nucleus(list_of_product_labels_to_proc
 
     harvest_config_dir = efs_mount_path + '/harvest-configs'
 
-    file_name =  os.path.basename(list_of_product_labels_to_process[0].replace("s3:/", efs_mount_path, 1) )
+    file_name = os.path.basename(list_of_product_labels_to_process[0].replace("s3:/", efs_mount_path, 1))
 
     harvest_manifest_content = ""
     list_of_product_labels_to_process_with_file_paths = []
-
 
     for s3_url_of_product_label in list_of_product_labels_to_process:
         efs_product_label_file_location = s3_url_of_product_label.replace("s3:/", efs_mount_path, 1)
@@ -184,19 +184,20 @@ def create_harvest_config_xml_and_trigger_nucleus(list_of_product_labels_to_proc
             """
 
         with open(harvest_config_file_path, "w") as f:
-        	f.write(harvest_config_xml_content)
+            f.write(harvest_config_xml_content)
 
         logger.info(f"Created harvest config XML file: {harvest_config_file_path}")
     except Exception as e:
         logger.error(f"Error creating harvest config files in : {harvest_config_dir}. Exception: {str(e)}")
 
-    trigger_nucleus_workflow(harvest_manifest_file_path, harvest_config_file_path, list_of_product_labels_to_process_with_file_paths)
+    trigger_nucleus_workflow(harvest_manifest_file_path, harvest_config_file_path,
+                             list_of_product_labels_to_process_with_file_paths)
 
     logger.info(f"Triggered Nucleus workflow: {dag_name} for product label: {efs_product_label_file_location}")
 
 
-# Triggers Nucleus workflow with parameters
 def trigger_nucleus_workflow(harvest_manifest_file_path, pds_harvest_config_file, list_of_product_labels_to_process):
+""" Triggers Nucleus workflow with parameters """
 
     # Convert list to comma seperated list
     delim = ","
@@ -215,7 +216,9 @@ def trigger_nucleus_workflow(harvest_manifest_file_path, pds_harvest_config_file
     list_of_product_labels_to_process_key = "list_of_product_labels_to_process"
     list_of_product_labels_to_process_value = str(comma_seperated_list_of_product_labels_to_process)
 
-    conf = "{\"" + harvest_manifest_file_path_key + "\":\"" + harvest_manifest_file_path_value + "\", \"" + pds_harvest_config_file_key + "\":\"" + pds_harvest_config_file_value + "\", \"" + list_of_product_labels_to_process_key + "\":\"" + list_of_product_labels_to_process_value + "\"}"
+    conf = "{\"" + harvest_manifest_file_path_key + "\":\"" + harvest_manifest_file_path_value + "\", \"" + pds_harvest_config_file_key + "\":\"" + \
+        pds_harvest_config_file_value + "\", \"" + list_of_product_labels_to_process_key + \
+        "\":\"" + list_of_product_labels_to_process_value + "\"}"
 
     logger.info(f"Triggering Nucleus workflow {dag_name} with parameters : {conf}")
 
@@ -223,8 +226,8 @@ def trigger_nucleus_workflow(harvest_manifest_file_path, pds_harvest_config_file
         conn = http.client.HTTPSConnection(mwaa_cli_token['WebServerHostname'])
         payload = "dags trigger {0} -c '{1}'".format(dag_name, conf)
         headers = {
-          'Authorization': 'Bearer ' + mwaa_cli_token['CliToken'],
-          'Content-Type': 'text/plain'
+            'Authorization': 'Bearer ' + mwaa_cli_token['CliToken'],
+            'Content-Type': 'text/plain'
         }
         conn.request("POST", "/aws_mwaa/cli", payload, headers)
         response = conn.getresponse()
