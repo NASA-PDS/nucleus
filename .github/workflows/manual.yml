@@ -23,6 +23,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v1
+    # - uses: ammaraskar/sphinx-action@master
+    #   with:
+    #     docs-folder: "docs/"
     - uses: ammaraskar/sphinx-action@master
       with:
         docs-folder: "docs/"
+        build-command: "sphinx-build -b html docs/source docs/build"
+
+ # invoke(['/usr/local/bin/sphinx-build', '-a', '-b', 'html', 'docs/source', 'docs/build'])
