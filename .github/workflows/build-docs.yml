@@ -12,6 +12,7 @@ on:
 # permissions:
 #   contents: read
 
+
 jobs:
   build:
 
@@ -25,9 +26,24 @@ jobs:
         python-version: "3.10"
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install -e '.[dev]'
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        # We add access to system site packages so that projects can save time if they need numpy, pandas, etc.
+        invoke(['python', '-m', 'venv', '--system-site-packages', 'venv'])
+        # Do the pseudo-equivalent of ``activate``:
+        venvBin = os.path.abspath(os.path.join(self.assembly.context.cwd, 'venv', 'bin'))
+        os.environ['PATH'] = f'{venvBin}:{os.environ["PATH"]}'
+        # Make sure we have the latest of pip+setuptools+wheel
+        invoke(['pip', 'install', '--quiet', '--upgrade', 'pip', 'setuptools', 'wheel'])
+        # #79: ensure that the venv has its own ``sphinx-build``
+        invoke(['pip', 'install', '--quiet', '--ignore-installed', f'sphinx==3.2.1'])
+        # Now install the package being rounded up
+        invoke(['pip', 'install', '--editable', '.[dev]'])
+        # ☑️ TODO: what other prep steps are there? What about VERSION.txt overwriting?
+        # python -m pip install --upgrade pip
+        # pip install -e '.[dev]'
+        # if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
     - name: Execute docs building
       run: |
         invoke(['/usr/local/bin/sphinx-build', '-a', '-b', 'html', 'docs/source', 'docs/build'])
+
+
+        
