@@ -25,10 +25,10 @@ jobs:
     - uses: actions/checkout@v1
     # - uses: ammaraskar/sphinx-action@master
     #   with:
-    #     docs-folder: "docs/"
+    #     docs-folder: "docs/source"
     - uses: ammaraskar/sphinx-action@master
       with:
-        docs-folder: "docs/"
+        docs-folder: "docs/source/"
         build-command: "sphinx-build -b html . build"
 
  # invoke(['/usr/local/bin/sphinx-build', '-a', '-b', 'html', 'docs/source', 'docs/build'])
