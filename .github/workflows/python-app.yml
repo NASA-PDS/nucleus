@@ -20,13 +20,32 @@ jobs:
     - name: Install dependencies
       working-directory: ./
       run: |
-        pip install --upgrade pip
-        pip install sphinx==3.2.1
-        # pip install -e '.[dev]'
-    - name: Build docs
-      working-directory: ./
-      run: |
-        sphinx-build -b html docs/source docs/build/html
+
+        from .context import Context
+        from .errors import InvokedProcessError, RoundupError
+        from .errors import MissingEnvVarError
+        from .step import ChangeLogStep as BaseChangeLogStep
+        from .step import Step, StepName, NullStep, RequirementsStep, DocPublicationStep
+        from .util import invoke, invokeGIT, TAG_RE, commit, delete_tags, git_config, add_version_label_to_open_bugs
+        from lasso.releasers._python_version import TextFileDetective
+        import logging, os, re, shutil
+
+        
+        _logger.debug('Python preparation step')
+        git_config()
+        shutil.rmtree('venv', ignore_errors=True)
+        # We add access to system site packages so that projects can save time if they need numpy, pandas, etc.
+        invoke(['python', '-m', 'venv', '--system-site-packages', 'venv'])
+        # Do the pseudo-equivalent of ``activate``:
+        venvBin = os.path.abspath(os.path.join(self.assembly.context.cwd, 'venv', 'bin'))
+        os.environ['PATH'] = f'{venvBin}:{os.environ["PATH"]}'
+        # Make sure we have the latest of pip+setuptools+wheel
+        invoke(['pip', 'install', '--quiet', '--upgrade', 'pip', 'setuptools', 'wheel'])
+        # #79: ensure that the venv has its own ``sphinx-build``
+        invoke(['pip', 'install', '--quiet', '--ignore-installed', f'sphinx=={SPHINX_VERSION}'])
+        # Now install the package being rounded up
+        invoke(['pip', 'install', '--editable', '.[dev]'])
+        # ☑️ TODO: what other prep steps are there? What about VERSION.txt overwriting?
         
 
 
