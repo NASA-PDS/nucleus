@@ -13,7 +13,7 @@ jobs:
       - uses: ammaraskar/sphinx-action@master
         with:
           docs-folder: "docs/source/"
-          build-command: "sphinx-build -c conf.py . build"
+          build-command: "sphinx-build -c ./ . build"
         
       
         
