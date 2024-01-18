@@ -19,7 +19,7 @@
 
 # TODO - Update with your project name
 project = 'My PDS Project'
-copyright = '2022 California Institute of Technology'
+copyright = '2024 California Institute of Technology'
 author = 'NASA Planetary Data System'
 release = '0.1'
 version = '0.1'
