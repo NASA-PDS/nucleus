@@ -18,6 +18,7 @@ jobs:
       - name: Sphinx build
         run: |
           sphinx-build -a -b html docs/source docs/build
+          ls docs/
       - name: Deploy
         uses: JamesIves/github-pages-deploy-action@v4
         with:
