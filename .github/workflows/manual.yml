@@ -1,21 +1,39 @@
-# This is a basic workflow that is manually triggered
+# # This is a basic workflow that is manually triggered
 
-name: Manual workflow
+# name: Manual workflow
 
-on:
-  workflow_dispatch:
+# on:
+#   workflow_dispatch:
+
+# jobs:
+#   build:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: actions/checkout@v3
+#       - uses: ammaraskar/sphinx-action@master
+#         with:
+#           docs-folder: "docs/source/"
+#           build-command: "sphinx-build -c ./ . build"
+        
+name: documentation
+
+on: [push, pull_request, workflow_dispatch]
+
+permissions:
+  contents: write
 
 jobs:
-  build:
+  docs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: ammaraskar/sphinx-action@master
-        with:
-          docs-folder: "docs/source/"
-          build-command: "sphinx-build -c ./ . build"
-        
-      
+      - uses: actions/setup-python@v3
+      - name: Install dependencies
+        run: |
+          pip install sphinx sphinx_rtd_theme myst_parser
+      - name: Sphinx build
+        run: |
+          sphinx-build doc _build      
         
         
         
