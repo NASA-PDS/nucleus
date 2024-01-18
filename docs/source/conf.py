@@ -17,8 +17,7 @@
 
 # -- Project information -----------------------------------------------------
 
-# TODO - Update with your project name
-project = 'My PDS Project'
+project = 'NASA PDS Nucleus'
 copyright = '2024 California Institute of Technology'
 author = 'NASA Planetary Data System'
 release = '0.1'
