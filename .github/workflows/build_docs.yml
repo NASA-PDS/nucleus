@@ -1,3 +1,4 @@
+# This GitHub actions builds teh documentation with sphinx and after that uploades the html pages to GutHub pages (gh-pages branch)
 
 name: Build Documentation
 
@@ -17,9 +18,10 @@ jobs:
           pip install sphinx sphinx_rtd_theme myst_parser
       - name: Sphinx build
         run: |
+          rm -Rf docs/build
           sphinx-build -a -b html docs/source docs/build
-          ls docs/
-      - name: Deploy to GitHub pages
+          ls docs/build
+      - name: Deploy to GitHub pages (Deploy to gh-pages branch by default. Make sure to point Settings -> Pages in GitHub repository to use gh-pages branch)
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           folder: docs/build # The folder the action should deploy.
