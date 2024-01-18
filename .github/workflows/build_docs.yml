@@ -1,5 +1,5 @@
 
-name: Build_Documentation
+name: Build Documentation
 
 on: [push, pull_request, workflow_dispatch]
 
