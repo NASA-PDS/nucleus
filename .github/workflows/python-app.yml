@@ -22,7 +22,7 @@ jobs:
       working-directory: ./
       run: |
         sudo apt install python3-venv
-        sudo python3.8 -m venv venv
+        sudo python -m venv venv
     
     - name: Install dependencies
       working-directory: ./
