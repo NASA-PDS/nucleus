@@ -18,4 +18,8 @@ jobs:
       - name: Sphinx build
         run: |
           sphinx-build -a -b html docs/source docs/build
+      - name: Deploy
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: docs/build # The folder the action should deploy.
         
