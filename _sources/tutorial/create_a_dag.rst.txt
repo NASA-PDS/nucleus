@@ -83,10 +83,18 @@ The validate tool can be represented as a task in an Airflow Dag as follows. Not
            overrides={
                "containerOverrides": [],
            },
-           awslogs_group=ECS_AWS_LOGS_GROUP,
-           awslogs_stream_prefix="ecs/pds-validate-tutorial-task"
+           awslogs_group="/pds/ecs/validate",
+           awslogs_stream_prefix="ecs/validate",
+           awslogs_fetch_interval=timedelta(seconds=1),
+           number_logs_exception=500
        )
 
+.. note::
+
+    The number_logs_exception=500 is the above code will show maximum 500 lines for the related CloudWatch log.
+    Make sure to have the awslogs_group and awslogs_stream_prefix in the above ECSOperator definition
+    to match with the awslogs_group and awslogs_stream_prefix used by the related ECS task to write logs.
+    In a way, this is how you instruct the ECSOperator to find the log location to read from.
 
 In addition, the following values should be set in the above JSON:
 
@@ -155,8 +163,6 @@ The completed DAG should look as follows. Save this DAG in a python file called 
     ECS_LAUNCH_TYPE = "FARGATE"
     ECS_SUBNETS = [<COMMA SEPERATED LIST OF SUBNET IDs>]
     ECS_SECURITY_GROUPS = [<COMMA SEPERATED LIST OF SECURITY GROUPS>]
-    ECS_AWS_LOGS_GROUP = "/ecs/pds-airflow-ecs-tf"
-
 
     with DAG(
            dag_id="Nucleus_Tutorial",
@@ -190,8 +196,10 @@ The completed DAG should look as follows. Save this DAG in a python file called 
            overrides={
                "containerOverrides": [],
            },
-           awslogs_group=ECS_AWS_LOGS_GROUP,
-           awslogs_stream_prefix="ecs/pds-validate-tutorial-task"
+           awslogs_group="/pds/ecs/validate",
+           awslogs_stream_prefix="ecs/validate",
+           awslogs_fetch_interval=timedelta(seconds=1),
+           number_logs_exception=500
        )
 
 

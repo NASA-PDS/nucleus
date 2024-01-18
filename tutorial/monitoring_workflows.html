@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nucleus Monitoring User Guide &mdash; My PDS Project 0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=19f00094" />
+      <link rel="stylesheet" type="text/css" href="../_static/theme_overrides.css?v=0c24fe83" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../_static/documentation_options.js?v=2709fde1"></script>
+        <script src="../_static/doctools.js?v=888ff710"></script>
+        <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Architecture" href="../architecture/baseline-architecture.html" />
+    <link rel="prev" title="Create an Operator" href="create_an_operator.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            My PDS Project
+              <img src="../_static/PDS_Planets.png" class="logo" alt="Logo"/>
+          </a>
+              <div class="version">
+                0.1
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="nucleus-tutorial.html">User’s Guide</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="create_a_dag.html">Create Airflow DAG</a></li>
+<li class="toctree-l2"><a class="reference internal" href="create_an_operator.html">Create an Operator</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Monitoring Nucleus Workflows</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#monitoring-using-airflow-ui">Monitoring Using Airflow UI</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#where-in-the-pipeline-is-currently-executing">Where in the pipeline is currently executing?</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#what-if-something-has-failed">What/if something has failed?</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#when-has-it-completed-successfully">When has it completed successfully?</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#how-to-see-the-failure-reports-from-the-specific-tools">How to see the failure reports from the specific tools?</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#checking-logs-using-the-airflow-ui">Checking logs using the Airflow UI</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#monitoring-using-cloudwatch-dashboard">Monitoring Using CloudWatch Dashboard</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#additional-views-in-airflow-ui-to-monitor-workflows">Additional Views in Airflow UI to Monitor Workflows</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#calendar-view">Calendar View</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#task-duration">Task Duration</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#task-tries">Task Tries</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#landing-times">Landing Times</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#gantt-chart">Gantt Chart</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../architecture/baseline-architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../support/support.html">Support</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">My PDS Project</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="nucleus-tutorial.html">User’s Guide</a></li>
+      <li class="breadcrumb-item active">Nucleus Monitoring User Guide</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/nasa-pds/template-repo-python/blob/main/docs/source/tutorial/monitoring_workflows.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="nucleus-monitoring-user-guide">
+<h1>Nucleus Monitoring User Guide<a class="headerlink" href="#nucleus-monitoring-user-guide" title="Link to this heading"></a></h1>
+<nav class="contents local" id="table-of-contents">
+<p class="topic-title">Table of Contents</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#monitoring-using-airflow-ui" id="id1">Monitoring Using Airflow UI</a></p>
+<ul>
+<li><p><a class="reference internal" href="#where-in-the-pipeline-is-currently-executing" id="id2">Where in the pipeline is currently executing?</a></p></li>
+<li><p><a class="reference internal" href="#what-if-something-has-failed" id="id3">What/if something has failed?</a></p></li>
+<li><p><a class="reference internal" href="#when-has-it-completed-successfully" id="id4">When has it completed successfully?</a></p></li>
+<li><p><a class="reference internal" href="#how-to-see-the-failure-reports-from-the-specific-tools" id="id5">How to see the failure reports from the specific tools?</a></p></li>
+<li><p><a class="reference internal" href="#checking-logs-using-the-airflow-ui" id="id6">Checking logs using the Airflow UI</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#monitoring-using-cloudwatch-dashboard" id="id7">Monitoring Using CloudWatch Dashboard</a></p></li>
+<li><p><a class="reference internal" href="#additional-views-in-airflow-ui-to-monitor-workflows" id="id8">Additional Views in Airflow UI to Monitor Workflows</a></p>
+<ul>
+<li><p><a class="reference internal" href="#calendar-view" id="id9">Calendar View</a></p></li>
+<li><p><a class="reference internal" href="#task-duration" id="id10">Task Duration</a></p></li>
+<li><p><a class="reference internal" href="#task-tries" id="id11">Task Tries</a></p></li>
+<li><p><a class="reference internal" href="#landing-times" id="id12">Landing Times</a></p></li>
+<li><p><a class="reference internal" href="#gantt-chart" id="id13">Gantt Chart</a></p></li>
+</ul>
+</li>
+</ul>
+</nav>
+<p>The workflow execution on Nucleus can be monitored using the following 2 features.</p>
+<ol class="arabic simple">
+<li><p>Airflow UI</p></li>
+<li><p>CloudWatch Dashboard</p></li>
+</ol>
+<section id="monitoring-using-airflow-ui">
+<h2>Monitoring Using Airflow UI<a class="headerlink" href="#monitoring-using-airflow-ui" title="Link to this heading"></a></h2>
+<p>Airflow UI contains many useful views to monitor the execution of a workflow.</p>
+<p>To use the Airflow, it is required to login to the Airflow UI as follows.</p>
+<ol class="arabic simple">
+<li><p>Login to AWS (NGAP) with NGAPShApplicationDeveloper role.</p></li>
+<li><p>Visit Airflow UI of Nucleus (<a class="reference external" href="https://us-west-2.console.aws.amazon.com/mwaa/home?region=us-west-2#environments/PDS-Nucleus-Airflow-Env/sso">https://us-west-2.console.aws.amazon.com/mwaa/home?region=us-west-2#environments/PDS-Nucleus-Airflow-Env/sso</a>).</p></li>
+</ol>
+<p>After you logged into the Airflow UI, the following views can be used to monitor the execution of workflows.</p>
+<ul class="simple">
+<li><p>DAGs View – List of DAGs in Airflow environment</p></li>
+<li><p>Tree View - Visualization of DAG’s dependencies and their current status for a specific run as a tree</p></li>
+<li><p>Graph View - Visualization of DAG’s dependencies and their current status for a specific run as a graph</p></li>
+<li><p>Calendar View - An overview of your entire DAG’s history over months, or years</p></li>
+<li><p>Task Duration - The duration of different tasks over the past N runs</p></li>
+<li><p>Task Tries - Shows a line graph of the number of tries for each task in a DAG run over time</p></li>
+<li><p>Landing Times - Airflow landing times are calculated from the task’s scheduled time to the time the task finishes, either with success or another state</p></li>
+<li><p>Gantt Chart - Provides a way to analyze task durations and overlaps</p></li>
+</ul>
+<p>More details about these views are available at: <a class="reference external" href="https://airflow.apache.org/docs/apache-airflow/stable/ui.html">https://airflow.apache.org/docs/apache-airflow/stable/ui.html</a></p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<section id="where-in-the-pipeline-is-currently-executing">
+<h3>Where in the pipeline is currently executing?<a class="headerlink" href="#where-in-the-pipeline-is-currently-executing" title="Link to this heading"></a></h3>
+<p>The Graph view or Tree view can be used to check the progress of a workflow as shown in the following screenshots.</p>
+<p>To view the Tree view and Graph view:</p>
+<ol class="arabic simple">
+<li><p>Click on the DAG name in the home page (DAGs view) of the Airflow UI</p></li>
+</ol>
+<img alt="Airflow DAG View" src="../_images/airflow_dag_view.png" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ol class="arabic simple" start="2">
+<li><p>Click on the Tree tab to see the Tree View.</p></li>
+</ol>
+<img alt="Airflow Tree View" src="../_images/airflow_tree_view.png" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ol class="arabic simple" start="3">
+<li><p>To check the Graph View, click on the Graph tab.</p></li>
+</ol>
+<img alt="Airflow Graph View" src="../_images/airflow_graph_view.png" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>The status of each task is represented with following color codes.</p>
+<img alt="Airflow Workflow Status Colors" src="../_images/airflow_workflow_statuses.png" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="what-if-something-has-failed">
+<h3>What/if something has failed?<a class="headerlink" href="#what-if-something-has-failed" title="Link to this heading"></a></h3>
+<p>If a task is failed, then it will be marked in red color in Grid view and Tree view. The following screenshot shows an example for a failed task (Execute_Integration_Tests).</p>
+<img alt="Airflow Failed Task" src="../_images/airflow_failed_task.png" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="when-has-it-completed-successfully">
+<h3>When has it completed successfully?<a class="headerlink" href="#when-has-it-completed-successfully" title="Link to this heading"></a></h3>
+<p>If a workflow is completed successfully, all tasks of the workflow will appear in dark green color as shown in the following screenshot.</p>
+<img alt="Airflow Successful Workflow in Graph View" src="../_images/airflow_successful_workflow_graph_view.png" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>Please note that in the following screenshot, only the second execution tree from the left is successful.</p>
+<img alt="Airflow Successful Workflow in Tree View" src="../_images/airflow_successful_workflow_tree_view.png" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>It is possible to write a DAG (workflow) in such a way, that the last task of the workflow can be successful, only if all the parent tasks are successful by using a trigger rule called <cite>all_success</cite> in the DAG python file. This is the default trigger rule.</p>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Print end date</span>
+<span class="n">print_end_date</span> <span class="o">=</span> <span class="n">BashOperator</span><span class="p">(</span>
+    <span class="n">task_id</span><span class="o">=</span><span class="s1">&#39;Print_End_Date&#39;</span><span class="p">,</span>
+    <span class="n">bash_command</span><span class="o">=</span><span class="s1">&#39;date&#39;</span><span class="p">,</span>
+    <span class="n">trigger_rule</span><span class="o">=</span><span class="n">TriggerRule</span><span class="o">.</span><span class="n">ALL_SUCCESS</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>In the examples shown above, the trigger rule for the last task is given as <cite>all_done</cite> (that means all parent tasks of the workflow are completed, regardless of their success/failed status).</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Print end date</span>
+<span class="n">print_end_date</span> <span class="o">=</span> <span class="n">BashOperator</span><span class="p">(</span>
+    <span class="n">task_id</span><span class="o">=</span><span class="s1">&#39;Print_End_Date&#39;</span><span class="p">,</span>
+    <span class="n">bash_command</span><span class="o">=</span><span class="s1">&#39;date&#39;</span><span class="p">,</span>
+    <span class="n">trigger_rule</span><span class="o">=</span><span class="n">TriggerRule</span><span class="o">.</span><span class="n">ALL_DONE</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="how-to-see-the-failure-reports-from-the-specific-tools">
+<h3>How to see the failure reports from the specific tools?<a class="headerlink" href="#how-to-see-the-failure-reports-from-the-specific-tools" title="Link to this heading"></a></h3>
+<p>If there is a failed tasks there are 2 ways to check the logs coming from the task.</p>
+<ol class="arabic simple">
+<li><p>Using the Airflow UI</p></li>
+<li><p>Using CloudWatch Dashboard</p></li>
+</ol>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="checking-logs-using-the-airflow-ui">
+<h3>Checking logs using the Airflow UI<a class="headerlink" href="#checking-logs-using-the-airflow-ui" title="Link to this heading"></a></h3>
+<p>It is possible to check an overview of logs by clicking on the failed task in Grid view or Tree view as shown in the following screenshots.</p>
+<p>To view an overview of logs for a task:</p>
+<ol class="arabic simple">
+<li><p>Click on the task (in this example, click on Validate_Task)</p></li>
+</ol>
+<img alt="Airflow Validate Failed Task" src="../_images/airflow_validate_failed_task.png" />
+<ol class="arabic simple" start="2">
+<li><p>Click on the “Log” button.</p></li>
+</ol>
+<img alt="Airflow Task Instance View" src="../_images/airflow_task_instance.png" />
+<ol class="arabic simple" start="3">
+<li><p>This will load the overview of logs as follows.</p></li>
+</ol>
+<img alt="Airflow Task Instance Logs" src="../_images/airflow_task_instance_logs.png" />
+<p>However, if it is required to read detailed logs, the CloudWatch dashboard can be used as explained in the next section.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+</section>
+<section id="monitoring-using-cloudwatch-dashboard">
+<h2>Monitoring Using CloudWatch Dashboard<a class="headerlink" href="#monitoring-using-cloudwatch-dashboard" title="Link to this heading"></a></h2>
+<p>Most of the Nucleus components and tasks produce CloudWatch logs. These logs are stored in CloudWatch log groups. The CloudWatch dashboard is used to see these logs. Each PDS Node has a CloudWatch Dashboard specific to that Node.</p>
+<p>To view CloudWatch Dashboard.</p>
+<ol class="arabic simple">
+<li><p>Visit the CloudWatch Dashboard URL specific to your PDS Node</p></li>
+<li><p>Login with your Cognito username and password</p></li>
+<li><p>After authentication you will be redirected to your PDS Node Dashboard</p></li>
+</ol>
+<p>The CloudWatch Dashboard contains Widgets that show the logs coming from Nucleus workflows as shown in the following screenshots.</p>
+<img alt="CloudWatch Dashboard Example" src="../_images/example_cloud_watch_dashboard.png" />
+<p>It is possible to maximize these widgets to get a better view of logs of specific tasks as follows.</p>
+<img alt="CloudWatch Dashboard Log Widget Expanded" src="../_images/cloudwatch_log_widget_expanded.png" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="additional-views-in-airflow-ui-to-monitor-workflows">
+<h2>Additional Views in Airflow UI to Monitor Workflows<a class="headerlink" href="#additional-views-in-airflow-ui-to-monitor-workflows" title="Link to this heading"></a></h2>
+<p>In addition to the Airflow Views explained above, following Airflow Views can be also used to monitor workflows.</p>
+<section id="calendar-view">
+<h3>Calendar View<a class="headerlink" href="#calendar-view" title="Link to this heading"></a></h3>
+<p>An overview of your entire DAG’s history over months, or years.</p>
+<img alt="Airflow Calendar View" src="../_images/airflow_calender_view.png" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="task-duration">
+<h3>Task Duration<a class="headerlink" href="#task-duration" title="Link to this heading"></a></h3>
+<p>The duration of different tasks over the past N runs.</p>
+<img alt="Airflow Task Duration View" src="../_images/airflow_task_duration_view.png" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="task-tries">
+<h3>Task Tries<a class="headerlink" href="#task-tries" title="Link to this heading"></a></h3>
+<p>Shows a line graph of the number of tries for each task in a DAG run over time.</p>
+<img alt="Airflow Task Tries View" src="../_images/airflow_task_tries_view.png" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="landing-times">
+<h3>Landing Times<a class="headerlink" href="#landing-times" title="Link to this heading"></a></h3>
+<p>Airflow landing times are calculated from the task’s scheduled time to the time the task finishes, either with success or another state.</p>
+<img alt="Airflow Landing Times View" src="../_images/airflow_landing_times_view.png" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="gantt-chart">
+<h3>Gantt Chart<a class="headerlink" href="#gantt-chart" title="Link to this heading"></a></h3>
+<p>Provides a way to analyze task durations and overlaps.</p>
+<img alt="Airflow Gantt View" src="../_images/airflow_gantt_view.png" />
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="create_an_operator.html" class="btn btn-neutral float-left" title="Create an Operator" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../architecture/baseline-architecture.html" class="btn btn-neutral float-right" title="Architecture" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2022 California Institute of Technology.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
