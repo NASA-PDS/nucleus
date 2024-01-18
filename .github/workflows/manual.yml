@@ -1,20 +1,4 @@
-# # This is a basic workflow that is manually triggered
 
-# name: Manual workflow
-
-# on:
-#   workflow_dispatch:
-
-# jobs:
-#   build:
-#     runs-on: ubuntu-latest
-#     steps:
-#       - uses: actions/checkout@v3
-#       - uses: ammaraskar/sphinx-action@master
-#         with:
-#           docs-folder: "docs/source/"
-#           build-command: "sphinx-build -c ./ . build"
-        
 name: documentation
 
 on: [push, pull_request, workflow_dispatch]
@@ -33,73 +17,5 @@ jobs:
           pip install sphinx sphinx_rtd_theme myst_parser
       - name: Sphinx build
         run: |
-          sphinx-build docs/source _build      
+          sphinx-build -a -b html docs/source docs/build
         
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        # with:
-        #   script: |
-        #     import os
-        #     import logging, shutil
-        #     from .util import invoke, invokeGIT, TAG_RE, commit, delete_tags, git_config, add_version_label_to_open_bugs
-        #     from lasso.releasers._python_version import TextFileDetective
-        #     import logging, os, re, shutil
-
-        #     # This should match what's in github-actions-base
-        #     SPHINX_VERSION = '3.2.1'
-            
-        #     _logger.debug('Python preparation step')
-        #     git_config()
-        #     shutil.rmtree('venv', ignore_errors=True)
-        #     # We add access to system site packages so that projects can save time if they need numpy, pandas, etc.
-        #     invoke(['python', '-m', 'venv', '--system-site-packages', 'venv'])
-        #     # Do the pseudo-equivalent of ``activate``:
-        #     venvBin = os.path.abspath(os.path.join(self.assembly.context.cwd, 'venv', 'bin'))
-        #     os.environ['PATH'] = f'{venvBin}:{os.environ["PATH"]}'
-        #     # Make sure we have the latest of pip+setuptools+wheel
-        #     invoke(['pip', 'install', '--quiet', '--upgrade', 'pip', 'setuptools', 'wheel'])
-        #     # #79: ensure that the venv has its own ``sphinx-build``
-        #     invoke(['pip', 'install', '--quiet', '--ignore-installed', f'sphinx=={SPHINX_VERSION}'])
-        #     # Now install the package being rounded up
-        #     invoke(['pip', 'install', '--editable', '.[dev]'])
-        #     # ☑️ TODO: what other prep steps are there? What about VERSION.txt overwriting?
-
-# # Controls when the action will run. Workflow runs when manually triggered using the UI
-# # or API.
-# on:
-#   workflow_dispatch:
-#     # # Inputs the workflow accepts.
-#     # inputs:
-#     #   name:
-#     #     # Friendly description to be shown in the UI instead of 'name'
-#     #     description: 'Person to greet'
-#     #     # Default value if no value is explicitly provided
-#     #     default: 'World'
-#     #     # Input has to be provided for the workflow to run
-#     #     required: true
-#     #     # The data type of the input
-#     #     type: string
-
-# jobs:
-#   docs:
-#     runs-on: ubuntu-latest
-#     steps:
-#     - uses: actions/checkout@v1
-#     # - uses: ammaraskar/sphinx-action@master
-#     #   with:
-#     #     docs-folder: "docs/source"
-#     - uses: ammaraskar/sphinx-action@master
-#       with:
-#         docs-folder: "docs/source/"
-#         build-command: "sphinx-build -b html . build"
-
-#  # invoke(['/usr/local/bin/sphinx-build', '-a', '-b', 'html', 'docs/source', 'docs/build'])
