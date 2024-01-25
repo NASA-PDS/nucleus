@@ -17,7 +17,7 @@
 
 # -- Project information -----------------------------------------------------
 
-project = 'NASA PDS Nucleus'
+project = 'NASA PDS Nucleus Project'
 copyright = '2024 California Institute of Technology'
 author = 'NASA Planetary Data System'
 release = '0.1'
