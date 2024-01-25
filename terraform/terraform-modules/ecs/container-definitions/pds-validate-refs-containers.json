@@ -1,0 +1,35 @@
+[
+  {
+    "name": "pds-validate-ref-task",
+    "image": "<ACCOUNT_ID>.dkr.ecr.us-west-2.amazonaws.com/pds-airflow-validate",
+    "cpu": 0,
+    "memoryReservation": 512,
+    "portMappings": [],
+    "essential": true,
+    "entryPoint": [
+      "validate-refs"
+    ],
+    "command": [
+      "/mnt/data/harvest-configs/harvest_manifest.txt",
+      "--auth-opensearch",
+      "/mnt/data/harvest-configs/harvest.cfg"
+    ],
+    "environment": [],
+    "mountPoints": [
+      {
+        "sourceVolume": "pds-validate-data",
+        "containerPath": "/mnt/data/",
+        "readOnly": false
+      }
+    ],
+    "volumesFrom": [],
+    "logConfiguration": {
+      "logDriver": "awslogs",
+      "options": {
+        "awslogs-group": "/pds/ecs/validate-ref",
+        "awslogs-region": "us-west-2",
+        "awslogs-stream-prefix": "ecs"
+      }
+    }
+  }
+]

@@ -52,6 +52,12 @@ variable "registry_loader_default_configs_access_point_id" {
   sensitive   = true
 }
 
+variable "pds_data_access_point_id" {
+  type        = string
+  description = "PDS Data Access Point ID"
+  sensitive   = true
+}
+
 variable "task_role_arn" {
   type        = string
   description = "Airflow Task Role ARN"

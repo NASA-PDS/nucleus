@@ -66,7 +66,7 @@ harvest = EcsRunTaskOperator(
     task_id="harvest",
     dag=dag,
     cluster=ECS_CLUSTER_NAME,
-    task_definition="pds-airflow-harvest:3",
+    task_definition="pds-airflow-harvest:4",
     launch_type=ECS_LAUNCH_TYPE,
     network_configuration={
             "awsvpcConfiguration": {
@@ -74,7 +74,7 @@ harvest = EcsRunTaskOperator(
                 "subnets": ECS_SUBNETS,
             },
     },
-        overrides={
+    overrides={
         "containerOverrides": [
             {
                 "name": "pds-airflow-harvest",
@@ -83,10 +83,40 @@ harvest = EcsRunTaskOperator(
         ],
     },
     awslogs_group="/pds/ecs/harvest",
-    awslogs_stream_prefix="ecs/harvest",
+    awslogs_stream_prefix="ecs/pds-airflow-harvest",
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500
 )
+
+# PDS Validate Ref with Manifest Task
+validate_ref = EcsRunTaskOperator(
+    task_id="validate_ref",
+    dag=dag,
+    cluster=ECS_CLUSTER_NAME,
+    task_definition="pds-validate-ref-task-definition:3",
+    launch_type=ECS_LAUNCH_TYPE,
+    network_configuration={
+            "awsvpcConfiguration": {
+                "securityGroups": ECS_SECURITY_GROUPS,
+                "subnets": ECS_SUBNETS,
+            },
+    },
+    overrides={
+        "containerOverrides": [
+            {
+                "name": "pds-validate-ref-task",
+                "command": ['{{ dag_run.conf["harvest_manifest_file_path"] }}',
+                            '--auth-opensearch', '{{ dag_run.conf["pds_harvest_config_file"] }}'
+                            ],
+            },
+        ],
+    },
+    awslogs_group="/pds/ecs/validate-ref",
+    awslogs_stream_prefix="ecs/pds-validate-ref-task",
+    awslogs_fetch_interval=timedelta(seconds=1),
+    number_logs_exception=1000
+)
+
 
 # Print end time
 print_end_time = BashOperator(
@@ -97,4 +127,4 @@ print_end_time = BashOperator(
 )
 
 # Workflow
-print_start_time  >> validate >> harvest >> print_end_time
+print_start_time >> validate >> harvest >> validate_ref >> print_end_time
