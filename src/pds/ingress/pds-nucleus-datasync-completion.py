@@ -31,7 +31,6 @@ efs_mount_path = os.environ.get('EFS_MOUNT_PATH')
 
 rds_data = boto3.client('rds-data')
 
-
 def lambda_handler(event, context):
     """ Lambda Handler """
 
@@ -43,7 +42,7 @@ def lambda_handler(event, context):
     task_id = resource_list[1]
     exec_id = resource_list[3]
 
-    prefix = f"Detailed-Reports/{task_id}/{exec_id}/{exec_id}.files-transferred-"
+    prefix = f"Detailed-Reports/{task_id}/{exec_id}/{exec_id}.files-verified-"
 
     datasync_reports_s3_bucket = s3.Bucket(datasync_reports_s3_bucket_name)
 
@@ -53,11 +52,11 @@ def lambda_handler(event, context):
 
         transfer_report_file_content = transfer_report.get()['Body'].read().decode('utf-8')
         transfer_report_json_content = json.loads(transfer_report_file_content)
-        trasfered_file_obj_list = transfer_report_json_content['Transferred']
+        verified_file_obj_list = transfer_report_json_content['Verified']
 
-        logger.debug(f"trasfered_file_obj_list: {trasfered_file_obj_list}")
+        logger.debug(f"verified_file_obj_list: {verified_file_obj_list}")
 
-        for file_obj in trasfered_file_obj_list:
+        for file_obj in verified_file_obj_list:
 
             obj_name = file_obj['RelativePath']
             obj_type = file_obj['SrcMetadata']['Type']
