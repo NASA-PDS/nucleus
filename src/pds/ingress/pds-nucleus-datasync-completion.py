@@ -3,12 +3,14 @@
 pds-nucleus-datasync-completion.py
 ==============================================
 
-Lambda function that get triggered when the PDS Nucleus Staging S3 Bucket to EFS datasync task is completed.
+Lambda function to read each data transfer report JSON file and update the Nucleus database tables ()
+(product table, product_data_file_mapping table and data_file table) based on the list of verified
+files found in the data transfer report. This lambda function is asynchronously called by
+the lambda function called pds-nucleus-datasync-completion-trigger.py.
 
 """
 
 import boto3
-import urllib.parse
 import logging
 import json
 import os
@@ -32,49 +34,40 @@ efs_mount_path = os.environ.get('EFS_MOUNT_PATH')
 rds_data = boto3.client('rds-data')
 
 def lambda_handler(event, context):
-    """ Lambda Handler """
+    """ Lambda Handler - The entry point of lambda """
 
     logger.info(f"Lambda Request ID: {context.aws_request_id}")
     logger.info(f"Event: {event}")
-    resource = event['resources']
 
-    resource_list = resource[0].split("/")
-    task_id = resource_list[1]
-    exec_id = resource_list[3]
+    content_object = s3.Object('pds-nucleus-datassync-reports', str(event["s3_key"]))
+    transfer_report_file_content = content_object.get()['Body'].read().decode('utf-8')
+    transfer_report_json_content = json.loads(transfer_report_file_content)
+    verified_file_obj_list = transfer_report_json_content['Verified']
 
-    prefix = f"Detailed-Reports/{task_id}/{exec_id}/{exec_id}.files-verified-"
-
-    datasync_reports_s3_bucket = s3.Bucket(datasync_reports_s3_bucket_name)
+    logger.debug(f"verified_file_obj_list: {verified_file_obj_list}")
 
     list_of_files = []
 
-    for transfer_report in datasync_reports_s3_bucket.objects.filter(Prefix=prefix):
+    # Process each file in verified file list
+    for file_obj in verified_file_obj_list:
 
-        transfer_report_file_content = transfer_report.get()['Body'].read().decode('utf-8')
-        transfer_report_json_content = json.loads(transfer_report_file_content)
-        verified_file_obj_list = transfer_report_json_content['Verified']
+        obj_name = file_obj['RelativePath']
+        obj_type = file_obj['SrcMetadata']['Type']
 
-        logger.debug(f"verified_file_obj_list: {verified_file_obj_list}")
+        if obj_type == 'Regular':  # Not a directory
 
-        for file_obj in verified_file_obj_list:
+            if obj_name.endswith('.fz'):
+                file_to_extract = f"/mnt/data/{s3_bucket_name}" + obj_name
+                extract_file(file_to_extract)
+                obj_name = obj_name.rstrip(",.fz")
 
-            obj_name = file_obj['RelativePath']
-            obj_type = file_obj['SrcMetadata']['Type']
+            s3_url_of_file = "s3://" + s3_bucket_name + obj_name
 
-            if obj_type == 'Regular':  # Not a directory
+            s3_key = obj_name[1:]
 
-                if obj_name.endswith('.fz'):
-                    file_to_extract = f"/mnt/data/{s3_bucket_name}" + obj_name
-                    extract_file(file_to_extract)
-                    obj_name = obj_name.rstrip(",.fz")
+            handle_file_types(s3_url_of_file, s3_bucket_name, s3_key)
 
-                s3_url_of_file = "s3://" + s3_bucket_name + obj_name
-
-                s3_key = obj_name[1:]
-
-                handle_file_types(s3_url_of_file, s3_bucket_name, s3_key)
-
-                list_of_files.append(s3_url_of_file)
+            list_of_files.append(s3_url_of_file)
 
     logger.debug(f"List_of_files received: {list_of_files}")
 
@@ -185,8 +178,8 @@ def save_product_processing_status_in_database(s3_url_of_product_label, processi
             database='pds_nucleus',
             sql=sql,
             parameters=param_set)
+        logger.debug(str(response))
 
-        print(str(response))
     except Exception as e:
         logger.error(f"Error writing to product table. Exception: {str(e)}")
         raise e
@@ -222,7 +215,7 @@ def save_data_file_in_database(s3_url_of_data_file):
             sql=sql,
             parameters=param_set)
 
-        logger.info(str(response))
+        logger.debug(str(response))
 
     except Exception as e:
         logger.error(f"Error updating data_file table. Exception: {str(e)}")
