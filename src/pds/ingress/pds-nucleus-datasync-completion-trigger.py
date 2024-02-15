@@ -36,7 +36,7 @@ client = boto3.client('lambda')
 
 
 def lambda_handler(event, context):
-    """ Lambda Handler """
+    """ Lambda Handler - The entry point of lambda """
 
     logger.info(f"Lambda Request ID: {context.aws_request_id}")
     logger.info(f"Event: {event}")

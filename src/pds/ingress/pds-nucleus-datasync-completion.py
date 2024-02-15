@@ -34,14 +34,12 @@ efs_mount_path = os.environ.get('EFS_MOUNT_PATH')
 rds_data = boto3.client('rds-data')
 
 def lambda_handler(event, context):
-    """ Lambda Handler """
+    """ Lambda Handler - The entry point of lambda """
 
     logger.info(f"Lambda Request ID: {context.aws_request_id}")
     logger.info(f"Event: {event}")
 
-    json_event = json.dumps(event)
-    transfer_report = json.loads(json_event)
-    content_object = s3.Object('pds-nucleus-datassync-reports', str(transfer_report["s3_key"]))
+    content_object = s3.Object('pds-nucleus-datassync-reports', str(event["s3_key"]))
     transfer_report_file_content = content_object.get()['Body'].read().decode('utf-8')
     transfer_report_json_content = json.loads(transfer_report_file_content)
     verified_file_obj_list = transfer_report_json_content['Verified']

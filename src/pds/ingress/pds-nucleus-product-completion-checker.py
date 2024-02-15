@@ -43,7 +43,7 @@ es_auth_file = efs_mount_path + '/configs/es-auth.cfg'
 replace_prefix = efs_mount_path
 
 def lambda_handler(event, context):
-    """ Main lambda handler """
+    """ Lambda Handler - The entry point of lambda """
 
     logger.setLevel(logging.DEBUG)
     logger.addHandler(logging.StreamHandler())
