@@ -8,10 +8,7 @@ with all required files. This lambda function is triggered periodically.
 
 """
 
-import json
-import urllib.parse
 import logging
-import shutil
 import boto3
 import os
 import time
@@ -66,13 +63,17 @@ def process_completed_products():
 
     logger.debug("Checking completed products...")
 
+    # The limit 1000 was used in following query to avoid the error "Database returned more than the allowed response size limit"
+    # The remaining records will be retrieved in the subsequent queries.
+
+
     sql =   """
                 SELECT DISTINCT s3_url_of_product_label from product
                 WHERE processing_status = 'INCOMPLETE' and s3_url_of_product_label
                 NOT IN (SELECT s3_url_of_product_label  from product_data_file_mapping
                 where s3_url_of_data_file
                 NOT IN (SELECT s3_url_of_data_file from data_file)) and s3_url_of_product_label
-                IN (SELECT s3_url_of_product_label  from product_data_file_mapping);
+                IN (SELECT s3_url_of_product_label  from product_data_file_mapping) limit 1000;
             """
 
     response = rds_data.execute_statement(
