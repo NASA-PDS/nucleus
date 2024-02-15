@@ -48,6 +48,8 @@ def lambda_handler(event, context):
 
     logger.debug(f"verified_file_obj_list: {verified_file_obj_list}")
 
+    list_of_files = []
+
     # Process each file in verified file list
     for file_obj in verified_file_obj_list:
 
