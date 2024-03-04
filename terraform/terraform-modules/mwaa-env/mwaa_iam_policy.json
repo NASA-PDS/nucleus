@@ -1,0 +1,88 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "airflow:PublishMetrics",
+      "Resource": "*"
+    },
+    {
+      "Effect": "Deny",
+      "Action": "s3:ListAllMyBuckets",
+      "Resource": [
+        "arn:aws:s3:::s3-bucket-pds-airflow",
+        "arn:aws:s3:::s3-bucket-pds-airflow/*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject*",
+        "s3:GetBucket*",
+        "s3:List*"
+      ],
+      "Resource": [
+        "arn:aws:s3:::s3-bucket-pds-airflow",
+        "arn:aws:s3:::s3-bucket-pds-airflow/*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogStream",
+        "logs:CreateLogGroup",
+        "logs:PutLogEvents",
+        "logs:GetLogEvents",
+        "logs:GetLogRecord",
+        "logs:GetLogGroupFields",
+        "logs:GetQueryResults"
+      ],
+      "Resource": [
+        "*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "logs:DescribeLogGroups"
+      ],
+      "Resource": [
+        "*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": "cloudwatch:PutMetricData",
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "sqs:ChangeMessageVisibility",
+        "sqs:DeleteMessage",
+        "sqs:GetQueueAttributes",
+        "sqs:GetQueueUrl",
+        "sqs:ReceiveMessage",
+        "sqs:SendMessage"
+      ],
+      "Resource": "arn:aws:sqs:us-west-2:*:airflow-celery-*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "kms:Decrypt",
+        "kms:DescribeKey",
+        "kms:GenerateDataKey*",
+        "kms:Encrypt"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringLike": {
+          "kms:ViaService": [
+            "sqs.us-west-2.amazonaws.com"
+          ]
+        }
+      }
+    }
+  ]
+}

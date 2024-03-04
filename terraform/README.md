@@ -65,7 +65,7 @@ cd nucleus/terraform
     - vpc_id:  VPC ID of your AWS VPC
     - vpc_cidr: VPC CIDR for MWAA (E.g.: "10.1.0.0/16")
     - nucleus_security_group_ingress_cidr: List of ingress CIDRs for the Nucleus Security Group to be created (E.g.: "10.21.240.0/20")
-    - subnet_ids: List of Subnet IDs to be used for the MWAA
+    - subnet_ids: List of Private Subnet IDs to be used for the MWAA
     - airflow_execution_role: Airflow AWS Execution Role
     - efs_file_system_id: The File system ID of the EFS volume mentioned under the prerequisites 
     - registry_loader_scripts_access_point_id: The access point ID of the `scripts` access point of EFS volume mentioned under the prerequisites

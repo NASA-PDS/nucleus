@@ -6,13 +6,13 @@ variable "airflow_env_name" {
 
 variable "airflow_version" {
   description = "PDS Nucleus Airflow Version"
-  default     = "2.2.2"
+  default     = "2.8.1"
   type        = string
 }
 
 variable "airflow_env_class" {
   description = "PDS Nucleus Airflow Environment Class"
-  default     = "mw1.medium"
+  default     = "mw1.small"
   type        = string
 }
 
@@ -67,17 +67,21 @@ variable "subnet_ids" {
   # default     = ["<COMMA SEPERATED LIST OF SUBNET IDs>"]
   sensitive = true
 }
-
-variable "airflow_execution_role" {
-  description = "Airflow AWS Execution Role"
-  type        = string
-  # default     = "<Airflow AWS Execution Role>"
-  sensitive = true
-}
+#
+#variable "airflow_execution_role" {
+#  description = "Airflow AWS Execution Role"
+#  type        = string
+#  # default     = "<Airflow AWS Execution Role>"
+#  sensitive = true
+#}
 
 variable "mwaa_dag_s3_bucket_name" {
   description = "The name of the S3 bucket contaning MWAA DAG files"
   type        = string
   # default     = "pds-nucleus-airflow-dags-bucket-mcp-dev"
   sensitive = true
+}
+
+variable "permission_boundary_for_iam_role" {
+  default = "mcp-tenantOperator-APIG"
 }

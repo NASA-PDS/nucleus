@@ -28,47 +28,47 @@ variable "subnet_ids" {
   sensitive   = true
 }
 
-variable "airflow_execution_role" {
-  description = "Airflow AWS Execution Role"
-  type        = string
-  sensitive   = true
-}
+#variable "airflow_execution_role" {
+#  description = "Airflow AWS Execution Role"
+#  type        = string
+#  sensitive   = true
+#}
+#
+#variable "efs_file_system_id" {
+#  type        = string
+#  description = "EFS File System ID"
+#  sensitive   = true
+#}
+#
+#variable "registry_loader_scripts_access_point_id" {
+#  type        = string
+#  description = "Registry Loader Scripts EFS Access Point ID"
+#  sensitive   = true
+#}
+#
+#variable "registry_loader_default_configs_access_point_id" {
+#  type        = string
+#  description = "Registry Loader Default Configs EFS Access Point ID"
+#  sensitive   = true
+#}
+#
+#variable "pds_data_access_point_id" {
+#  type        = string
+#  description = "PDS Data Access Point ID"
+#  sensitive   = true
+#}
 
-variable "efs_file_system_id" {
-  type        = string
-  description = "EFS File System ID"
-  sensitive   = true
-}
-
-variable "registry_loader_scripts_access_point_id" {
-  type        = string
-  description = "Registry Loader Scripts EFS Access Point ID"
-  sensitive   = true
-}
-
-variable "registry_loader_default_configs_access_point_id" {
-  type        = string
-  description = "Registry Loader Default Configs EFS Access Point ID"
-  sensitive   = true
-}
-
-variable "pds_data_access_point_id" {
-  type        = string
-  description = "PDS Data Access Point ID"
-  sensitive   = true
-}
-
-variable "task_role_arn" {
-  type        = string
-  description = "Airflow Task Role ARN"
-  sensitive   = true
-}
-
-variable "execution_role_arn" {
-  type        = string
-  description = "Airflow Execution Role ARN"
-  sensitive   = true
-}
+#variable "task_role_arn" {
+#  type        = string
+#  description = "Airflow Task Role ARN"
+#  sensitive   = true
+#}
+#
+#variable "execution_role_arn" {
+#  type        = string
+#  description = "Airflow Execution Role ARN"
+#  sensitive   = true
+#}
 
 variable "mwaa_dag_s3_bucket_name" {
   type        = string

@@ -22,11 +22,43 @@ resource "aws_security_group" "nucleus_security_group" {
   }
 }
 
+# IAM Policy Document for Assume Role
+data "aws_iam_policy_document" "assume_role" {
+  statement {
+    effect = "Allow"
+    principals {
+      type        = "Service"
+      identifiers = [ "airflow-env.amazonaws.com", "airflow.amazonaws.com"]
+    }
+    actions = ["sts:AssumeRole"]
+  }
+}
+
+# IAM Policy Document for Inline Policy
+data "aws_iam_policy_document" "inline_policy" {
+  source_policy_documents =  [file("${path.module}/mwaa_iam_policy.json")]
+}
+
+# The Policy for Permission Boundary
+data "aws_iam_policy" "mcp_operator_policy" {
+  name = var.permission_boundary_for_iam_role
+}
+
+resource "aws_iam_role" "pds_nucleus_mwaa_execution_role" {
+  name                  = "pds_nucleus_mwaa_execution_role"
+  inline_policy {
+    name   = "pds-nucleus-mwaa-execution-role-inline-policy"
+    policy = data.aws_iam_policy_document.inline_policy.json
+  }
+  assume_role_policy = data.aws_iam_policy_document.assume_role.json
+  permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
+}
+
 resource "aws_s3_bucket" "nucleus_airflow_dags_bucket" {
   bucket = var.mwaa_dag_s3_bucket_name
 
   tags = {
-    Name        = "Nucleus Airflow DAGS bucket terraform"
+    Name        = "Nucleus Airflow DAGS bucket"
     Environment = "Dev"
   }
 
@@ -40,15 +72,16 @@ resource "aws_s3_bucket_versioning" "nucleus_dags_bucket_versioning" {
   }
 }
 
-resource "aws_s3_bucket_server_side_encryption_configuration" "nucleus_dags_bucket_encryption" {
-  bucket = aws_s3_bucket.nucleus_airflow_dags_bucket.id
-
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
-}
+# Enable this, only if S3 bucket encryption is required
+#resource "aws_s3_bucket_server_side_encryption_configuration" "nucleus_dags_bucket_encryption" {
+#  bucket = aws_s3_bucket.nucleus_airflow_dags_bucket.id
+#
+#  rule {
+#    apply_server_side_encryption_by_default {
+#      sse_algorithm = "AES256"
+#    }
+#  }
+#}
 
 resource "aws_s3_object" "dags" {
   bucket        = aws_s3_bucket.nucleus_airflow_dags_bucket.id
@@ -67,70 +100,77 @@ resource "aws_s3_object" "requirements" {
   force_destroy = true
   source        = "./terraform-modules/mwaa-env/requirements.txt"
 }
+#
+#resource "aws_s3_bucket_public_access_block" "nucleus_airflow_dags_bucket_public_access_block" {
+#  bucket = aws_s3_bucket.nucleus_airflow_dags_bucket.id
+#
+#  block_public_acls       = true
+#  block_public_policy     = true
+#  ignore_public_acls      = true
+#  restrict_public_buckets = true
+#}
+#
+#resource "aws_s3_bucket_policy" "allow_access_from_another_account" {
+#  bucket = aws_s3_bucket.nucleus_airflow_dags_bucket.id
+#  policy = data.aws_iam_policy_document.allow_access_from_another_account.json
+#}
+#
+#data "aws_iam_policy_document" "allow_access_from_another_account" {
+#  statement {
+#    principals {
+#      type        = "AWS"
+#      identifiers = [aws_iam_policy.pds_nucleus_mwaa_execution_policy.arn]
+#    }
+#
+#    actions = [
+#      "s3:*"
+#    ]
+#
+#    effect = "Allow"
+#
+#    resources = [
+#      aws_s3_bucket.nucleus_airflow_dags_bucket.arn,
+#      "${aws_s3_bucket.nucleus_airflow_dags_bucket.arn}/*",
+#    ]
+#  }
+#
+#  depends_on = [aws_iam_policy.pds_nucleus_mwaa_execution_policy]
+#}
+#
 
-resource "aws_s3_bucket_public_access_block" "nucleus_airflow_dags_bucket_public_access_block" {
-  bucket = aws_s3_bucket.nucleus_airflow_dags_bucket.id
+#resource "aws_mwaa_environment" "pds_nucleus_airflow_env" {
+#
+#  name              = var.airflow_env_name
+#  airflow_version   = var.airflow_version
+#  environment_class = var.airflow_env_class
+#
+#  dag_s3_path        = var.airflow_dags_path
+#  execution_role_arn = var.airflow_execution_role
+#
+#  requirements_s3_path = var.airflow_requirements_path
+#
+#  depends_on = [aws_s3_object.dags, aws_security_group.nucleus_security_group]
+#
+#  min_workers           = 1
+#  max_workers           = 10
+#  webserver_access_mode = "PUBLIC_ONLY"
+#
+#  network_configuration {
+#    security_group_ids = [aws_security_group.nucleus_security_group.id]
+#    subnet_ids         = var.subnet_ids
+#  }
+#
+#  source_bucket_arn = aws_s3_bucket.nucleus_airflow_dags_bucket.arn
+#
+#  airflow_configuration_options = {
+#    "core.load_default_connections" = "false"
+#    "core.load_examples"            = "false"
+#    "webserver.dag_default_view"    = "tree"
+#    "webserver.dag_orientation"     = "TB"
+#    "logging.logging_level"         = "INFO"
+#  }
+#}
 
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
-
-resource "aws_s3_bucket_policy" "allow_access_from_another_account" {
-  bucket = aws_s3_bucket.nucleus_airflow_dags_bucket.id
-  policy = data.aws_iam_policy_document.allow_access_from_another_account.json
-}
-
-data "aws_iam_policy_document" "allow_access_from_another_account" {
-  statement {
-    principals {
-      type        = "AWS"
-      identifiers = [var.airflow_execution_role]
-    }
-
-    actions = [
-      "s3:*"
-    ]
-
-    effect = "Allow"
-
-    resources = [
-      aws_s3_bucket.nucleus_airflow_dags_bucket.arn,
-      "${aws_s3_bucket.nucleus_airflow_dags_bucket.arn}/*",
-    ]
-  }
-}
-
-resource "aws_mwaa_environment" "pds_nucleus_airflow_env" {
-
-  name              = var.airflow_env_name
-  airflow_version   = var.airflow_version
-  environment_class = var.airflow_env_class
-
-  dag_s3_path        = var.airflow_dags_path
-  execution_role_arn = var.airflow_execution_role
-
-  requirements_s3_path = var.airflow_requirements_path
-
-  depends_on = [aws_s3_object.dags, aws_security_group.nucleus_security_group]
-
-  min_workers           = 1
-  max_workers           = 25
-  webserver_access_mode = "PUBLIC_ONLY"
-
-  network_configuration {
-    security_group_ids = [aws_security_group.nucleus_security_group.id]
-    subnet_ids         = var.subnet_ids
-  }
-
-  source_bucket_arn = aws_s3_bucket.nucleus_airflow_dags_bucket.arn
-
-  airflow_configuration_options = {
-    "core.load_default_connections" = "false"
-    "core.load_examples"            = "false"
-    "webserver.dag_default_view"    = "tree"
-    "webserver.dag_orientation"     = "TB"
-    "logging.logging_level"         = "INFO"
-  }
+output "pds_nucleus_mwaa_execution_role_arn" {
+  value = aws_iam_role.pds_nucleus_mwaa_execution_role.arn
 }

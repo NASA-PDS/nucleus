@@ -6,7 +6,7 @@ module "mwaa-env" {
   vpc_cidr                            = var.vpc_cidr
   nucleus_security_group_ingress_cidr = var.nucleus_security_group_ingress_cidr
   subnet_ids                          = var.subnet_ids
-  airflow_execution_role              = var.airflow_execution_role
+#  airflow_execution_role              = var.airflow_execution_role
   mwaa_dag_s3_bucket_name             = var.mwaa_dag_s3_bucket_name
 }
 
@@ -14,20 +14,22 @@ module "mwaa-env" {
 # capable of successfully deploying some ECS tasks related with PDS Registry. However, these modules
 # are currently disabled to keep the PDS Nucleus Baseline System clean and to avoid confusions.
 
-# module "efs" {
-#   source = "./terraform-modules/efs"
-# }
+module "efs" {
+ source = "./terraform-modules/efs"
+}
 
-# module "ecs" {
-#   source = "./terraform-modules/ecs"
+module "ecs" {
+  source = "./terraform-modules/ecs"
 
-#   efs_file_system_id                              = var.efs_file_system_id
-#   registry_loader_scripts_access_point_id         = var.registry_loader_scripts_access_point_id
-#   registry_loader_default_configs_access_point_id = var.registry_loader_default_configs_access_point_id
-#   task_role_arn                                   = var.task_role_arn
-#   execution_role_arn                              = var.execution_role_arn
-# }
+  efs_file_system_id                              = module.efs.efs_file_system_id
+  registry_loader_scripts_access_point_id         = module.efs.efs_file_system_id
+  registry_loader_default_configs_access_point_id = module.efs.efs_file_system_id
+  pds_data_access_point_id                        = module.efs.efs_access_point_id_pds-data
+  task_role_arn                                   = module.mwaa-env.pds_nucleus_mwaa_execution_role_arn
+  execution_role_arn                              = module.mwaa-env.pds_nucleus_mwaa_execution_role_arn
+}
 
- module "product-copy-completion-checker" {
-   source = "./terraform-modules/product-copy-completion-checker"
- }
+module "product-copy-completion-checker" {
+ source = "./terraform-modules/product-copy-completion-checker"
+}
+
