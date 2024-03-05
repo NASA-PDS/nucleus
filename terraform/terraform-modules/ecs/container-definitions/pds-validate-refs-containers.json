@@ -1,7 +1,7 @@
 [
   {
     "name": "pds-validate-ref-task",
-    "image": "<ACCOUNT_ID>.dkr.ecr.us-west-2.amazonaws.com/pds-airflow-validate",
+    "image": "${pds_validate_ref_ecr_image_path}",
     "cpu": 0,
     "memoryReservation": 512,
     "portMappings": [],
@@ -26,8 +26,8 @@
     "logConfiguration": {
       "logDriver": "awslogs",
       "options": {
-        "awslogs-group": "/pds/ecs/validate-ref",
-        "awslogs-region": "us-west-2",
+        "awslogs-group": "${pds_validate_ref_cloudwatch_logs_group}",
+        "awslogs-region": "${pds_validate_ref_cloudwatch_logs_region}",
         "awslogs-stream-prefix": "ecs"
       }
     }

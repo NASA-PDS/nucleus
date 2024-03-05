@@ -76,3 +76,51 @@ variable "mwaa_dag_s3_bucket_name" {
   sensitive   = true
 }
 
+variable "pds_registry_loader_harvest_ecr_image_path" {
+  type        = string
+  description = "PDS Registry Loader Harvest ECR Image Path"
+  sensitive   = true
+}
+
+variable "pds_registry_loader_harvest_cloudwatch_logs_group" {
+  type        = string
+  description = "PDS Registry Loader Harvest Cloudwatch Logs Group"
+  sensitive   = true
+}
+
+variable "pds_registry_loader_harvest_cloudwatch_logs_region" {
+  type        = string
+  description = "PDS Registry Loader Harvest Cloudwatch Logs Region"
+  sensitive   = true
+}
+
+variable "pds_validate_ecr_image_path" {
+  type        = string
+  description = "PDS Validate ECR Image Path"
+  sensitive   = true
+}
+
+variable "pds_validate_cloudwatch_logs_group" {
+  type        = string
+  description = "PDS Validate Cloudwatch Logs Group"
+  sensitive   = true
+}
+
+variable "pds_validate_cloudwatch_logs_region" {
+  type        = string
+  description = "PDS Validate Cloudwatch Logs Region"
+  sensitive   = true
+}
+
+variable "pds_validate_ref_cloudwatch_logs_group" {
+  type        = string
+  description = "PDS Validate Ref Cloudwatch Logs Group"
+  sensitive   = true
+}
+
+variable "pds_validate_ref_cloudwatch_logs_region" {
+  type        = string
+  description = "PDS Validate Ref Cloudwatch Logs Region"
+  sensitive   = true
+}
+

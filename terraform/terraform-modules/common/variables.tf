@@ -24,25 +24,7 @@ variable "airflow_dags_path" {
 
 variable "airflow_requirements_path" {
   description = "PDS Nucleus Airflow Python Requirements File Path"
-  default     = "requirements.txt"
-  type        = string
-}
-
-variable "airflow_dags_bucket_arn" {
-  description = "PDS Nucleus Airflow DAGS Bucket ARN"
-  # default     = "<PDS Nucleus Airflow DAGS Bucket ARN>"
-  type        = string
-}
-
-#variable "mwaa_execution_role_arn" {
-#  description = "PDS Nucleus MWAA Execution Role ARN"
-#  # default     = "<PDS Nucleus MWAA Execution Role AR>"
-#  type        = string
-#}
-
-variable "nucleus_security_group_id" {
-  description = "PDS Nucleus Security Group ID"
-  # default     = "<PDS Nucleus Security Group ID>"
+  default     = "dags/"
   type        = string
 }
 
@@ -72,19 +54,19 @@ variable "vpc_cidr" {
   sensitive = true
 }
 
-#variable "nucleus_security_group_ingress_cidr" {
-#  description = "Ingress CIDR for Nucleus Security Group"
-#  type        = list(string)
-#  # default     = ["<Ingress CIDR>"]
-#  sensitive = true
-#}
-
-variable "subnet_ids" {
-  description = "Subnet IDs"
+variable "nucleus_security_group_ingress_cidr" {
+  description = "Ingress CIDR for Nucleus Security Group"
   type        = list(string)
-  # default     = ["<COMMA SEPERATED LIST OF SUBNET IDs>"]
+  # default     = ["<Ingress CIDR>"]
   sensitive = true
 }
+
+#variable "subnet_ids" {
+#  description = "Subnet IDs"
+#  type        = list(string)
+#  # default     = ["<COMMA SEPERATED LIST OF SUBNET IDs>"]
+#  sensitive = true
+#}
 #
 #variable "airflow_execution_role" {
 #  description = "Airflow AWS Execution Role"
@@ -93,17 +75,9 @@ variable "subnet_ids" {
 #  sensitive = true
 #}
 
-#variable "mwaa_dag_s3_bucket_name" {
-#  description = "The name of the S3 bucket contaning MWAA DAG files"
-#  type        = string
-#  # default     = "pds-nucleus-airflow-dags-bucket-mcp-dev"
-#  sensitive = true
-#}
-#
-#variable "permission_boundary_for_iam_role" {
-#  default = "mcp-tenantOperator-APIG"
-#}
-
-variable "permission_boundary_for_iam_role" {
-  default = "mcp-tenantOperator-APIG"
+variable "mwaa_dag_s3_bucket_name" {
+  description = "The name of the S3 bucket contaning MWAA DAG files"
+  type        = string
+  # default     = "pds-nucleus-airflow-dags-bucket-mcp-dev"
+  sensitive = true
 }

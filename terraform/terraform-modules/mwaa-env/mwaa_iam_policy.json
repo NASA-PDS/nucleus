@@ -9,10 +9,7 @@
     {
       "Effect": "Deny",
       "Action": "s3:ListAllMyBuckets",
-      "Resource": [
-        "arn:aws:s3:::s3-bucket-pds-airflow",
-        "arn:aws:s3:::s3-bucket-pds-airflow/*"
-      ]
+      "Resource": ["*"]
     },
     {
       "Effect": "Allow",
@@ -21,10 +18,7 @@
         "s3:GetBucket*",
         "s3:List*"
       ],
-      "Resource": [
-        "arn:aws:s3:::s3-bucket-pds-airflow",
-        "arn:aws:s3:::s3-bucket-pds-airflow/*"
-      ]
+      "Resource": ["*"]
     },
     {
       "Effect": "Allow",
