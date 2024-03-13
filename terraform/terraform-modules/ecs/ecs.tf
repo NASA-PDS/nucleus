@@ -32,9 +32,9 @@ data "aws_iam_policy_document" "ecs_task_role_assume_role" {
 }
 
 resource "aws_iam_role" "pds_nucleus_ecs_task_role" {
-  name                  = "pds_nucleus_mwaa_execution_role"
+  name                  = "pds_nucleus_ecs_task_role"
   inline_policy {
-    name   = "pds-nucleus-mwaa-execution-role-inline-policy"
+    name   = "pds-nucleus-ecs-task-role-inline-policy"
     policy = data.aws_iam_policy_document.ecs_task_role_inline_policy.json
   }
   assume_role_policy = data.aws_iam_policy_document.ecs_task_role_assume_role.json
@@ -64,9 +64,9 @@ data "aws_iam_policy_document" "ecs_task_execution_role_inline_policy" {
 #}
 
 resource "aws_iam_role" "pds_nucleus_ecs_task_execution_role" {
-  name                  = "pds_nucleus_mwaa_execution_role"
+  name                  = "pds_nucleus_ecs_task_execution_role"
   inline_policy {
-    name   = "pds-nucleus-mwaa-execution-role-inline-policy"
+    name   = "pds-nucleus-ecs-task-execution-role-inline-policy"
     policy = data.aws_iam_policy_document.ecs_task_execution_role_inline_policy.json
   }
   assume_role_policy = data.aws_iam_policy_document.ecs_task_role_assume_role.json
@@ -95,7 +95,7 @@ data "template_file" "pds-registry-loader-harvest-containers-json-template" {
 
 # PDS Registry Loader Harvest Task Definition
 resource "aws_ecs_task_definition" "pds-registry-loader-harvest" {
-  family                   = "pds-airflow-registry-loader-harvest"
+  family                   = "pds-airflow-registry-loader-harvest-task-definition"
   requires_compatibilities = ["EC2", "FARGATE"]
   network_mode             = "awsvpc"
   cpu                      = 4096
@@ -185,7 +185,7 @@ resource "aws_ecs_task_definition" "pds-validate-task-definition" {
 
 # CloudWatch Log Group for PDS Validate Ref ECS Task
 resource "aws_cloudwatch_log_group" "pds-validate-ref-log-group" {
-  name = var.pds_validate_cloudwatch_logs_group
+  name = var.pds_validate_ref_cloudwatch_logs_group
 }
 
 # Replace PDS Validate Ref ECR Image Path in pds-validate-refs-containers.json
@@ -197,33 +197,33 @@ data "template_file" "pds-validate-ref-containers-json-template" {
     pds_validate_ref_cloudwatch_logs_region = var.pds_validate_ref_cloudwatch_logs_region
   }
 }
-
-# PDS Validate Ref ECS Task Definition
-resource "aws_ecs_task_definition" "pds-validate-ref-task-definition" {
-  family                   = "pds-validate-refs-task-definition"
-  requires_compatibilities = ["EC2", "FARGATE"]
-  network_mode             = "awsvpc"
-  cpu                      = 2048
-  memory                   = 8192
-  runtime_platform {
-    operating_system_family = "LINUX"
-  }
-
-  volume {
-    name = "pds-data"
-
-    efs_volume_configuration {
-      file_system_id     = var.efs_file_system_id
-      root_directory     = "/"
-      transit_encryption = "ENABLED"
-      authorization_config {
-        access_point_id  = var.pds_data_access_point_id
-        iam              = "ENABLED"
-      }
-    }
-  }
-
-  container_definitions = file("terraform-modules/ecs/container-definitions/pds-validate-refs-containers.json")
-  task_role_arn               = aws_iam_role.pds_nucleus_ecs_task_role.arn
-  execution_role_arn          = aws_iam_role.pds_nucleus_ecs_task_execution_role.arn
-}
+#
+## PDS Validate Ref ECS Task Definition
+#resource "aws_ecs_task_definition" "pds-validate-ref-task-definition" {
+#  family                   = "pds-validate-refs-task-definition"
+#  requires_compatibilities = ["EC2", "FARGATE"]
+#  network_mode             = "awsvpc"
+#  cpu                      = 2048
+#  memory                   = 8192
+#  runtime_platform {
+#    operating_system_family = "LINUX"
+#  }
+#
+#  volume {
+#    name = "pds-data"
+#
+#    efs_volume_configuration {
+#      file_system_id     = var.efs_file_system_id
+#      root_directory     = "/"
+#      transit_encryption = "ENABLED"
+#      authorization_config {
+#        access_point_id  = var.pds_data_access_point_id
+#        iam              = "ENABLED"
+#      }
+#    }
+#  }
+#
+#  container_definitions = file("terraform-modules/ecs/container-definitions/pds-validate-refs-containers.json")
+#  task_role_arn               = aws_iam_role.pds_nucleus_ecs_task_role.arn
+#  execution_role_arn          = aws_iam_role.pds_nucleus_ecs_task_execution_role.arn
+#}

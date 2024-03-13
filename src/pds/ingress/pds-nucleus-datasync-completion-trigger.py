@@ -50,7 +50,7 @@ def lambda_handler(event, context):
 
     datasync_reports_s3_bucket = s3.Bucket(datasync_reports_s3_bucket_name)
 
-    list_of_files = []
+    list_of_reports = []
 
     # Loop through the list of json files with the prefix files-verified-
     for transfer_report in datasync_reports_s3_bucket.objects.filter(Prefix=prefix):
@@ -67,4 +67,7 @@ def lambda_handler(event, context):
             Payload=json.dumps(inputParams)
         )
 
-    logger.debug(f"List_of_files received: {list_of_files}")
+        logger.debug(f"Invoked pds-nucleus-datasync-completion lambda with inputParams: {inputParams} and response: {response}")
+        list_of_reports.append(transfer_report)
+
+    logger.debug(f"List_of_files received: {list_of_reports}")

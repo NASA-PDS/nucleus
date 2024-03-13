@@ -60,7 +60,7 @@ module "ecs" {
   pds_validate_ref_cloudwatch_logs_group = var.pds_validate_ref_cloudwatch_logs_group
   pds_validate_ref_cloudwatch_logs_region = var.pds_validate_ref_cloudwatch_logs_region
 
-  depends_on = [module.common, module.efs, module.mwaa-env]
+  depends_on = [module.common, module.efs]
 }
 
 module "product-copy-completion-checker" {
