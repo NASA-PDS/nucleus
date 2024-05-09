@@ -1,0 +1,12 @@
+prefix=/Users/rameshm/project/pds/Nucleus/test_prod_prod_deploy_terraform/nucleus/docker/s3-to-efs-copy/cfitsio-4.4.0
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: cfitsio
+Description: FITS File Subroutine Library
+URL: https://heasarc.gsfc.nasa.gov/fitsio/
+Version: 4.4.0
+Libs: -L${libdir} -lcfitsio
+Libs.private: -lcurl -lz  -lm
+Cflags: -I${includedir}

@@ -1,0 +1,26 @@
+[
+  {
+    "name": "pds-validate-task",
+    "image": "${pds_validate_ecr_image_path}",
+    "cpu": 0,
+    "portMappings": [],
+    "essential": true,
+    "environment": [],
+    "mountPoints": [
+      {
+        "sourceVolume": "pds-data",
+        "containerPath": "/mnt/data/",
+        "readOnly": false
+      }
+    ],
+    "volumesFrom": [],
+    "logConfiguration": {
+      "logDriver": "awslogs",
+      "options": {
+        "awslogs-group": "${pds_validate_cloudwatch_logs_group}",
+        "awslogs-region": "${pds_validate_cloudwatch_logs_region}",
+        "awslogs-stream-prefix": "ecs"
+      }
+    }
+  }
+]

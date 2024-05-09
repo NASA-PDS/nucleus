@@ -1,0 +1,28 @@
+[
+  {
+    "name": "pds-registry-loader-harvest",
+    "image": "${pds_registry_loader_harvest_ecr_image_path}",
+    "cpu": 0,
+    "portMappings": [],
+    "essential": true,
+    "entryPoint": [],
+    "command": [],
+    "environment": [],
+    "mountPoints": [
+      {
+        "sourceVolume": "pds-data",
+        "containerPath": "/mnt/data/",
+        "readOnly": false
+      }
+    ],
+    "volumesFrom": [],
+    "logConfiguration": {
+      "logDriver": "awslogs",
+      "options": {
+        "awslogs-group": "${pds_registry_loader_harvest_cloudwatch_logs_group}",
+        "awslogs-region": "${pds_registry_loader_harvest_cloudwatch_logs_region}",
+        "awslogs-stream-prefix": "ecs"
+      }
+    }
+  }
+]

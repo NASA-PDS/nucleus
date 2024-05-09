@@ -1,0 +1,39 @@
+[
+  {
+    "name": "pds-nucleus-config-init",
+    "image": "${pds_nucleus_config_init_ecr_image_path}",
+    "cpu": 0,
+    "portMappings": [
+      {
+        "name": "pds-nucleus-config-init-80-tcp",
+        "containerPort": 80,
+        "hostPort": 80,
+        "protocol": "tcp",
+        "appProtocol": "http"
+      }
+    ],
+    "essential": true,
+    "environment": [],
+    "environmentFiles": [],
+    "mountPoints": [
+      {
+        "sourceVolume": "pds-data",
+        "containerPath": "/mnt/data/",
+        "readOnly": false
+      }
+    ],
+    "volumesFrom": [],
+    "ulimits": [],
+    "logConfiguration": {
+      "logDriver": "awslogs",
+      "options": {
+        "awslogs-create-group": "true",
+        "awslogs-group": "${pds_nucleus_config_init_cloudwatch_logs_group}",
+        "awslogs-region": "${pds_nucleus_config_init_cloudwatch_logs_region}",
+        "awslogs-stream-prefix": "ecs"
+      },
+      "secretOptions": []
+    },
+    "systemControls": []
+  }
+]
