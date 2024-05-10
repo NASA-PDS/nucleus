@@ -4,7 +4,7 @@
 aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin "$AWS_ACCOUNT_ID".dkr.ecr.us-west-2.amazonaws.com
 
 # Deploy pds-nucleus-config-init ECR image
-cd config-init
+cd ./terraform-modules/ecs-ecr/docker/config-init
 docker build -t pds-nucleus-config-init .
 docker tag pds-nucleus-config-init:latest "$AWS_ACCOUNT_ID".dkr.ecr.us-west-2.amazonaws.com/pds-nucleus-config-init:latest
 docker push "$AWS_ACCOUNT_ID".dkr.ecr.us-west-2.amazonaws.com/pds-nucleus-config-init:latest
