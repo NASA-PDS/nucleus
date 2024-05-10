@@ -67,6 +67,7 @@ cd nucleus/terraform
     - vpc_id     : VPC ID of your AWS VPC
     - subnet_ids : List of Private Subnet IDs to be used for the MWAA
     - vpc_cidr   : VPC CIDR for MWAA (E.g.: "10.1.0.0/16")
+    - permission_boundary_for_iam_roles : The permission boundary for IAM roles can be obtained from the MCP System Admins or PDS Engineering Node team
     - pds_nucleus_opensearch_auth_config_file_path : Location of the OpenSearch auth file
     - pds_nucleus_opensearch_url                   : OpenSearch URL specific for the PDS Node
     - pds_node_name                                : PDS Node name
@@ -87,6 +88,7 @@ region     = "us-west-2"
 vpc_id     = "vpc-12345678"
 subnet_ids = ["subnet-123456789", "subnet-987654321"]
 vpc_cidr   = "10.2.0.0/16"
+permission_boundary_for_iam_roles = "mcp-example-role"
 
 pds_nucleus_opensearch_auth_config_file_path = "/mnt/data/configs/es-auth.cfg"
 pds_nucleus_opensearch_url                   = "https://search-node2-dev-abcdefghijklmnop.us-west-2.es.amazonaws.com:443"
