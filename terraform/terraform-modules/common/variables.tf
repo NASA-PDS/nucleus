@@ -24,17 +24,7 @@ variable "airflow_dags_path" {
 
 variable "airflow_requirements_path" {
   description = "PDS Nucleus Airflow Python Requirements File Path"
-  default     = "requirements.txt"
-  type        = string
-}
-
-variable "airflow_dags_bucket_arn" {
-  description = "PDS Nucleus Airflow DAGS Bucket ARN"
-  type        = string
-}
-
-variable "nucleus_security_group_id" {
-  description = "PDS Nucleus Security Group ID"
+  default     = "dags/"
   type        = string
 }
 
@@ -42,6 +32,12 @@ variable "region" {
   description = "region"
   type        = string
   default     = "us-west-2"
+}
+
+variable "tags" {
+  description = "Default tags"
+  default     = { "env" : "dev" }
+  type        = map(string)
 }
 
 variable "vpc_id" {
@@ -56,14 +52,8 @@ variable "vpc_cidr" {
   sensitive   = true
 }
 
-variable "subnet_ids" {
-  description = "Comma Seperated List of Subnet IDs"
-  type        = list(string)
+variable "mwaa_dag_s3_bucket_name" {
+  description = "The name of the S3 bucket containing MWAA DAG files"
+  type        = string
   sensitive   = true
-}
-
-variable "permission_boundary_for_iam_role" {
-  default   = "mcp-tenantOperator-APIG"
-  type      = string
-  sensitive = true
 }

@@ -1,0 +1,39 @@
+[
+  {
+    "name": "pds-nucleus-s3-to-efs-copy",
+    "image": "${pds_nucleus_s3_to_efs_copy_ecr_image_path}",
+    "cpu": 0,
+    "portMappings": [
+      {
+        "name": "pds-nucleus-s3-to-efs-copy-80-tcp",
+        "containerPort": 80,
+        "hostPort": 80,
+        "protocol": "tcp",
+        "appProtocol": "http"
+      }
+    ],
+    "essential": true,
+    "environment": [],
+    "environmentFiles": [],
+    "mountPoints": [
+      {
+        "sourceVolume": "pds-data",
+        "containerPath": "/mnt/data/",
+        "readOnly": false
+      }
+    ],
+    "volumesFrom": [],
+    "ulimits": [],
+    "logConfiguration": {
+      "logDriver": "awslogs",
+      "options": {
+        "awslogs-create-group": "true",
+        "awslogs-group": "${pds_nucleus_s3_to_efs_copy_cloudwatch_logs_group}",
+        "awslogs-region": "${pds_nucleus_s3_to_efs_copy_cloudwatch_logs_region}",
+        "awslogs-stream-prefix": "ecs"
+      },
+      "secretOptions": []
+    },
+    "systemControls": []
+  }
+]
