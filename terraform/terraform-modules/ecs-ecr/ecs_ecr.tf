@@ -68,6 +68,7 @@ resource "aws_iam_role" "pds_nucleus_ecs_task_execution_role" {
 resource "aws_ecr_repository" "pds_nucleus_config_init" {
   name                 = "pds-nucleus-config-init"
   image_tag_mutability = "MUTABLE"
+  force_delete = true
 
   image_scanning_configuration {
     scan_on_push = true
@@ -77,6 +78,7 @@ resource "aws_ecr_repository" "pds_nucleus_config_init" {
 resource "aws_ecr_repository" "pds_nucleus_s3_to_efs_copy" {
   name                 = "pds-nucleus-s3-to-efs-copy"
   image_tag_mutability = "MUTABLE"
+  force_delete = true
 
   image_scanning_configuration {
     scan_on_push = true
@@ -86,6 +88,7 @@ resource "aws_ecr_repository" "pds_nucleus_s3_to_efs_copy" {
 resource "aws_ecr_repository" "pds_registry_loader_harvest" {
   name                 = "pds-registry-loader-harvest"
   image_tag_mutability = "MUTABLE"
+  force_delete = true
 
   image_scanning_configuration {
     scan_on_push = true
@@ -95,6 +98,7 @@ resource "aws_ecr_repository" "pds_registry_loader_harvest" {
 resource "aws_ecr_repository" "pds_validate" {
   name                 = "pds-validate"
   image_tag_mutability = "MUTABLE"
+  force_delete = true
 
   image_scanning_configuration {
     scan_on_push = true
@@ -345,8 +349,4 @@ output "pds_nucleus_ecs_cluster_name" {
 
 output "pds_nucleus_ecs_subnets" {
   value = aws_ecs_cluster.pds_nucleus_ecs_cluster
-}
-
-output "pds_nucleus_ecs_security_groups" {
-  value = ""
 }

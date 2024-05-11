@@ -16,6 +16,7 @@ module "mwaa-env" {
   subnet_ids                          = var.subnet_ids
   nucleus_security_group_id           = module.common.pds_nucleus_security_group_id
   airflow_dags_bucket_arn             = module.common.pds_nucleus_airflow_dags_bucket_arn
+  permission_boundary_for_iam_roles   = var.permission_boundary_for_iam_roles
 
   depends_on = [module.common]
 }
@@ -72,6 +73,7 @@ module "product-copy-completion-checker" {
   pds_nucleus_opensearch_url = var.pds_nucleus_opensearch_url
   pds_node_name = var.pds_node_name
   pds_nucleus_harvest_replace_prefix_with = var.pds_nucleus_harvest_replace_prefix_with
+  database_availability_zones = var.database_availability_zones
 
   depends_on = [module.common]
 }

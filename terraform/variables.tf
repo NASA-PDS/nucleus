@@ -28,6 +28,12 @@ variable "subnet_ids" {
   sensitive   = true
 }
 
+variable "database_availability_zones" {
+  description = "Comma Separated List of Availability Zones for Database"
+  type        = list(string)
+  sensitive   = true
+}
+
 variable "permission_boundary_for_iam_roles" {
   description = "Permission boundary to be used when creating IAM roles"
   type      = string

@@ -86,3 +86,9 @@ variable "subnet_ids" {
   type        = list(string)
   sensitive   = true
 }
+
+variable "database_availability_zones" {
+  description = "Comma Separated List of Availability Zones for Database"
+  type        = list(string)
+  sensitive   = true
+}

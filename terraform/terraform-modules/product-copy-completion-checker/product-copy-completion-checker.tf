@@ -10,15 +10,31 @@ resource "aws_db_subnet_group" "default" {
   subnet_ids = var.subnet_ids
 }
 
+resource "random_string" "random_secret_postfix" {
+  length  = 8
+  special = false
+}
+
+resource "aws_secretsmanager_secret" "pds_nucleus_rds_password" {
+  name                    = "pds/nucleus/rds/password/${random_string.random_secret_postfix.result}"
+  description             = "PDS Nucleus Database Password"
+  recovery_window_in_days = 0
+}
+
+resource "aws_secretsmanager_secret_version" "pds_nucleus_rds_password" {
+  secret_id     = aws_secretsmanager_secret.pds_nucleus_rds_password.id
+  secret_string = random_password.pds_nucleus_rds_password.result
+}
+
 resource "aws_rds_cluster" "default" {
   cluster_identifier           = "pdsnucleus"
   engine                       = "aurora-mysql"
   engine_version               = "5.7.mysql_aurora.2.03.2"
-  availability_zones           = ["us-west-2a", "us-west-2b"]
+  availability_zones  = var.database_availability_zones
   db_subnet_group_name         = aws_db_subnet_group.default.id
   database_name                = var.database_name
   master_username              = var.database_user
-  master_password              = random_password.pds_nucleus_rds_password.result
+  master_password              = aws_secretsmanager_secret_version.pds_nucleus_rds_password.secret_string
   backup_retention_period      = 5
   preferred_backup_window      = "07:00-09:00"
   preferred_maintenance_window = "Mon:00:00-Mon:02:00"
@@ -35,11 +51,6 @@ resource "aws_rds_cluster" "default" {
     min_capacity             = 1
     seconds_until_auto_pause = 600
   }
-}
-
-resource "random_string" "random_secret_postfix" {
-  length  = 8
-  special = false
 }
 
 resource "aws_secretsmanager_secret" "pds_nucleus_rds_credentials" {

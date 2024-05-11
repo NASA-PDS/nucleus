@@ -62,8 +62,8 @@ variable "subnet_ids" {
   sensitive   = true
 }
 
-variable "permission_boundary_for_iam_role" {
-  default   = "mcp-tenantOperator-APIG"
+variable "permission_boundary_for_iam_roles" {
+  description = "Permission boundary for IAM roles"
   type      = string
   sensitive = true
 }

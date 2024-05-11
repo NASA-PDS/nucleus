@@ -19,7 +19,7 @@ data "aws_iam_policy_document" "inline_policy" {
 
 # The Policy for Permission Boundary
 data "aws_iam_policy" "mcp_operator_policy" {
-  name = var.permission_boundary_for_iam_role
+  name = var.permission_boundary_for_iam_roles
 }
 
 resource "aws_iam_role" "pds_nucleus_mwaa_execution_role" {
