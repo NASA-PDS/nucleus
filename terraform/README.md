@@ -102,14 +102,7 @@ pds_nucleus_config_bucket_name  = "pds-nucleus-config-mcp-test"
 pds_nucleus_default_airflow_dag_id = "pds-basic-registry-load-use-case"
 ```
 
-5. Replace `<AWS-ACCOUNT-ID>` in all following policy files with actual AWS account ID of the AWS account used to deploy PDS Nucleus.
-```shell
-nucleus/terraform/terraform-modules/ecs-ecr/ecs_task_execution_role_iam_policy.json
-nucleus/terraform/terraform-modules/ecs-ecr/ecs_task_role_iam_policy.json
-nucleus/terraform/terraform-modules/mwaa-env/mwaa_iam_policy.json
-```
-
-6. Initialize Terraform working directory.
+5. Initialize Terraform working directory.
 
 ```shell
 terraform init
