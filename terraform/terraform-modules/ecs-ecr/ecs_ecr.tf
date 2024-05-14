@@ -9,6 +9,41 @@ data "aws_iam_policy" "mcp_operator_policy" {
   name = var.permission_boundary_for_iam_role
 }
 
+
+# Add account ID to policy templates
+data "aws_caller_identity" "current" {}
+
+data "template_file" "ecs_task_role_iam_policy_template" {
+  template = file("terraform-modules/ecs-ecr/template_ecs_task_role_iam_policy.json")
+  vars     = {
+    pds_nucleus_aws_account_id      = data.aws_caller_identity.current.account_id
+  }
+  depends_on = [data.aws_caller_identity.current]
+}
+
+resource "local_file" "ecs_task_role_iam_policy_file" {
+  content  = data.template_file.ecs_task_role_iam_policy_template.rendered
+  filename = "terraform-modules/ecs-ecr/ecs_task_role_iam_policy.json"
+
+  depends_on = [data.template_file.ecs_task_role_iam_policy_template]
+}
+
+data "template_file" "ecs_task_execution_role_iam_policy_template" {
+  template = file("terraform-modules/ecs-ecr/template_ecs_task_execution_role_iam_policy.json")
+  vars     = {
+    pds_nucleus_aws_account_id      = data.aws_caller_identity.current.account_id
+  }
+  depends_on = [data.aws_caller_identity.current]
+}
+
+resource "local_file" "ecs_task_execution_role_iam_policy_file" {
+  content  = data.template_file.ecs_task_execution_role_iam_policy_template.rendered
+  filename = "terraform-modules/ecs-ecr/ecs_task_execution_role_iam_policy.json"
+
+  depends_on = [data.template_file.ecs_task_execution_role_iam_policy_template]
+}
+
+
 #-------------------------------------
 # ECS Task Role
 #-------------------------------------
@@ -49,6 +84,8 @@ resource "aws_iam_role" "pds_nucleus_ecs_task_role" {
 # IAM Policy Document for Inline Policy
 data "aws_iam_policy_document" "ecs_task_execution_role_inline_policy" {
   source_policy_documents = [file("${path.module}/ecs_task_execution_role_iam_policy.json")]
+
+  depends_on = [local_file.ecs_task_execution_role_iam_policy_file]
 }
 
 resource "aws_iam_role" "pds_nucleus_ecs_task_execution_role" {

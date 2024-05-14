@@ -12,9 +12,29 @@ data "aws_iam_policy_document" "assume_role" {
   }
 }
 
+data "aws_caller_identity" "current" {}
+
+data "template_file" "mwaa_inline_policy_template" {
+  template = file("terraform-modules/mwaa-env/template_mwaa_iam_policy.json")
+  vars     = {
+    pds_nucleus_aws_account_id      = data.aws_caller_identity.current.account_id
+  }
+
+  depends_on = [data.aws_caller_identity.current]
+}
+
+resource "local_file" "mwaa_inline_policy_file" {
+  content  = data.template_file.mwaa_inline_policy_template.rendered
+  filename = "terraform-modules/mwaa-env/mwaa_iam_policy.json"
+
+  depends_on = [data.template_file.mwaa_inline_policy_template]
+}
+
 # IAM Policy Document for Inline Policy
-data "aws_iam_policy_document" "inline_policy" {
+data "aws_iam_policy_document" "mwaa_inline_policy" {
   source_policy_documents = [file("${path.module}/mwaa_iam_policy.json")]
+
+  depends_on = [local_file.mwaa_inline_policy_file]
 }
 
 # The Policy for Permission Boundary
@@ -26,7 +46,7 @@ resource "aws_iam_role" "pds_nucleus_mwaa_execution_role" {
   name = "pds_nucleus_mwaa_execution_role"
   inline_policy {
     name   = "pds-nucleus-mwaa-execution-role-inline-policy"
-    policy = data.aws_iam_policy_document.inline_policy.json
+    policy = data.aws_iam_policy_document.mwaa_inline_policy.json
   }
   assume_role_policy   = data.aws_iam_policy_document.assume_role.json
   permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn

@@ -1,6 +1,6 @@
 variable "airflow_env_name" {
   description = "PDS Nucleus Airflow Env Name"
-  default     = "PDS-Nucleus-Airflow-Env"
+  default     = "pds-nucleus-airflow-env"
   type        = string
 }
 
