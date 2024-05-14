@@ -74,7 +74,7 @@
         "sqs:ReceiveMessage",
         "sqs:SendMessage"
       ],
-      "Resource": "arn:aws:s3:::pds-nucleus*"
+      "Resource": "arn:aws:sqs:${pds_nucleus_region}:*:airflow-celery-*"
     },
     {
       "Effect": "Deny",

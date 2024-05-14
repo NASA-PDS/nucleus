@@ -18,6 +18,7 @@ data "template_file" "mwaa_inline_policy_template" {
   template = file("terraform-modules/mwaa-env/template_mwaa_iam_policy.json")
   vars     = {
     pds_nucleus_aws_account_id      = data.aws_caller_identity.current.account_id
+    pds_nucleus_region              = var.region
   }
 
   depends_on = [data.aws_caller_identity.current]
