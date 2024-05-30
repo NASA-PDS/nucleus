@@ -132,57 +132,13 @@ data "archive_file" "pds_nucleus_s3_file_file_event_processor_function_zip" {
   output_path = "${path.module}/lambda/pds-nucleus-s3-file-event-processor.zip"
 }
 
-resource "aws_lambda_function" "pds_nucleus_s3_file_file_event_processor_function" {
-  function_name    = "pds_nucleus_s3_file_event_processor"
-  filename         = "${path.module}/lambda/pds-nucleus-s3-file-event-processor.zip"
-  source_code_hash = data.archive_file.pds_nucleus_s3_file_file_event_processor_function_zip.output_base64sha256
-  role             = aws_iam_role.pds_nucleus_lambda_execution_role.arn
-  runtime          = "python3.9"
-  handler          = "pds-nucleus-s3-file-event-processor.lambda_handler"
-  timeout          = 10
-  depends_on       = [data.archive_file.pds_nucleus_s3_file_file_event_processor_function_zip]
 
-  environment {
-    variables = {
-      DB_CLUSTER_ARN = aws_rds_cluster.default.arn
-      DB_SECRET_ARN  = aws_secretsmanager_secret.pds_nucleus_rds_credentials.arn
-      EFS_MOUNT_PATH = "/mnt/data/"
-    }
-  }
-}
 
 data "archive_file" "pds_nucleus_product_completion_checker_zip" {
   type        = "zip"
   source_file = "${path.module}/lambda/pds-nucleus-product-completion-checker.py"
   output_path = "${path.module}/lambda/pds_nucleus_product_completion_checker.zip"
 }
-
-resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function" {
-  function_name    = "pds-nucleus-product-completion-checker"
-  filename         = "${path.module}/lambda/pds_nucleus_product_completion_checker.zip"
-  source_code_hash = data.archive_file.pds_nucleus_product_completion_checker_zip.output_base64sha256
-  role             = aws_iam_role.pds_nucleus_lambda_execution_role.arn
-  runtime          = "python3.9"
-  handler          = "pds-nucleus-product-completion-checker.lambda_handler"
-  timeout          = 10
-  depends_on       = [data.archive_file.pds_nucleus_product_completion_checker_zip]
-
-  environment {
-    variables = {
-      AIRFLOW_DAG_NAME               = var.pds_nucleus_default_airflow_dag_id
-      DB_CLUSTER_ARN                 = aws_rds_cluster.default.arn
-      DB_SECRET_ARN                  = aws_secretsmanager_secret.pds_nucleus_rds_credentials.arn
-      EFS_MOUNT_PATH                 = "/mnt/data"
-      ES_AUTH_CONFIG_FILE_PATH       = var.pds_nucleus_opensearch_auth_config_file_path
-      ES_URL                         = var.pds_nucleus_opensearch_url
-      NODE_NAME                      = var.pds_node_name
-      PDS_NUCLEUS_CONFIG_BUCKET_NAME = var.pds_nucleus_config_bucket_name
-      REPLACE_PREFIX_WITH            = var.pds_nucleus_harvest_replace_prefix_with
-    }
-  }
-
-}
-
 
 data "archive_file" "pds_nucleus_init_zip" {
   type        = "zip"
@@ -208,38 +164,90 @@ resource "aws_lambda_function" "pds_nucleus_init_function" {
   }
 
 }
-
-resource "aws_s3_bucket" "pds_nucleus_s3_staging_bucket" {
-  bucket        = var.pds_nucleus_staging_bucket_name
-  force_destroy = true
-}
-
 resource "aws_s3_bucket" "pds_nucleus_s3_config_bucket" {
   bucket        = var.pds_nucleus_config_bucket_name
   force_destroy = true
 }
 
-resource "aws_lambda_permission" "s3-lambda-permission" {
-  statement_id  = "AllowExecutionFromS3Bucket"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.pds_nucleus_s3_file_file_event_processor_function.function_name
-  principal     = "s3.amazonaws.com"
-  source_arn    = aws_s3_bucket.pds_nucleus_s3_staging_bucket.arn
+# Create an S3 Bucket for each PDS Node
+resource "aws_s3_bucket" "pds_nucleus_s3_staging_bucket" {
+  count = length(var.pds_node_names)
+  bucket = "${var.pds_node_names[count.index]}-${var.pds_nucleus_staging_bucket_name_postfix}"
+  force_destroy = true
 }
 
+
+# Create pds_nucleus_s3_file_file_event_processor_function for each PDS Node
+resource "aws_lambda_function" "pds_nucleus_s3_file_file_event_processor_function" {
+  count = length(var.pds_node_names)
+  function_name    = "pds_nucleus_s3_file_event_processor-${var.pds_node_names[count.index]}"
+  filename         = "${path.module}/lambda/pds-nucleus-s3-file-event-processor.zip"
+  source_code_hash = data.archive_file.pds_nucleus_s3_file_file_event_processor_function_zip.output_base64sha256
+  role             = aws_iam_role.pds_nucleus_lambda_execution_role.arn
+  runtime          = "python3.9"
+  handler          = "pds-nucleus-s3-file-event-processor.lambda_handler"
+  timeout          = 10
+  depends_on       = [data.archive_file.pds_nucleus_s3_file_file_event_processor_function_zip]
+
+  environment {
+    variables = {
+      DB_CLUSTER_ARN = aws_rds_cluster.default.arn
+      DB_SECRET_ARN  = aws_secretsmanager_secret.pds_nucleus_rds_credentials.arn
+      EFS_MOUNT_PATH = "/mnt/data/"
+      PDS_NODE       = var.pds_node_names[count.index]
+    }
+  }
+}
+
+# Create pds_nucleus_product_completion_checker_function for each PDS Node
+resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function" {
+  count = length(var.pds_node_names)
+  function_name    = "pds-nucleus-product-completion-checker-${var.pds_node_names[count.index]}"
+  filename         = "${path.module}/lambda/pds_nucleus_product_completion_checker.zip"
+  source_code_hash = data.archive_file.pds_nucleus_product_completion_checker_zip.output_base64sha256
+  role             = aws_iam_role.pds_nucleus_lambda_execution_role.arn
+  runtime          = "python3.9"
+  handler          = "pds-nucleus-product-completion-checker.lambda_handler"
+  timeout          = 10
+  depends_on       = [data.archive_file.pds_nucleus_product_completion_checker_zip]
+
+  environment {
+    variables = {
+      AIRFLOW_DAG_NAME               = var.pds_nucleus_default_airflow_dag_id
+      DB_CLUSTER_ARN                 = aws_rds_cluster.default.arn
+      DB_SECRET_ARN                  = aws_secretsmanager_secret.pds_nucleus_rds_credentials.arn
+      EFS_MOUNT_PATH                 = "/mnt/data"
+      ES_AUTH_CONFIG_FILE_PATH       = var.pds_nucleus_opensearch_auth_config_file_paths[count.index]
+      ES_URL                         = var.pds_nucleus_opensearch_urls[count.index]
+      NODE_NAME                      = var.pds_node_names[count.index]
+      PDS_NUCLEUS_CONFIG_BUCKET_NAME = var.pds_nucleus_config_bucket_name
+      REPLACE_PREFIX_WITH            = var.pds_nucleus_harvest_replace_prefix_with_list[count.index]
+      PDS_MWAA_ENV_NAME              = var.airflow_env_name
+    }
+  }
+}
+
+# Apply lambda permissions for each pds_nucleus_s3_file_file_event_processor_function of each Node
+resource "aws_lambda_permission" "s3-lambda-permission" {
+  count = length(var.pds_node_names)
+  statement_id  = "AllowExecutionFromS3Bucket"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.pds_nucleus_s3_file_file_event_processor_function[count.index].function_name
+  principal     = "s3.amazonaws.com"
+  source_arn    = aws_s3_bucket.pds_nucleus_s3_staging_bucket[count.index].arn
+}
+
+# Creat  aws_s3_bucket_notification for each s3 bucket nof each Node
 resource "aws_s3_bucket_notification" "pds_nucleus_s3_staging_bucket_notification" {
 
-  bucket = aws_s3_bucket.pds_nucleus_s3_staging_bucket.id
+  count = length(var.pds_node_names)
+
+  bucket = "${var.pds_node_names[count.index]}-${var.pds_nucleus_staging_bucket_name_postfix}"
 
   lambda_function {
-    lambda_function_arn = aws_lambda_function.pds_nucleus_s3_file_file_event_processor_function.arn
+    lambda_function_arn = aws_lambda_function.pds_nucleus_s3_file_file_event_processor_function[count.index].arn
     events              = ["s3:ObjectCreated:*"]
   }
-
-  depends_on = [
-    aws_s3_bucket.pds_nucleus_s3_staging_bucket,
-    aws_lambda_function.pds_nucleus_s3_file_file_event_processor_function
-  ]
 }
 
 resource "aws_lambda_invocation" "invoke_pds_nucleus_init_function" {

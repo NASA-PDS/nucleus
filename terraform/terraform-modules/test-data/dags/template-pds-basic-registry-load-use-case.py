@@ -17,8 +17,6 @@ ECS_LAUNCH_TYPE = "FARGATE"
 ECS_SUBNETS = ${pds_nucleus_ecs_subnets}
 ECS_SECURITY_GROUPS = ["${pds_nucleus_ecs_security_groups}"]
 
-# pds_product_label = "default.xml"
-
 dag = DAG(
         dag_id="${pds_nucleus_basic_registry_dag_id}",
         schedule_interval=None,
@@ -26,9 +24,7 @@ dag = DAG(
         start_date=days_ago(1),
         default_args={
         "retries": 3,
-        "retry_delay": timedelta(seconds=2),
-        # "retry_exponential_backoff": True,
-        # "max_retry_delay": timedelta(hours=2),
+        "retry_delay": timedelta(seconds=2)
     },
 )
 
@@ -36,11 +32,7 @@ dag = DAG(
 print_start_time = BashOperator(
     task_id='Print_Start_Time',
     dag=dag,
-    bash_command='date',
-    doc_md = """\
-        #Title"
-        Here's a [url](www.airbnb.com)
-        """
+    bash_command='date'
 )
 
 # PDS Validate Task

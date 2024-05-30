@@ -19,6 +19,7 @@ data "template_file" "mwaa_inline_policy_template" {
   vars     = {
     pds_nucleus_aws_account_id      = data.aws_caller_identity.current.account_id
     pds_nucleus_region              = var.region
+    airflow_env_name                = var.airflow_env_name
   }
 
   depends_on = [data.aws_caller_identity.current]
@@ -82,6 +83,34 @@ resource "aws_mwaa_environment" "pds_nucleus_airflow_env" {
     "webserver.dag_orientation"     = "TB"
     "logging.logging_level"         = "INFO"
   }
+
+  logging_configuration {
+    dag_processing_logs {
+      enabled   = true
+      log_level = "DEBUG"
+    }
+
+    scheduler_logs {
+      enabled   = true
+      log_level = "INFO"
+    }
+
+    task_logs {
+      enabled   = true
+      log_level = "INFO"
+    }
+
+    webserver_logs {
+      enabled   = true
+      log_level = "ERROR"
+    }
+
+    worker_logs {
+      enabled   = true
+      log_level = "CRITICAL"
+    }
+  }
+
 
   depends_on = [aws_iam_role.pds_nucleus_mwaa_execution_role]
 }

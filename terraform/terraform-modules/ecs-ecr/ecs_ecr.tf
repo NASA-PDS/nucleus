@@ -10,7 +10,7 @@ data "aws_iam_policy" "mcp_operator_policy" {
 }
 
 
-# Add account ID to policy templates
+# Add account ID to templates
 data "aws_caller_identity" "current" {}
 
 data "template_file" "ecs_task_role_iam_policy_template" {
@@ -43,6 +43,20 @@ resource "local_file" "ecs_task_execution_role_iam_policy_file" {
   depends_on = [data.template_file.ecs_task_execution_role_iam_policy_template]
 }
 
+data "template_file" "deploy_ecr_images_script_template" {
+  template = file("terraform-modules/ecs-ecr/docker/template-deploy-ecr-images.sh")
+  vars     = {
+    pds_nucleus_aws_account_id      = data.aws_caller_identity.current.account_id
+  }
+  depends_on = [data.aws_caller_identity.current]
+}
+
+resource "local_file" "deploy_ecr_images_script_file" {
+  content  = data.template_file.deploy_ecr_images_script_template.rendered
+  filename = "terraform-modules/ecs-ecr/docker/deploy-ecr-images.sh"
+
+  depends_on = [data.template_file.ecs_task_execution_role_iam_policy_template]
+}
 
 #-------------------------------------
 # ECS Task Role

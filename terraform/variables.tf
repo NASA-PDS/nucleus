@@ -46,15 +46,16 @@ variable "mwaa_dag_s3_bucket_name" {
   sensitive   = true
 }
 
-variable "pds_nucleus_staging_bucket_name" {
-  description = "The name of the S3 staging bucket to receive data to be processed"
+variable "pds_nucleus_staging_bucket_name_postfix" {
+  description = "The postfix of the name of the S3 staging bucket to receive data to be processed"
+  default     = "staging-<venue-name>"
   type        = string
   sensitive   = true
 }
 
 variable "pds_nucleus_config_bucket_name" {
   description = "PDS Nucleus Configuration S3 Bucket Name"
-  default     = "pds-nucleus-config-test"
+  default     = "pds-nucleus-config-<venue-name>"
   type        = string
   sensitive   = true
 }
@@ -65,37 +66,40 @@ variable "pds_nucleus_default_airflow_dag_id" {
   sensitive   = true
 }
 
-variable "pds_nucleus_opensearch_auth_config_file_path" {
-  description = "PDS Nucleus Default Airflow DAG ID"
-  default     = "/mnt/data/configs/es-auth.cfg"
-  type        = string
+variable "pds_node_names" {
+  description = "List of PDS Node Names"
+  type        = list(string)
+  default     = ["pds-sbn", "pds-img"]
+}
+
+variable "pds_nucleus_opensearch_auth_config_file_paths" {
+  description = "List of PDS Nucleus OpenSearch Config file paths"
+  type        = list(string)
+  default     = ["/mnt/data/configs/pds-sbn-es-auth.cfg", "/mnt/data/configs/pds-img-es-auth.cfg"]
   sensitive   = true
 }
 
-variable "pds_nucleus_opensearch_url" {
-  description = "PDS Nucleus OpenSearch URL"
-  default     = "https://search-sbnpsi-prod-egowc5td43xn744siksghckq4i.us-west-2.es.amazonaws.com:443"
-  type        = string
+variable "pds_nucleus_opensearch_urls" {
+  description = "List of PDS Nucleus OpenSearch Config file paths"
+  type        =  list(string)
+  default     = ["https://search-sbnpsi-abcde.us-west-2.es.amazonaws.com:443","https://search-img-abcde.us-west-2.es.amazonaws.com:443"]
   sensitive   = true
 }
 
-variable "pds_node_name" {
-  description = "PDS Node Name"
-  default     = "PDS_IMG"
-  type        = string
-  sensitive   = true
-}
-
-variable "pds_nucleus_harvest_replace_prefix_with" {
-  description = "PDS Nucleus Harvest Replace Prefix With"
-  default     = "s3://pds-nucleus-staging"
-  type        = string
-  sensitive   = true
+variable "pds_nucleus_harvest_replace_prefix_with_list" {
+  description = "List of PDS Nucleus Harvest Replace Prefix With"
+  type        =  list(string)
+  default     = ["s3://pds-nucleus-staging-sbn","s3://pds-nucleus-staging-img"]
 }
 
 # ---------------------------------------------
 # Default values that are unchanged usually
 # ---------------------------------------------
+variable "airflow_env_name" {
+  description = "PDS Nucleus Airflow Env Name"
+  default     = "pds-nucleus-airflow-env"
+  type        = string
+}
 
 variable "pds_nucleus_ecs_cluster_name" {
   type        = string

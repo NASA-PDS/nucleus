@@ -20,6 +20,7 @@ s3_bucket_name = "pds-nucleus-staging"
 db_clust_arn = os.environ.get('DB_CLUSTER_ARN')
 db_secret_arn = os.environ.get('DB_SECRET_ARN')
 efs_mount_path = os.environ.get('EFS_MOUNT_PATH')
+pds_node = os.environ.get('PDS_NODE')
 
 rds_data = boto3.client('rds-data')
 
@@ -81,10 +82,12 @@ def save_product_data_file_mapping_in_database(s3_url_of_product_label, s3_url_o
             (
                 s3_url_of_product_label,
                 s3_url_of_data_file,
+                pds_node,
                 last_updated_epoch_time)
             VALUES(
                 :s3_url_of_product_label_param,
                 :s3_url_of_data_file_param,
+                :pds_node_param,
                 :last_updated_epoch_time_param
                 )
             """
@@ -94,8 +97,9 @@ def save_product_data_file_mapping_in_database(s3_url_of_product_label, s3_url_o
     s3_url_of_data_file_param = {'name': 's3_url_of_data_file_param', 'value': {'stringValue': s3_url_of_data_file}}
     last_updated_epoch_time_param = {'name': 'last_updated_epoch_time_param',
                                      'value': {'longValue': round(time.time() * 1000)}}
+    pds_node_param = {'name': 'pds_node_param', 'value': {'stringValue': pds_node}}
 
-    param_set = [s3_url_of_product_label_param, s3_url_of_data_file_param, last_updated_epoch_time_param]
+    param_set = [s3_url_of_product_label_param, s3_url_of_data_file_param, last_updated_epoch_time_param, pds_node_param]
 
     try:
         response = rds_data.execute_statement(
@@ -121,10 +125,12 @@ def save_product_processing_status_in_database(s3_url_of_product_label, processi
             (
                 s3_url_of_product_label,
                 processing_status,
+                pds_node,
                 last_updated_epoch_time)
             VALUES(
                 :s3_url_of_product_label_param,
                 :processing_status_param,
+                :pds_node_param,
                 :last_updated_epoch_time_param
                 )
             """
@@ -134,8 +140,9 @@ def save_product_processing_status_in_database(s3_url_of_product_label, processi
     processing_status_param = {'name': 'processing_status_param', 'value': {'stringValue': processing_status}}
     last_updated_epoch_time_param = {'name': 'last_updated_epoch_time_param',
                                      'value': {'longValue': round(time.time() * 1000)}}
+    pds_node_param = {'name': 'pds_node_param', 'value': {'stringValue': pds_node}}
 
-    param_set = [s3_url_of_product_label_param, processing_status_param, last_updated_epoch_time_param]
+    param_set = [s3_url_of_product_label_param, processing_status_param, last_updated_epoch_time_param, pds_node_param]
 
     try:
         response = rds_data.execute_statement(
@@ -165,18 +172,21 @@ def save_data_file_in_database(s3_url_of_data_file):
             REPLACE INTO data_file
             (
                 s3_url_of_data_file,
-                last_updated_epoch_time)
+                last_updated_epoch_time,
+                pds_node)
             VALUES(
                 :s3_url_of_data_file_param,
-                :last_updated_epoch_time_param
+                :last_updated_epoch_time_param,
+                :pds_node_param
                 )
             """
 
     s3_url_of_data_file_param = {'name': 's3_url_of_data_file_param', 'value': {'stringValue': s3_url_of_data_file}}
     last_updated_epoch_time_param = {'name': 'last_updated_epoch_time_param',
                                      'value': {'longValue': round(time.time() * 1000)}}
+    pds_node_param = {'name': 'pds_node_param', 'value': {'stringValue': pds_node}}
 
-    param_set = [s3_url_of_data_file_param, last_updated_epoch_time_param]
+    param_set = [s3_url_of_data_file_param, last_updated_epoch_time_param, pds_node_param]
 
     try:
         response = rds_data.execute_statement(

@@ -43,10 +43,10 @@ def create_product_table():
                        s3_url_of_product_label VARCHAR(1500) CHARACTER SET latin1,
                        processing_status VARCHAR(10),
                        last_updated_epoch_time BIGINT,
+                       pds_node VARCHAR(10),
                        PRIMARY KEY (s3_url_of_product_label)
                    );
              """
-
     response = rds_data.execute_statement(
         resourceArn=db_clust_arn,
         secretArn=db_secret_arn,
@@ -62,10 +62,10 @@ def create_datafile_table():
                   (
                       s3_url_of_data_file VARCHAR(1000) CHARACTER SET latin1,
                       last_updated_epoch_time BIGINT,
+                      pds_node VARCHAR(10),
                       PRIMARY KEY (s3_url_of_data_file)
                   );
              """
-
     response = rds_data.execute_statement(
         resourceArn=db_clust_arn,
         secretArn=db_secret_arn,
@@ -82,10 +82,10 @@ def create_product_datafile_mapping_table():
                       s3_url_of_product_label VARCHAR(1500) CHARACTER SET latin1,
                       s3_url_of_data_file VARCHAR(1500) CHARACTER SET latin1,
                       last_updated_epoch_time BIGINT,
+                      pds_node VARCHAR(10),
                       PRIMARY KEY (s3_url_of_product_label, s3_url_of_data_file)
                   );
              """
-
     response = rds_data.execute_statement(
         resourceArn=db_clust_arn,
         secretArn=db_secret_arn,

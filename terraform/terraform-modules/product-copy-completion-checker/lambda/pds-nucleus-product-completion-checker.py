@@ -26,7 +26,7 @@ mwaa_client = boto3.client('mwaa')
 logger = logging.getLogger("pds-nucleus-product-completion-checker-logger")
 rds_data = boto3.client('rds-data')
 
-mwaa_env_name = 'PDS-Nucleus-Airflow-Env'
+
 mwaa_cli_command = 'dags trigger'
 
 # Read environment variables from lambda configurations
@@ -40,6 +40,7 @@ db_clust_arn = os.environ.get('DB_CLUSTER_ARN')
 db_secret_arn = os.environ.get('DB_SECRET_ARN')
 es_auth_file = os.environ.get('ES_AUTH_CONFIG_FILE_PATH')
 pds_nucleus_config_bucket_name = os.environ.get('PDS_NUCLEUS_CONFIG_BUCKET_NAME')
+mwaa_env_name = os.environ.get('PDS_MWAA_ENV_NAME')
 
 replace_prefix = efs_mount_path
 
@@ -70,18 +71,26 @@ def process_completed_products():
 
     sql =   """
                 SELECT DISTINCT s3_url_of_product_label from product
-                WHERE processing_status = 'INCOMPLETE' and s3_url_of_product_label
+                WHERE processing_status = 'INCOMPLETE' and
+                pds_node = :pds_node_param and
+                s3_url_of_product_label
                 NOT IN (SELECT s3_url_of_product_label  from product_data_file_mapping
                 where s3_url_of_data_file
                 NOT IN (SELECT s3_url_of_data_file from data_file)) and s3_url_of_product_label
                 IN (SELECT s3_url_of_product_label  from product_data_file_mapping) limit 5;
             """
 
+    pds_node_param = {'name': 'pds_node_param',
+                                         'value': {'stringValue': node_name}}
+
+    param_set = [pds_node_param]
+
     response = rds_data.execute_statement(
         resourceArn=db_clust_arn,
         secretArn=db_secret_arn,
         database='pds_nucleus',
-        sql=sql)
+        sql=sql,
+        parameters=param_set)
     logger.debug(f"Number of completed product labels : {str(response['records'])}")
     logger.debug(f"Number of completed product labels : {str(len(response['records']))}")
 
@@ -145,10 +154,6 @@ def create_harvest_configs_and_trigger_nucleus(list_of_product_labels_to_process
 
     logger.debug('List of product labels to process:' + str(list_of_product_labels_to_process))
 
-    dag_data_dir = efs_mount_path + '/dag_data/'
-
-    file_name =  os.path.basename(list_of_product_labels_to_process[0].replace("s3:/", efs_mount_path, 1) )
-
     harvest_manifest_content = ""
     list_of_product_labels_to_process_with_file_paths = []
     list_of_s3_urls_to_copy = []
@@ -161,8 +166,6 @@ def create_harvest_configs_and_trigger_nucleus(list_of_product_labels_to_process
         # Update list of S3 URLs to copy (from s3 to EFS in Nucleus)
         list_of_s3_urls_to_copy.append(s3_url_of_product_label)
         list_of_s3_urls_to_copy.extend(get_list_of_data_files(s3_url_of_product_label))
-        print(str(list_of_s3_urls_to_copy))
-
 
     # Generate a random suffix for harvest config file name and manifest file name to avoid conflicting duplicate file names
     current_time = datetime.now().strftime("%m-%d-%Y-%H-%M-%S")
@@ -182,9 +185,6 @@ def create_harvest_configs_and_trigger_nucleus(list_of_product_labels_to_process
 
         logger.info(f"Created harvest manifest file: {harvest_manifest_file_path}")
 
-        harvest_config_s3_url =  f"s3://{pds_nucleus_config_bucket_name}/dag-data/{harvest_config_file_path}"
-        harvest_manifest_s3_url = f"s3://{pds_nucleus_config_bucket_name}/dag-data/{harvest_manifest_file_path}"
-        s3_file_list_file_path_s3_url =  f"s3://{pds_nucleus_config_bucket_name}/dag-data/{list_of_data_files_to_copy_file_path}"
         s3_config_dir = f"s3://{pds_nucleus_config_bucket_name}/dag-data/{random_batch_number}"
         efs_config_dir = f"/mnt/data/dag-data/{random_batch_number}"
 
@@ -217,12 +217,6 @@ def create_harvest_configs_and_trigger_nucleus(list_of_product_labels_to_process
 
         logger.info(f"Created S3 file list file: {list_of_data_files_to_copy_file_path}")
 
-        # Upload files to S3
-        # s3.Bucket('pds-nucleus-config-dev').upload_file(s3_file_list_file_path,'dag_data')
-        # s3.put_object(Body=open(harvest_config_file_path, 'rb'), Bucket=pds_nucleus_config_bucket_name, Key=f'/dag-data/{harvest_config_file_path}')
-        # s3.put_object(Body=open(harvest_manifest_file_path, 'rb'), Bucket=pds_nucleus_config_bucket_name, Key=f'/dag-data/{harvest_manifest_file_path}')
-        # s3.put_object(Body=open(s3_file_list_file_path, 'rb'), Bucket=pds_nucleus_config_bucket_name, Key=f'/dag-data/{s3_file_list_file_path}')
-
         s3_client.upload_file(f"/tmp/{harvest_config_file_path}", pds_nucleus_config_bucket_name, f"dag-data/{random_batch_number}/{harvest_config_file_path}")
         s3_client.upload_file(f"/tmp/{harvest_manifest_file_path}", pds_nucleus_config_bucket_name, f"dag-data/{random_batch_number}/{harvest_manifest_file_path}")
         s3_client.upload_file(f"/tmp/{list_of_data_files_to_copy_file_path}", pds_nucleus_config_bucket_name, f"dag-data/{random_batch_number}/{list_of_data_files_to_copy_file_path}")
@@ -231,13 +225,7 @@ def create_harvest_configs_and_trigger_nucleus(list_of_product_labels_to_process
         logger.error(f"Error creating harvest config files in s3 bucker: {pds_nucleus_config_bucket_name}. Exception: {str(e)}")
         return
 
-
-
-
-    trigger_nucleus_workflow(dag_data_dir + harvest_manifest_file_path, dag_data_dir + harvest_config_file_path,
-                            dag_data_dir + list_of_data_files_to_copy_file_path,
-                            list_of_product_labels_to_process_with_file_paths, harvest_manifest_s3_url,
-                            harvest_config_s3_url, s3_file_list_file_path_s3_url, s3_config_dir, efs_config_dir)
+    trigger_nucleus_workflow(list_of_product_labels_to_process_with_file_paths, s3_config_dir, efs_config_dir)
 
     logger.info(f"Triggered Nucleus workflow: {dag_name} for product labels: {list_of_product_labels_to_process_with_file_paths}")
 
@@ -280,10 +268,7 @@ def get_list_of_data_files(s3_url_of_product_label):
     return list_of_data_files
 
 
-def trigger_nucleus_workflow(harvest_manifest_file_path, harvest_config_file,
-    list_of_data_files_to_copy_file_path,
-    list_of_product_labels_to_process, harvest_manifest_s3_url,
-    harvest_config_s3_url, list_of_data_files_to_copy_s3_url, s3_config_dir, efs_config_dir):
+def trigger_nucleus_workflow(list_of_product_labels_to_process, s3_config_dir, efs_config_dir):
     """ Triggers Nucleus workflow with parameters """
 
     # Convert list to comma seperated list
@@ -302,26 +287,8 @@ def trigger_nucleus_workflow(harvest_manifest_file_path, harvest_config_file,
     efs_config_dir_key = "efs_config_dir"
     efs_config_dir_value = efs_config_dir
 
-    harvest_manifest_file_path_key = "harvest_manifest_file_path"
-    harvest_manifest_file_path_value = harvest_manifest_file_path
-
-    harvest_config_file_path_key = "harvest_config_file_path"
-    harvest_config_file_path_value = harvest_config_file
-
-    list_of_data_files_to_copy_file_path_key = "list_of_data_files_to_copy_file_path"
-    list_of_data_files_to_copy_file_path_value = list_of_data_files_to_copy_file_path
-
     list_of_product_labels_to_process_key = "list_of_product_labels_to_process"
     list_of_product_labels_to_process_value = str(comma_seperated_list_of_product_labels_to_process)
-
-    harvest_manifest_s3_url_key = "harvest_manifest_s3_url"
-    harvest_manifest_s3_url_value = harvest_manifest_s3_url
-
-    harvest_config_s3_url_key = "harvest_config_s3_url"
-    harvest_config_s3_url_value = harvest_config_s3_url
-
-    list_of_data_files_to_copy_s3_url_key = "list_of_data_files_s3_url"
-    list_of_data_files_to_copy_s3_url_value = list_of_data_files_to_copy_s3_url
 
     conf = "{\"" + \
             s3_config_dir_key + "\":\"" + s3_config_dir_value + "\",\"" + \

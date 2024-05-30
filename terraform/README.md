@@ -68,10 +68,16 @@ cd nucleus/terraform
     - subnet_ids : List of Private Subnet IDs to be used for the MWAA
     - vpc_cidr   : VPC CIDR for MWAA (E.g.: "10.1.0.0/16")
     - permission_boundary_for_iam_roles : The permission boundary for IAM roles can be obtained from the MCP System Admins or PDS Engineering Node team
-    - pds_nucleus_opensearch_auth_config_file_path : Location of the OpenSearch auth file
-    - pds_nucleus_opensearch_url                   : OpenSearch URL specific for the PDS Node
-    - pds_node_name                                : PDS Node name
-    - pds_nucleus_harvest_replace_prefix_with      : Prex to replace in PDS Harvest tool
+   
+    - Set node specific values the following lists in correct order
+      - pds_node_names = List of PDS Node names to be supported (E.g.: ["pds-sbn", "pds-img", "pds-en"])
+      - pds_nucleus_opensearch_auth_config_file_paths = List of file paths containing credentials to access Node specific OpenSearch (E.g.: ["/mnt/data/configs/es-auth-jpl-aws-sbnpsi.cfg","/mnt/data/configs/es-auth-jpl-aws-img.cfg"])
+      - pds_nucleus_opensearch_urls                   = List of Node specific OpenSearch URLs (E.g.:["https://search-node2-dev-abcdefghijklmnop.us-west-2.es.amazonaws.com:443","https://search-node2-dev-abcdefghijklmnop.us-west-2.es.amazonaws.com:443"])
+      - pds_nucleus_harvest_replace_prefix_with_list       = List of harvest replace with strings (E.g.: ["s3://pds-sbn-nucleus-staging","s3://pds-img-nucleus-staging"])
+
+
+    - pds_nucleus_harvest_replace_prefix_with      : Prefix to replace in PDS Harvest tool
+    - airflow_env_name: Name of the Nucleus Airflow environment (E.g.: "pds-nucleus-airflow-env")
     - mwaa_dag_s3_bucket_name         : S3 Bucket name to keep Airflow DAG files (E.g.: pds-nucleus-airflow-dags-bucket-mcp-test)
     - pds_nucleus_staging_bucket_name : S3 Bucket name to keep PDS staging data files (E.g.: pds-nucleus-staging-mcp-test)
     - pds_nucleus_config_bucket_name  : S3 Bucket name to keep temporary configurations (E.g.: pds-nucleus-config-mcp-test)
@@ -88,13 +94,16 @@ region     = "us-west-2"
 vpc_id     = "vpc-12345678"
 subnet_ids = ["subnet-123456789", "subnet-987654321"]
 vpc_cidr   = "10.2.0.0/16"
-permission_boundary_for_iam_roles = "mcp-example-role"
+permission_boundary_for_iam_roles = "mcp-example-role"database_availability_zones = ["us-west-2a"]
 
-pds_nucleus_opensearch_auth_config_file_path = "/mnt/data/configs/es-auth.cfg"
-pds_nucleus_opensearch_url                   = "https://search-node2-dev-abcdefghijklmnop.us-west-2.es.amazonaws.com:443"
-pds_node_name                                = "PDS_SBN"
-pds_nucleus_harvest_replace_prefix_with      = "s3://pds-nucleus-staging"
 
+# Set node specific values the following lists in correct order
+pds_node_names = ["pds-sbn", "pds-img"]
+pds_nucleus_opensearch_auth_config_file_paths = ["/mnt/data/configs/es-auth-jpl-aws-sbnpsi.cfg","/mnt/data/configs/es-auth-jpl-aws-img.cfg"]
+pds_nucleus_opensearch_urls                   = ["https://search-node2-dev-abcdefghijklmnop.us-west-2.es.amazonaws.com:443","https://search-node2-dev-abcdefghijklmnop.us-west-2.es.amazonaws.com:443"]
+pds_nucleus_harvest_replace_prefix_with_list      = ["s3://pds-sbn-nucleus-staging","s3://pds-img-nucleus-staging"]
+
+airflow_env_name                = "pds-nucleus-airflow-env"
 mwaa_dag_s3_bucket_name         = "pds-nucleus-airflow-dags-bucket-mcp-test"
 pds_nucleus_staging_bucket_name = "pds-nucleus-staging-mcp-test"
 pds_nucleus_config_bucket_name  = "pds-nucleus-config-mcp-test"
