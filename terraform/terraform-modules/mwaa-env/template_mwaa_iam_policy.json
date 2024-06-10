@@ -34,11 +34,18 @@
       "Effect": "Allow",
       "Action": [
         "kms:Decrypt",
-        "kms:Encrypt",
         "kms:DescribeKey",
-        "kms:GenerateDataKey*"
+        "kms:GenerateDataKey*",
+        "kms:Encrypt"
       ],
-      "Resource": "arn:aws:kms:*:${pds_nucleus_aws_account_id}:key/*"
+      "NotResource": "arn:aws:kms:*:${pds_nucleus_aws_account_id}:key/*",
+      "Condition": {
+        "StringLike": {
+          "kms:ViaService": [
+            "sqs.${pds_nucleus_region}.amazonaws.com"
+          ]
+        }
+      }
     },
     {
       "Effect": "Allow",
