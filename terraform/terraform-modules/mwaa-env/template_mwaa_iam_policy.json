@@ -129,6 +129,11 @@
       "Effect": "Allow",
       "Action": "cloudwatch:PutMetricData",
       "Resource": "*"
+    },
+    {
+      "Action": "iam:PassRole",
+      "Effect": "Allow",
+      "Resource": "arn:aws:iam::${pds_nucleus_aws_account_id}:role/pds_nucleus_*"
     }
   ]
 }

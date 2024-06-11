@@ -5,7 +5,7 @@
     "cpu": 0,
     "portMappings": [],
     "essential": true,
-    "entryPoint": [],
+    "entryPoint": ["harvest"],
     "command": [],
     "environment": [],
     "mountPoints": [

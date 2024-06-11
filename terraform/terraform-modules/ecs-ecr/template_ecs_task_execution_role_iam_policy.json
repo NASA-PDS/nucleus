@@ -19,9 +19,17 @@
       "Effect": "Allow",
       "Action": [
         "logs:CreateLogStream",
-        "logs:PutLogEvents"
+        "logs:PutLogEvents",
+        "logs:CreateLogGroup"
       ],
       "Resource": "arn:aws:logs:*:${pds_nucleus_aws_account_id}:log-group:*:log-stream:*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ecs:stopTask"
+      ],
+      "Resource": "arn:aws:ecs:*:${pds_nucleus_aws_account_id}:task/pds-nucleus-ecs/*"
     }
   ]
 }

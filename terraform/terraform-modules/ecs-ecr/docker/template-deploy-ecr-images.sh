@@ -17,7 +17,7 @@ docker push "${pds_nucleus_aws_account_id}".dkr.ecr.us-west-2.amazonaws.com/pds-
 
 # Deploy pds-registry-loader-harvest ECR image
 docker image pull nasapds/registry-loader
-docker tag nasapds/registry-loader:latest "${pds_nucleus_aws_account_id}".dkr.ecr.us-west-2.amazonaws.com/nasapds/pds-registry-loader-harvest:latest
+docker tag nasapds/registry-loader:latest "${pds_nucleus_aws_account_id}".dkr.ecr.us-west-2.amazonaws.com/pds-registry-loader-harvest:latest
 docker push "${pds_nucleus_aws_account_id}".dkr.ecr.us-west-2.amazonaws.com/pds-registry-loader-harvest:latest
 
 # Deploy pds-validate ECR image

@@ -54,7 +54,6 @@ module "ecs_ecr" {
   pds_nucleus_config_init_cloudwatch_logs_region = var.region
 
   pds_nucleus_s3_to_efs_copy_cloudwatch_logs_group  = var.pds_nucleus_s3_to_efs_copy_cloudwatch_logs_group
-  pds_nucleus_s3_to_efs_copy_cloudwatch_logs_region = var.region
 
   depends_on = [module.common, module.efs]
 }

@@ -176,7 +176,6 @@ resource "aws_s3_bucket" "pds_nucleus_s3_staging_bucket" {
   force_destroy = true
 }
 
-
 # Create pds_nucleus_s3_file_file_event_processor_function for each PDS Node
 resource "aws_lambda_function" "pds_nucleus_s3_file_file_event_processor_function" {
   count = length(var.pds_node_names)
@@ -197,6 +196,12 @@ resource "aws_lambda_function" "pds_nucleus_s3_file_file_event_processor_functio
       PDS_NODE       = var.pds_node_names[count.index]
     }
   }
+}
+
+# Create CloudWatch Log Group for pds_nucleus_s3_file_file_event_processor_function for each PDS Node
+resource "aws_cloudwatch_log_group" "pds_nucleus_s3_file_file_event_processor_function_log_group" {
+  count = length(var.pds_node_names)
+  name = "/aws/lambda/pds_nucleus_s3_file_event_processor-${var.pds_node_names[count.index]}"
 }
 
 # Create pds_nucleus_product_completion_checker_function for each PDS Node
@@ -225,6 +230,12 @@ resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function"
       PDS_MWAA_ENV_NAME              = var.airflow_env_name
     }
   }
+}
+
+# Create CloudWatch Log Group for pds_nucleus_product_completion_checker_function for each PDS Node
+resource "aws_cloudwatch_log_group" "pds_nucleus_product_completion_checker_function_log_group" {
+  count = length(var.pds_node_names)
+  name = "/aws/lambda/pds-nucleus-product-completion-checker-${var.pds_node_names[count.index]}"
 }
 
 # Apply lambda permissions for each pds_nucleus_s3_file_file_event_processor_function of each Node

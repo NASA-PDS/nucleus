@@ -27,6 +27,7 @@
       "Effect": "Allow",
       "Action": [
         "logs:CreateLogStream",
+        "logs:CreateLogGroup",
         "logs:PutLogEvents"
       ],
       "Resource": "arn:aws:logs:*:${pds_nucleus_aws_account_id}:log-group:*:log-stream:*"
@@ -35,6 +36,20 @@
       "Effect": "Allow",
       "Action": "ecr:GetAuthorizationToken",
       "Resource": "arn:aws:ecr:*:${pds_nucleus_aws_account_id}:repository/pds*"
+    },
+    {
+      "Action": [
+        "s3:GetBucket*",
+        "s3:GetObject*",
+        "s3:List*"
+      ],
+      "Effect": "Allow",
+      "Resource": [
+        "arn:aws:s3:::pds-nucleus*",
+        "arn:aws:s3:::pds-nucleus*/*",
+        "arn:aws:s3:::pds-*-staging*",
+        "arn:aws:s3:::pds-*-staging*/*"
+      ]
     }
   ]
 }

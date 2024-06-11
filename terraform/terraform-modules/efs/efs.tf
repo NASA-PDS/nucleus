@@ -2,9 +2,9 @@
 
 resource "aws_efs_file_system" "nucleus_efs" {
   creation_token = "nucleus_efs_token"
-
-  tags = {
-    Name = "Nucleus EFS"
+  encrypted = true
+tags = {
+    Name = "pds-nucleus-efs"
   }
 }
 

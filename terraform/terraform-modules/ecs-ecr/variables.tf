@@ -81,12 +81,6 @@ variable "pds_nucleus_s3_to_efs_copy_cloudwatch_logs_group" {
   sensitive   = true
 }
 
-variable "pds_nucleus_s3_to_efs_copy_cloudwatch_logs_region" {
-  type        = string
-  description = "PDS Nucleus S3 to EFS Copy CloudWatch Logs Region"
-  sensitive   = true
-}
-
 variable "permission_boundary_for_iam_role" {
   default = "mcp-tenantOperator-APIG"
   sensitive   = true
