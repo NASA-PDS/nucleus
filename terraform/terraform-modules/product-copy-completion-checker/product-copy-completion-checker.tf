@@ -166,14 +166,12 @@ resource "aws_lambda_function" "pds_nucleus_init_function" {
 }
 resource "aws_s3_bucket" "pds_nucleus_s3_config_bucket" {
   bucket        = var.pds_nucleus_config_bucket_name
-  force_destroy = true
 }
 
 # Create an S3 Bucket for each PDS Node
 resource "aws_s3_bucket" "pds_nucleus_s3_staging_bucket" {
   count = length(var.pds_node_names)
   bucket = "${var.pds_node_names[count.index]}-${var.pds_nucleus_staging_bucket_name_postfix}"
-  force_destroy = true
 }
 
 # Create pds_nucleus_s3_file_file_event_processor_function for each PDS Node

@@ -68,6 +68,9 @@ data "aws_iam_policy_document" "ecs_task_role_inline_policy" {
   source_policy_documents = [file("${path.module}/ecs_task_role_iam_policy.json")]
 }
 
+
+# TODO: Restrict to PDS accounts in future
+
 # IAM Policy Document for Assume Role
 data "aws_iam_policy_document" "ecs_task_role_assume_role" {
   statement {
@@ -340,11 +343,6 @@ resource "aws_ecs_task_definition" "pds-nucleus-config-init-task-definition" {
 #---------------------------------------------
 # PDS Nucleus S3 to EFS Copy ECS Task Definition
 #---------------------------------------------
-
-# CloudWatch Log Group for PDS Nucleus S3 to EFS Copy ECS Task
-resource "aws_cloudwatch_log_group" "pds-nucleus-s3-to-efs-copy-log-group" {
-  name = var.pds_nucleus_s3_to_efs_copy_cloudwatch_logs_group
-}
 
 # Replace PDS Nucleus S3 to EFS Copy ECR Image Path in pds-nucleus-s3-to-efs-copy-containers.json
 data "template_file" "pds-nucleus-s3-to-efs-copy-containers-json-template" {

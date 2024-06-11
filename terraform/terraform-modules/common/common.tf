@@ -23,7 +23,7 @@ resource "aws_security_group" "nucleus_security_group" {
 
 resource "aws_s3_bucket" "pds_nucleus_airflow_dags_bucket" {
   bucket        = var.mwaa_dag_s3_bucket_name
-  force_destroy = true
+#  force_destroy = true
 }
 
 resource "aws_s3_object" "dags" {
@@ -31,7 +31,6 @@ resource "aws_s3_object" "dags" {
   acl           = "private"
   key           = "dags/"
   source        = "/dev/null"
-  force_destroy = true
 
   depends_on = [aws_s3_bucket.pds_nucleus_airflow_dags_bucket]
 }
@@ -41,7 +40,6 @@ resource "aws_s3_object" "requirements" {
   bucket        = aws_s3_bucket.pds_nucleus_airflow_dags_bucket.id
   key           = "requirements.txt"
   acl           = "private"
-  force_destroy = true
   source        = "./terraform-modules/mwaa-env/requirements.txt"
 
   depends_on = [aws_s3_bucket.pds_nucleus_airflow_dags_bucket]

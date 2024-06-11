@@ -25,7 +25,6 @@ resource "aws_s3_object" "pds_basic_registry_data_load_dag_file" {
   bucket        = var.mwaa_dag_s3_bucket_name
   key           = "dags/${var.pds_basic_registry_data_load_dag_file_name}"
   acl           = "private"
-  force_destroy = true
   source        = "terraform-modules/test-data/dags/${var.pds_basic_registry_data_load_dag_file_name}"
 
   depends_on = [
