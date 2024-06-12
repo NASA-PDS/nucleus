@@ -171,7 +171,8 @@ resource "aws_s3_bucket" "pds_nucleus_s3_config_bucket" {
 # Create an S3 Bucket for each PDS Node
 resource "aws_s3_bucket" "pds_nucleus_s3_staging_bucket" {
   count = length(var.pds_node_names)
-  bucket = "${var.pds_node_names[count.index]}-${var.pds_nucleus_staging_bucket_name_postfix}"
+  # convert PDS node name to S3 bucket name compatible format
+  bucket = "${lower(replace(var.pds_node_names[count.index],"_","-"))}-${var.pds_nucleus_staging_bucket_name_postfix}"
 }
 
 # Create pds_nucleus_s3_file_file_event_processor_function for each PDS Node
@@ -191,7 +192,7 @@ resource "aws_lambda_function" "pds_nucleus_s3_file_file_event_processor_functio
       DB_CLUSTER_ARN = aws_rds_cluster.default.arn
       DB_SECRET_ARN  = aws_secretsmanager_secret.pds_nucleus_rds_credentials.arn
       EFS_MOUNT_PATH = "/mnt/data/"
-      PDS_NODE_NAME  = upper(replace(var.pds_node_names[count.index],"-","_")) # format the PDS node name to harvest compatible format
+      PDS_NODE_NAME  = var.pds_node_names[count.index]
     }
   }
 }
@@ -222,7 +223,7 @@ resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function"
       EFS_MOUNT_PATH                 = "/mnt/data"
       ES_AUTH_CONFIG_FILE_PATH       = var.pds_nucleus_opensearch_auth_config_file_paths[count.index]
       ES_URL                         = var.pds_nucleus_opensearch_urls[count.index]
-      PDS_NODE_NAME                  = upper(replace(var.pds_node_names[count.index],"-","_")) # format the PDS node name to harvest compatible format
+      PDS_NODE_NAME                  = var.pds_node_names[count.index]
       PDS_NUCLEUS_CONFIG_BUCKET_NAME = var.pds_nucleus_config_bucket_name
       REPLACE_PREFIX_WITH            = var.pds_nucleus_harvest_replace_prefix_with_list[count.index]
       PDS_MWAA_ENV_NAME              = var.airflow_env_name
@@ -250,8 +251,8 @@ resource "aws_lambda_permission" "s3-lambda-permission" {
 resource "aws_s3_bucket_notification" "pds_nucleus_s3_staging_bucket_notification" {
 
   count = length(var.pds_node_names)
-
-  bucket = "${var.pds_node_names[count.index]}-${var.pds_nucleus_staging_bucket_name_postfix}"
+  # convert PDS node name to S3 bucket name compatible format
+  bucket = "${lower(replace(var.pds_node_names[count.index],"_","-"))}-${var.pds_nucleus_staging_bucket_name_postfix}"
 
   lambda_function {
     lambda_function_arn = aws_lambda_function.pds_nucleus_s3_file_file_event_processor_function[count.index].arn

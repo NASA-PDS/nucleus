@@ -70,12 +70,13 @@ cd nucleus/terraform
     - permission_boundary_for_iam_roles : The permission boundary for IAM roles can be obtained from the MCP System Admins or PDS Engineering Node team
    
     - Set node specific values the following lists in correct order
-      - pds_node_names = List of PDS Node names to be supported (E.g.: ["pds-sbn", "pds-img", "pds-en"])
+      - pds_node_names = List of PDS Node names to be supported (E.g.: ["PDS_SBN", "PDS_IMG", "PDS_EN"]).The following node name format should be used.
+          - (PDS_ATM, PDS_ENG, PDS_GEO, PDS_IMG, PDS_NAIF, PDS_RMS, PDS_SBN, PSA, JAXA, ROSCOSMOS)
+          - Please check https://nasa-pds.github.io/registry/user/harvest_job_configuration.html for PDS Node name descriptions.
       - pds_nucleus_opensearch_auth_config_file_paths = List of file paths containing credentials to access Node specific OpenSearch (E.g.: ["/mnt/data/configs/es-auth-jpl-aws-sbnpsi.cfg","/mnt/data/configs/es-auth-jpl-aws-img.cfg"])
       - pds_nucleus_opensearch_urls                   = List of Node specific OpenSearch URLs (E.g.:["https://search-node2-dev-abcdefghijklmnop.us-west-2.es.amazonaws.com:443","https://search-node2-dev-abcdefghijklmnop.us-west-2.es.amazonaws.com:443"])
       - pds_nucleus_harvest_replace_prefix_with_list       = List of harvest replace with strings (E.g.: ["s3://pds-sbn-nucleus-staging","s3://pds-img-nucleus-staging"])
-
-
+      
     - pds_nucleus_harvest_replace_prefix_with      : Prefix to replace in PDS Harvest tool
     - airflow_env_name: Name of the Nucleus Airflow environment (E.g.: "pds-nucleus-airflow-env")
     - mwaa_dag_s3_bucket_name         : S3 Bucket name to keep Airflow DAG files (E.g.: pds-nucleus-airflow-dags-bucket-mcp-test)
@@ -97,8 +98,12 @@ vpc_cidr   = "10.2.0.0/16"
 permission_boundary_for_iam_roles = "mcp-example-role"database_availability_zones = ["us-west-2a"]
 
 
-# Set node specific values the following lists in correct order
-pds_node_names = ["pds-sbn", "pds-img"]
+# Set node specific values the following lists in correct order. For the list of node names
+# the following node name format should be used.
+# (PDS_ATM, PDS_ENG, PDS_GEO, PDS_IMG, PDS_NAIF, PDS_RMS, PDS_SBN, PSA, JAXA, ROSCOSMOS)
+# Please check https://nasa-pds.github.io/registry/user/harvest_job_configuration.html for PDS Node name descriptions.
+
+pds_node_names = ["PDS_SBN", "PDS_IMG"]
 pds_nucleus_opensearch_auth_config_file_paths = ["/mnt/data/configs/es-auth-jpl-aws-sbnpsi.cfg","/mnt/data/configs/es-auth-jpl-aws-img.cfg"]
 pds_nucleus_opensearch_urls                   = ["https://search-node2-dev-abcdefghijklmnop.us-west-2.es.amazonaws.com:443","https://search-node2-dev-abcdefghijklmnop.us-west-2.es.amazonaws.com:443"]
 pds_nucleus_harvest_replace_prefix_with_list      = ["s3://pds-sbn-nucleus-staging","s3://pds-img-nucleus-staging"]
