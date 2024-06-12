@@ -31,7 +31,7 @@ mwaa_cli_command = 'dags trigger'
 
 # Read environment variables from lambda configurations
 dag_name = os.environ.get('AIRFLOW_DAG_NAME')
-node_name = os.environ.get('NODE_NAME')
+pds_node_name = os.environ.get('PDS_NODE_NAME')
 es_url = os.environ.get('ES_URL')
 replace_prefix_with = os.environ.get('REPLACE_PREFIX_WITH')
 efs_mount_path = os.environ.get('EFS_MOUNT_PATH')
@@ -81,7 +81,7 @@ def process_completed_products():
             """
 
     pds_node_param = {'name': 'pds_node_param',
-                                         'value': {'stringValue': node_name}}
+                                         'value': {'stringValue': pds_node_name}}
 
     param_set = [pds_node_param]
 
@@ -191,7 +191,7 @@ def create_harvest_configs_and_trigger_nucleus(list_of_product_labels_to_process
         # Create harvest manifets file
         harvest_config_xml_content = f"""<?xml version="1.0" encoding="UTF-8"?>
 
-            <harvest nodeName="{node_name}">
+            <harvest nodeName="{pds_node_name}">
               <files>
                 <manifest>{efs_config_dir + '/' + harvest_manifest_file_path}</manifest>
               </files>

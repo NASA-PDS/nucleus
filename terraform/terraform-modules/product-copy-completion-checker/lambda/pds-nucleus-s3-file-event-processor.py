@@ -20,7 +20,7 @@ s3_bucket_name = "pds-nucleus-staging"
 db_clust_arn = os.environ.get('DB_CLUSTER_ARN')
 db_secret_arn = os.environ.get('DB_SECRET_ARN')
 efs_mount_path = os.environ.get('EFS_MOUNT_PATH')
-pds_node = os.environ.get('PDS_NODE')
+pds_node = os.environ.get('PDS_NODE_NAME')
 
 rds_data = boto3.client('rds-data')
 

@@ -191,7 +191,7 @@ resource "aws_lambda_function" "pds_nucleus_s3_file_file_event_processor_functio
       DB_CLUSTER_ARN = aws_rds_cluster.default.arn
       DB_SECRET_ARN  = aws_secretsmanager_secret.pds_nucleus_rds_credentials.arn
       EFS_MOUNT_PATH = "/mnt/data/"
-      PDS_NODE       = var.pds_node_names[count.index]
+      PDS_NODE_NAME  = upper(replace(var.pds_node_names[count.index],"-","_")) # format the PDS node name to harvest compatible format
     }
   }
 }
@@ -222,7 +222,7 @@ resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function"
       EFS_MOUNT_PATH                 = "/mnt/data"
       ES_AUTH_CONFIG_FILE_PATH       = var.pds_nucleus_opensearch_auth_config_file_paths[count.index]
       ES_URL                         = var.pds_nucleus_opensearch_urls[count.index]
-      NODE_NAME                      = var.pds_node_names[count.index]
+      PDS_NODE_NAME                  = upper(replace(var.pds_node_names[count.index],"-","_")) # format the PDS node name to harvest compatible format
       PDS_NUCLEUS_CONFIG_BUCKET_NAME = var.pds_nucleus_config_bucket_name
       REPLACE_PREFIX_WITH            = var.pds_nucleus_harvest_replace_prefix_with_list[count.index]
       PDS_MWAA_ENV_NAME              = var.airflow_env_name
