@@ -30,11 +30,9 @@ variable "pds_basic_registry_data_load_dag_file_name" {
   sensitive   = true
 }
 
-variable "pds_nucleus_basic_registry_dag_id" {
-  description = "PDS Basic Registry Data Load DAG ID"
+variable "pds_nucleus_default_airflow_dag_id" {
+  description = "PDS Nucleus Default DAG ID"
   type        = string
-  default     = "pds-basic-registry-load-use-case"
-  sensitive   = true
 }
 
 variable "pds_node_names" {

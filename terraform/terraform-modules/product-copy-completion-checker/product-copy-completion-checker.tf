@@ -217,7 +217,7 @@ resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function"
 
   environment {
     variables = {
-      AIRFLOW_DAG_NAME               = var.pds_nucleus_default_airflow_dag_id
+      AIRFLOW_DAG_NAME               = "${var.pds_node_names[count.index]}-${var.pds_nucleus_default_airflow_dag_id}"
       DB_CLUSTER_ARN                 = aws_rds_cluster.default.arn
       DB_SECRET_ARN                  = aws_secretsmanager_secret.pds_nucleus_rds_credentials.arn
       EFS_MOUNT_PATH                 = "/mnt/data"
