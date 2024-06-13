@@ -36,3 +36,9 @@ variable "pds_nucleus_basic_registry_dag_id" {
   default     = "pds-basic-registry-load-use-case"
   sensitive   = true
 }
+
+variable "pds_node_names" {
+  description = "List of PDS Node Names"
+  type        = list(string)
+  sensitive   = true
+}

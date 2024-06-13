@@ -53,7 +53,7 @@ module "ecs_ecr" {
   pds_nucleus_config_init_cloudwatch_logs_group  = var.pds_nucleus_config_init_cloudwatch_logs_group
   pds_nucleus_config_init_cloudwatch_logs_region = var.region
 
-  pds_nucleus_s3_to_efs_copy_cloudwatch_logs_group  = var.pds_nucleus_s3_to_efs_copy_cloudwatch_logs_group
+  pds_nucleus_s3_to_efs_copy_cloudwatch_logs_group = var.pds_nucleus_s3_to_efs_copy_cloudwatch_logs_group
 
   depends_on = [module.common, module.efs]
 }
@@ -87,8 +87,8 @@ module "test-data" {
   pds_nucleus_security_group_id     = module.common.pds_nucleus_security_group_id
   mwaa_dag_s3_bucket_name           = var.mwaa_dag_s3_bucket_name
   pds_nucleus_basic_registry_dag_id = var.pds_nucleus_default_airflow_dag_id
-
-  depends_on = [module.common, module.ecs_ecr]
+  pds_node_names                    = var.pds_node_names
+  depends_on                        = [module.common, module.ecs_ecr]
 }
 
 
