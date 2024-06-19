@@ -29,11 +29,13 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 FROM public.ecr.aws/amazonlinux/amazonlinux:latest
-RUN yum -y install unzip
-RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-RUN unzip awscliv2.zip
-RUN /aws/install
-RUN rm -rf aws*
+RUN yum -y install unzip \
+    && curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" \
+    && unzip awscliv2.zip \
+    && /aws/install \
+    && rm -rf aws* \
+    && yum -y clean all \
+    && rm -rf /var/cache/yum
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 ENTRYPOINT ["bash", "/usr/local/bin/entrypoint.sh"]
