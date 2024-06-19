@@ -30,7 +30,7 @@ resource "aws_rds_cluster" "default" {
   cluster_identifier           = "pdsnucleus"
   engine                       = "aurora-mysql"
   engine_version               = "5.7.mysql_aurora.2.03.2"
-  availability_zones  = var.database_availability_zones
+  availability_zones           = var.database_availability_zones
   db_subnet_group_name         = aws_db_subnet_group.default.id
   database_name                = var.database_name
   master_username              = var.database_user
@@ -42,6 +42,7 @@ resource "aws_rds_cluster" "default" {
   enable_http_endpoint         = true
   backtrack_window             = 0
   skip_final_snapshot          = true
+  vpc_security_group_ids       = [var.nucleus_security_group_id]
 
   # Configuring aurora serverless
   engine_mode = "serverless"
@@ -165,19 +166,19 @@ resource "aws_lambda_function" "pds_nucleus_init_function" {
 
 }
 resource "aws_s3_bucket" "pds_nucleus_s3_config_bucket" {
-  bucket        = var.pds_nucleus_config_bucket_name
+  bucket = var.pds_nucleus_config_bucket_name
 }
 
 # Create an S3 Bucket for each PDS Node
 resource "aws_s3_bucket" "pds_nucleus_s3_staging_bucket" {
   count = length(var.pds_node_names)
   # convert PDS node name to S3 bucket name compatible format
-  bucket = "${lower(replace(var.pds_node_names[count.index],"_","-"))}-${var.pds_nucleus_staging_bucket_name_postfix}"
+  bucket = "${lower(replace(var.pds_node_names[count.index], "_", "-"))}-${var.pds_nucleus_staging_bucket_name_postfix}"
 }
 
 # Create pds_nucleus_s3_file_file_event_processor_function for each PDS Node
 resource "aws_lambda_function" "pds_nucleus_s3_file_file_event_processor_function" {
-  count = length(var.pds_node_names)
+  count            = length(var.pds_node_names)
   function_name    = "pds_nucleus_s3_file_event_processor-${var.pds_node_names[count.index]}"
   filename         = "${path.module}/lambda/pds-nucleus-s3-file-event-processor.zip"
   source_code_hash = data.archive_file.pds_nucleus_s3_file_file_event_processor_function_zip.output_base64sha256
@@ -200,12 +201,12 @@ resource "aws_lambda_function" "pds_nucleus_s3_file_file_event_processor_functio
 # Create CloudWatch Log Group for pds_nucleus_s3_file_file_event_processor_function for each PDS Node
 resource "aws_cloudwatch_log_group" "pds_nucleus_s3_file_file_event_processor_function_log_group" {
   count = length(var.pds_node_names)
-  name = "/aws/lambda/pds_nucleus_s3_file_event_processor-${var.pds_node_names[count.index]}"
+  name  = "/aws/lambda/pds_nucleus_s3_file_event_processor-${var.pds_node_names[count.index]}"
 }
 
 # Create pds_nucleus_product_completion_checker_function for each PDS Node
 resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function" {
-  count = length(var.pds_node_names)
+  count            = length(var.pds_node_names)
   function_name    = "pds-nucleus-product-completion-checker-${var.pds_node_names[count.index]}"
   filename         = "${path.module}/lambda/pds_nucleus_product_completion_checker.zip"
   source_code_hash = data.archive_file.pds_nucleus_product_completion_checker_zip.output_base64sha256
@@ -221,7 +222,7 @@ resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function"
       DB_CLUSTER_ARN                 = aws_rds_cluster.default.arn
       DB_SECRET_ARN                  = aws_secretsmanager_secret.pds_nucleus_rds_credentials.arn
       EFS_MOUNT_PATH                 = "/mnt/data"
-      ES_AUTH_CONFIG_FILE_PATH       = var.pds_nucleus_opensearch_auth_config_file_paths[count.index]
+      ES_AUTH_CONFIG_FILE_PATH       = "/etc/es-auth.cfg"
       ES_URL                         = var.pds_nucleus_opensearch_urls[count.index]
       PDS_NODE_NAME                  = var.pds_node_names[count.index]
       PDS_NUCLEUS_CONFIG_BUCKET_NAME = var.pds_nucleus_config_bucket_name
@@ -234,12 +235,12 @@ resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function"
 # Create CloudWatch Log Group for pds_nucleus_product_completion_checker_function for each PDS Node
 resource "aws_cloudwatch_log_group" "pds_nucleus_product_completion_checker_function_log_group" {
   count = length(var.pds_node_names)
-  name = "/aws/lambda/pds-nucleus-product-completion-checker-${var.pds_node_names[count.index]}"
+  name  = "/aws/lambda/pds-nucleus-product-completion-checker-${var.pds_node_names[count.index]}"
 }
 
 # Apply lambda permissions for each pds_nucleus_s3_file_file_event_processor_function of each Node
 resource "aws_lambda_permission" "s3-lambda-permission" {
-  count = length(var.pds_node_names)
+  count         = length(var.pds_node_names)
   statement_id  = "AllowExecutionFromS3Bucket"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.pds_nucleus_s3_file_file_event_processor_function[count.index].function_name
@@ -252,7 +253,7 @@ resource "aws_s3_bucket_notification" "pds_nucleus_s3_staging_bucket_notificatio
 
   count = length(var.pds_node_names)
   # convert PDS node name to S3 bucket name compatible format
-  bucket = "${lower(replace(var.pds_node_names[count.index],"_","-"))}-${var.pds_nucleus_staging_bucket_name_postfix}"
+  bucket = "${lower(replace(var.pds_node_names[count.index], "_", "-"))}-${var.pds_nucleus_staging_bucket_name_postfix}"
 
   lambda_function {
     lambda_function_arn = aws_lambda_function.pds_nucleus_s3_file_file_event_processor_function[count.index].arn

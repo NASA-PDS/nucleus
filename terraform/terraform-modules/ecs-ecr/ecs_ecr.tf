@@ -15,8 +15,8 @@ data "aws_caller_identity" "current" {}
 
 data "template_file" "ecs_task_role_iam_policy_template" {
   template = file("terraform-modules/ecs-ecr/template_ecs_task_role_iam_policy.json")
-  vars     = {
-    pds_nucleus_aws_account_id      = data.aws_caller_identity.current.account_id
+  vars = {
+    pds_nucleus_aws_account_id = data.aws_caller_identity.current.account_id
   }
   depends_on = [data.aws_caller_identity.current]
 }
@@ -30,8 +30,10 @@ resource "local_file" "ecs_task_role_iam_policy_file" {
 
 data "template_file" "ecs_task_execution_role_iam_policy_template" {
   template = file("terraform-modules/ecs-ecr/template_ecs_task_execution_role_iam_policy.json")
-  vars     = {
-    pds_nucleus_aws_account_id      = data.aws_caller_identity.current.account_id
+  vars = {
+    pds_nucleus_aws_account_id = data.aws_caller_identity.current.account_id
+    pds_nucleus_region         = var.region
+    aws_secretmanager_key_arn     = var.aws_secretmanager_key_arn
   }
   depends_on = [data.aws_caller_identity.current]
 }
@@ -45,8 +47,8 @@ resource "local_file" "ecs_task_execution_role_iam_policy_file" {
 
 data "template_file" "deploy_ecr_images_script_template" {
   template = file("terraform-modules/ecs-ecr/docker/template-deploy-ecr-images.sh")
-  vars     = {
-    pds_nucleus_aws_account_id      = data.aws_caller_identity.current.account_id
+  vars = {
+    pds_nucleus_aws_account_id = data.aws_caller_identity.current.account_id
   }
   depends_on = [data.aws_caller_identity.current]
 }
@@ -61,7 +63,6 @@ resource "local_file" "deploy_ecr_images_script_file" {
 #-------------------------------------
 # ECS Task Role
 #-------------------------------------
-
 
 # IAM Policy Document for Inline Policy
 data "aws_iam_policy_document" "ecs_task_role_inline_policy" {
@@ -122,7 +123,7 @@ resource "aws_iam_role" "pds_nucleus_ecs_task_execution_role" {
 resource "aws_ecr_repository" "pds_nucleus_config_init" {
   name                 = "pds-nucleus-config-init"
   image_tag_mutability = "MUTABLE"
-  force_delete = true
+  force_delete         = true
 
   image_scanning_configuration {
     scan_on_push = true
@@ -132,7 +133,7 @@ resource "aws_ecr_repository" "pds_nucleus_config_init" {
 resource "aws_ecr_repository" "pds_nucleus_s3_to_efs_copy" {
   name                 = "pds-nucleus-s3-to-efs-copy"
   image_tag_mutability = "MUTABLE"
-  force_delete = true
+  force_delete         = true
 
   image_scanning_configuration {
     scan_on_push = true
@@ -142,7 +143,7 @@ resource "aws_ecr_repository" "pds_nucleus_s3_to_efs_copy" {
 resource "aws_ecr_repository" "pds_registry_loader_harvest" {
   name                 = "pds-registry-loader-harvest"
   image_tag_mutability = "MUTABLE"
-  force_delete = true
+  force_delete         = true
 
   image_scanning_configuration {
     scan_on_push = true
@@ -152,7 +153,7 @@ resource "aws_ecr_repository" "pds_registry_loader_harvest" {
 resource "aws_ecr_repository" "pds_validate" {
   name                 = "pds-validate"
   image_tag_mutability = "MUTABLE"
-  force_delete = true
+  force_delete         = true
 
   image_scanning_configuration {
     scan_on_push = true
@@ -170,19 +171,52 @@ resource "aws_cloudwatch_log_group" "pds-registry-loader-harvest-log-group" {
   name = var.pds_registry_loader_harvest_cloudwatch_logs_group
 }
 
-# Replace PDS Registry Loader Harvest ECR Image Path in pds-airflow-registry-loader-harvest-containers.json
+# Create secrets to keep usernames for each PDS Node
+resource "aws_secretsmanager_secret" "opensearch_user" {
+  count                   = length(var.pds_node_names)
+  name                    = "pds/nucleus/opensearch/creds/${var.pds_node_names[count.index]}/user"
+  description             = "PDS Nucleus Opensearch username for ${var.pds_node_names[count.index]}"
+  recovery_window_in_days = 0
+}
+
+resource "aws_secretsmanager_secret_version" "opensearch_user_version" {
+  count         = length(var.pds_node_names)
+  secret_id     = aws_secretsmanager_secret.opensearch_user[count.index].id
+  secret_string = "user = "
+}
+
+# Create secrets to keep passwords for each PDS Node
+resource "aws_secretsmanager_secret" "opensearch_password" {
+  count                   = length(var.pds_node_names)
+  name                    = "pds/nucleus/opensearch/creds/${var.pds_node_names[count.index]}/password"
+  description             = "PDS Nucleus Opensearch password for ${var.pds_node_names[count.index]}"
+  recovery_window_in_days = 0
+}
+
+resource "aws_secretsmanager_secret_version" "opensearch_password_version" {
+  count         = length(var.pds_node_names)
+  secret_id     = aws_secretsmanager_secret.opensearch_password[count.index].id
+  secret_string = "password = "
+}
+
+# Replace PDS Registry Loader Harvest related variables in pds-airflow-registry-loader-harvest-containers.json
 data "template_file" "pds-registry-loader-harvest-containers-json-template" {
+  count    = length(var.pds_node_names)
   template = file("terraform-modules/ecs-ecr/container-definitions/pds-airflow-registry-loader-harvest-containers.json")
   vars = {
+    pds_registry_loader_harvest_ecs_task_name          = "pds-registry-loader-harvest-${var.pds_node_names[count.index]}"
     pds_registry_loader_harvest_ecr_image_path         = aws_ecr_repository.pds_registry_loader_harvest.repository_url
     pds_registry_loader_harvest_cloudwatch_logs_group  = var.pds_registry_loader_harvest_cloudwatch_logs_group
     pds_registry_loader_harvest_cloudwatch_logs_region = var.pds_registry_loader_harvest_cloudwatch_logs_region
+    opensearch_user_secretmanager_arn                  = aws_secretsmanager_secret_version.opensearch_user_version[count.index].arn
+    opensearch_password_secretmanager_arn              = aws_secretsmanager_secret_version.opensearch_password_version[count.index].arn
   }
 }
 
 # PDS Registry Loader Harvest Task Definition
 resource "aws_ecs_task_definition" "pds-registry-loader-harvest" {
-  family                   = "pds-airflow-registry-loader-harvest-task-definition"
+  count                    = length(var.pds_node_names)
+  family                   = "pds-airflow-registry-loader-harvest-task-definition-${var.pds_node_names[count.index]}"
   requires_compatibilities = ["EC2", "FARGATE"]
   network_mode             = "awsvpc"
   cpu                      = 4096
@@ -206,7 +240,7 @@ resource "aws_ecs_task_definition" "pds-registry-loader-harvest" {
   }
 
 
-  container_definitions = data.template_file.pds-registry-loader-harvest-containers-json-template.rendered
+  container_definitions = data.template_file.pds-registry-loader-harvest-containers-json-template[count.index].rendered
   task_role_arn         = aws_iam_role.pds_nucleus_ecs_task_role.arn
   execution_role_arn    = aws_iam_role.pds_nucleus_ecs_task_execution_role.arn
 

@@ -1,11 +1,15 @@
 [
   {
-    "name": "pds-registry-loader-harvest",
+    "name": "${pds_registry_loader_harvest_ecs_task_name}",
     "image": "${pds_registry_loader_harvest_ecr_image_path}",
     "cpu": 0,
     "portMappings": [],
     "essential": true,
-    "entryPoint": ["harvest"],
+    "entryPoint": [
+      "/bin/sh",
+      "-c",
+      "echo 'trust.self-signed = true' >> /etc/es-auth.cfg && echo 'user = $OPENSEARCH_USER' >> /etc/es-auth.cfg && echo 'password = $OPENSEARCH_PASSWORD' >> /etc/es-auth.cfg && harvest"
+    ],
     "command": [],
     "environment": [],
     "mountPoints": [
@@ -16,6 +20,16 @@
       }
     ],
     "volumesFrom": [],
+    "secrets": [
+      {
+        "name": "OPENSEARCH_USER",
+        "valueFrom": "${opensearch_user_secretmanager_arn}"
+      },
+      {
+        "name": "OPENSEARCH_PASSWORD",
+        "valueFrom": "${opensearch_password_secretmanager_arn}"
+      }
+    ],
     "logConfiguration": {
       "logDriver": "awslogs",
       "options": {

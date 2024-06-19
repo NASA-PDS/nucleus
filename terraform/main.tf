@@ -38,6 +38,7 @@ module "ecs_ecr" {
   source = "./terraform-modules/ecs-ecr"
 
   pds_nucleus_ecs_cluster_name = var.pds_nucleus_ecs_cluster_name
+
   efs_file_system_id           = module.efs.efs_file_system_id
   pds_data_access_point_id     = module.efs.efs_access_point_id_pds-data
 
@@ -46,14 +47,16 @@ module "ecs_ecr" {
 
   pds_validate_cloudwatch_logs_group  = var.pds_validate_cloudwatch_logs_group
   pds_validate_cloudwatch_logs_region = var.region
-
   pds_validate_ref_cloudwatch_logs_group  = var.pds_validate_ref_cloudwatch_logs_group
   pds_validate_ref_cloudwatch_logs_region = var.region
 
   pds_nucleus_config_init_cloudwatch_logs_group  = var.pds_nucleus_config_init_cloudwatch_logs_group
   pds_nucleus_config_init_cloudwatch_logs_region = var.region
-
   pds_nucleus_s3_to_efs_copy_cloudwatch_logs_group = var.pds_nucleus_s3_to_efs_copy_cloudwatch_logs_group
+
+  pds_node_names = var.pds_node_names
+
+  aws_secretmanager_key_arn = var.aws_secretmanager_key_arn
 
   depends_on = [module.common, module.efs]
 }
@@ -70,7 +73,6 @@ module "product-copy-completion-checker" {
   pds_nucleus_default_airflow_dag_id      = var.pds_nucleus_default_airflow_dag_id
 
   pds_node_names                                = var.pds_node_names
-  pds_nucleus_opensearch_auth_config_file_paths = var.pds_nucleus_opensearch_auth_config_file_paths
   pds_nucleus_opensearch_urls                   = var.pds_nucleus_opensearch_urls
   pds_nucleus_harvest_replace_prefix_with_list  = var.pds_nucleus_harvest_replace_prefix_with_list
 
@@ -81,14 +83,14 @@ module "product-copy-completion-checker" {
 }
 
 module "test-data" {
-  source                            = "./terraform-modules/test-data"
-  pds_nucleus_ecs_cluster_name      = var.pds_nucleus_ecs_cluster_name
-  pds_nucleus_ecs_subnets           = var.subnet_ids
-  pds_nucleus_security_group_id     = module.common.pds_nucleus_security_group_id
-  mwaa_dag_s3_bucket_name           = var.mwaa_dag_s3_bucket_name
+  source                             = "./terraform-modules/test-data"
+  pds_nucleus_ecs_cluster_name       = var.pds_nucleus_ecs_cluster_name
+  pds_nucleus_ecs_subnets            = var.subnet_ids
+  pds_nucleus_security_group_id      = module.common.pds_nucleus_security_group_id
+  mwaa_dag_s3_bucket_name            = var.mwaa_dag_s3_bucket_name
   pds_nucleus_default_airflow_dag_id = var.pds_nucleus_default_airflow_dag_id
-  pds_node_names                    = var.pds_node_names
-  depends_on                        = [module.common, module.ecs_ecr]
+  pds_node_names                     = var.pds_node_names
+  depends_on                         = [module.common, module.ecs_ecr]
 }
 
 

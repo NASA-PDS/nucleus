@@ -1,12 +1,12 @@
 variable "env" {
-  type        = string
   description = "Environment"
+  type        = string
   default     = "dev"
 }
 
 variable "region" {
-  type        = string
   description = "Region"
+  type        = string
   default     = "us-west-2"
 }
 
@@ -72,13 +72,6 @@ variable "pds_node_names" {
   default     = ["pds-sbn", "pds-img"]
 }
 
-variable "pds_nucleus_opensearch_auth_config_file_paths" {
-  description = "List of PDS Nucleus OpenSearch Config file paths"
-  type        = list(string)
-  default     = ["/mnt/data/configs/pds-sbn-es-auth.cfg", "/mnt/data/configs/pds-img-es-auth.cfg"]
-  sensitive   = true
-}
-
 variable "pds_nucleus_opensearch_urls" {
   description = "List of PDS Nucleus OpenSearch Config file paths"
   type        =  list(string)
@@ -92,6 +85,13 @@ variable "pds_nucleus_harvest_replace_prefix_with_list" {
   default     = ["s3://pds-nucleus-staging-sbn","s3://pds-nucleus-staging-img"]
 }
 
+variable "aws_secretmanager_key_arn" {
+  description = "The ARN of aws/secretsmanager key"
+  type        = string
+  sensitive   = true
+}
+
+
 # ---------------------------------------------
 # Default values that are unchanged usually
 # ---------------------------------------------
@@ -102,43 +102,43 @@ variable "airflow_env_name" {
 }
 
 variable "pds_nucleus_ecs_cluster_name" {
-  type        = string
   description = "The name of the PDS Nucleus ECS cluster"
+  type        = string
   default     = "pds-nucleus-ecs"
 }
 
 variable "pds_registry_loader_harvest_cloudwatch_logs_group" {
-  type        = string
   description = "PDS Registry Loader Harvest Cloudwatch Logs Group"
+  type        = string
   default     = "/pds/ecs/harvest"
 }
 
 variable "pds_validate_cloudwatch_logs_group" {
-  type        = string
   description = "PDS Validate Cloudwatch Logs Group"
+  type        = string
   default     = "/pds/ecs/validate"
 }
 
 variable "pds_validate_ref_cloudwatch_logs_group" {
-  type        = string
   description = "PDS Validate Ref Cloudwatch Logs Group"
+  type        = string
   default     = "/pds/ecs/validate-ref"
 }
 
 variable "pds_nucleus_config_init_cloudwatch_logs_group" {
-  type        = string
   description = "PDS Nucleus Config Init CloudWatch Logs Group"
+  type        = string
   default     = "/pds/ecs/pds-nucleus-config-init"
 }
 
 variable "pds_nucleus_s3_to_efs_copy_cloudwatch_logs_group" {
-  type        = string
   description = "PDS Nucleus S3 to EFS CopyCloudWatch Logs Group"
+  type        = string
   default     = "/pds/ecs/pds-nucleus-s3-to-efs-copy"
 }
 
 variable "database_port" {
-  type        = string
   description = "PDS Database Port"
+  type        = string
   default     = "3306"
 }

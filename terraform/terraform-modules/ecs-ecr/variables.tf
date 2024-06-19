@@ -82,6 +82,19 @@ variable "pds_nucleus_s3_to_efs_copy_cloudwatch_logs_group" {
 }
 
 variable "permission_boundary_for_iam_role" {
-  default = "mcp-tenantOperator-APIG"
+  type        = string
+  description = "Permission boundary to be used to create IAM roles"
+  sensitive   = true
+}
+
+variable "pds_node_names" {
+  type        = list(string)
+  description = "List of PDS Node Names"
+  sensitive   = true
+}
+
+variable "aws_secretmanager_key_arn" {
+  type        = string
+  description = "The ARN of aws/secretsmanager key"
   sensitive   = true
 }

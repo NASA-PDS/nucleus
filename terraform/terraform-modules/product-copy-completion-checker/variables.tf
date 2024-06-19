@@ -69,12 +69,6 @@ variable "pds_node_names" {
   sensitive   = true
 }
 
-variable "pds_nucleus_opensearch_auth_config_file_paths" {
-  description = "List of PDS Nucleus OpenSearch Config file paths"
-  type        = list(string)
-  sensitive   = true
-}
-
 variable "pds_nucleus_opensearch_urls" {
   description = "List of PDS Nucleus OpenSearch Config file paths"
   type        =  list(string)

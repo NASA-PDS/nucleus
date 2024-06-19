@@ -30,6 +30,17 @@
         "ecs:stopTask"
       ],
       "Resource": "arn:aws:ecs:*:${pds_nucleus_aws_account_id}:task/pds-nucleus-ecs/*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:GetSecretValue",
+        "kms:Decrypt"
+      ],
+      "Resource": [
+        "arn:aws:secretsmanager:${pds_nucleus_region}:${pds_nucleus_aws_account_id}:secret:pds/nucleus/opensearch/creds/*",
+        "${aws_secretmanager_key_arn}"
+      ]
     }
   ]
 }

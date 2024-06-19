@@ -68,12 +68,12 @@ cd nucleus/terraform
     - subnet_ids : List of Private Subnet IDs to be used for the MWAA
     - vpc_cidr   : VPC CIDR for MWAA (E.g.: "10.1.0.0/16")
     - permission_boundary_for_iam_roles : The permission boundary for IAM roles can be obtained from the MCP System Admins or PDS Engineering Node team
-   
+    - aws_secretmanager_key_arn : The ARN of aws/secretmanager key obtained from KMS -> AWS managed keys (E.g.: "arn:aws:kms:us-west-2:12345678:key/12345-1234-1234-1234-12345abcd")
+
     - Set node specific values the following lists in correct order
       - pds_node_names = List of PDS Node names to be supported (E.g.: ["PDS_SBN", "PDS_IMG", "PDS_EN"]).The following node name format should be used.
           - (PDS_ATM, PDS_ENG, PDS_GEO, PDS_IMG, PDS_NAIF, PDS_RMS, PDS_SBN, PSA, JAXA, ROSCOSMOS)
           - Please check https://nasa-pds.github.io/registry/user/harvest_job_configuration.html for PDS Node name descriptions.
-      - pds_nucleus_opensearch_auth_config_file_paths = List of file paths containing credentials to access Node specific OpenSearch (E.g.: ["/mnt/data/configs/es-auth-jpl-aws-sbnpsi.cfg","/mnt/data/configs/es-auth-jpl-aws-img.cfg"])
       - pds_nucleus_opensearch_urls                   = List of Node specific OpenSearch URLs (E.g.:["https://search-node2-dev-abcdefghijklmnop.us-west-2.es.amazonaws.com:443","https://search-node2-dev-abcdefghijklmnop.us-west-2.es.amazonaws.com:443"])
       - pds_nucleus_harvest_replace_prefix_with_list       = List of harvest replace with strings (E.g.: ["s3://pds-sbn-nucleus-staging","s3://pds-img-nucleus-staging"])
       
@@ -96,7 +96,7 @@ vpc_id     = "vpc-12345678"
 subnet_ids = ["subnet-123456789", "subnet-987654321"]
 vpc_cidr   = "10.2.0.0/16"
 permission_boundary_for_iam_roles = "mcp-example-role"database_availability_zones = ["us-west-2a"]
-
+aws_secretmanager_key_arn         = "arn:aws:kms:us-west-2:12345678:key/12345-1234-1234-1234-12345abcd"
 
 # Set node specific values the following lists in correct order. For the list of node names
 # the following node name format should be used.
@@ -104,7 +104,6 @@ permission_boundary_for_iam_roles = "mcp-example-role"database_availability_zone
 # Please check https://nasa-pds.github.io/registry/user/harvest_job_configuration.html for PDS Node name descriptions.
 
 pds_node_names = ["PDS_SBN", "PDS_IMG"]
-pds_nucleus_opensearch_auth_config_file_paths = ["/mnt/data/configs/es-auth-jpl-aws-sbnpsi.cfg","/mnt/data/configs/es-auth-jpl-aws-img.cfg"]
 pds_nucleus_opensearch_urls                   = ["https://search-node2-dev-abcdefghijklmnop.us-west-2.es.amazonaws.com:443","https://search-node2-dev-abcdefghijklmnop.us-west-2.es.amazonaws.com:443"]
 pds_nucleus_harvest_replace_prefix_with_list      = ["s3://pds-sbn-nucleus-staging","s3://pds-img-nucleus-staging"]
 
