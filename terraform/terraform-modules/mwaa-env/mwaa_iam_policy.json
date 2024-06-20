@@ -5,8 +5,8 @@
       "Effect": "Allow",
       "Action": "airflow:PublishMetrics",
       "Resource": [
-        "arn:aws:airflow:*:${pds_nucleus_aws_account_id}:role/*/*",
-        "arn:aws:airflow:*:${pds_nucleus_aws_account_id}:environment/*"
+        "arn:aws:airflow:*:441083951559:role/*/*",
+        "arn:aws:airflow:*:441083951559:environment/*"
       ]
     },
     {
@@ -21,24 +21,31 @@
         "ecs:DescribeTasks"
       ],
       "Resource": [
-        "arn:aws:ecs:*:${pds_nucleus_aws_account_id}:task-definition/pds*:*",
-        "arn:aws:ecs:*:${pds_nucleus_aws_account_id}:task/pds*/*"
+        "arn:aws:ecs:*:441083951559:task-definition/pds*:*",
+        "arn:aws:ecs:*:441083951559:task/pds*/*"
       ]
     },
     {
       "Effect": "Allow",
       "Action": "iam:PassRole",
-      "Resource": "arn:aws:iam::${pds_nucleus_aws_account_id}:role/pds-nucleus*"
+      "Resource": "arn:aws:iam::441083951559:role/pds-nucleus*"
     },
     {
       "Effect": "Allow",
       "Action": [
         "kms:Decrypt",
-        "kms:Encrypt",
         "kms:DescribeKey",
-        "kms:GenerateDataKey*"
+        "kms:GenerateDataKey*",
+        "kms:Encrypt"
       ],
-      "Resource": "arn:aws:kms:*:${pds_nucleus_aws_account_id}:key/*"
+      "NotResource": "arn:aws:kms:*:441083951559:key/*",
+      "Condition": {
+        "StringLike": {
+          "kms:ViaService": [
+            "sqs.us-west-2.amazonaws.com"
+          ]
+        }
+      }
     },
     {
       "Effect": "Allow",
@@ -47,7 +54,7 @@
         "logs:GetLogEvents",
         "logs:PutLogEvents"
       ],
-      "Resource": "arn:aws:logs:*:${pds_nucleus_aws_account_id}:log-group:*:log-stream:*"
+      "Resource": "arn:aws:logs:*:441083951559:log-group:*:log-stream:*"
     },
     {
       "Effect": "Allow",
@@ -62,7 +69,7 @@
         "logs:GetLogGroupFields",
         "logs:CreateLogGroup"
       ],
-      "Resource": "arn:aws:logs:*:${pds_nucleus_aws_account_id}:log-group:*"
+      "Resource": "arn:aws:logs:*:441083951559:log-group:*"
     },
     {
       "Effect": "Allow",
@@ -74,7 +81,7 @@
         "sqs:ReceiveMessage",
         "sqs:SendMessage"
       ],
-      "Resource": "arn:aws:sqs:${pds_nucleus_region}:*:airflow-celery-*"
+      "Resource": "arn:aws:sqs:us-west-2:*:airflow-celery-*"
     },
     {
       "Effect": "Deny",
@@ -106,7 +113,7 @@
         "logs:GetQueryResults"
       ],
       "Resource": [
-        "arn:aws:logs:${pds_nucleus_region}:${pds_nucleus_aws_account_id}:log-group:airflow-${airflow_env_name}-*"
+        "arn:aws:logs:us-west-2:441083951559:log-group:airflow-pds-nucleus-airflow-env-*"
       ]
     },
     {
@@ -122,6 +129,11 @@
       "Effect": "Allow",
       "Action": "cloudwatch:PutMetricData",
       "Resource": "*"
+    },
+    {
+      "Action": "iam:PassRole",
+      "Effect": "Allow",
+      "Resource": "arn:aws:iam::441083951559:role/pds_nucleus_*"
     }
   ]
 }

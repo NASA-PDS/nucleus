@@ -6,7 +6,7 @@ resource "aws_ecs_cluster" "pds_nucleus_ecs_cluster" {
 
 # The Policy for Permission Boundary
 data "aws_iam_policy" "mcp_operator_policy" {
-  name = var.permission_boundary_for_iam_role
+  name = var.permission_boundary_for_iam_roles
 }
 
 

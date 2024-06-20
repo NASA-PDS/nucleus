@@ -81,7 +81,7 @@ variable "pds_nucleus_s3_to_efs_copy_cloudwatch_logs_group" {
   sensitive   = true
 }
 
-variable "permission_boundary_for_iam_role" {
+variable "permission_boundary_for_iam_roles" {
   type        = string
   description = "Permission boundary to be used to create IAM roles"
   sensitive   = true

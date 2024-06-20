@@ -54,6 +54,8 @@ module "ecs_ecr" {
   pds_nucleus_config_init_cloudwatch_logs_region = var.region
   pds_nucleus_s3_to_efs_copy_cloudwatch_logs_group = var.pds_nucleus_s3_to_efs_copy_cloudwatch_logs_group
 
+  permission_boundary_for_iam_roles = var.permission_boundary_for_iam_roles
+
   pds_node_names = var.pds_node_names
 
   aws_secretmanager_key_arn = var.aws_secretmanager_key_arn
