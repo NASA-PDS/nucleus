@@ -135,36 +135,32 @@ Note: The following command may fail due to AWS credential expiry. Try the follo
 terraform apply
 ```
 
-8. Login to the AWS Console with your AWS Account.
+8. Wait for `terraform apply` command to be completed. If it fails due to expiration of AWS credentials, please provide a new set of AWS credentials and execute `terraform apply` again.
 
-9. Make sure that the correct AWS Region is selected and search for "Managed Apache Airflow".
+9. Login to the AWS Console with your AWS Account.
 
-10. Visit the "Managed Apache Airflow" (Amazon MWAA) page and check the list of environments.
+10. Make sure that the correct AWS Region is selected and search for "Managed Apache Airflow".
 
-11. Find the relevant Amazon MWAA environment (Default name: PDS-Nucleus-Airflow-Env) and click on
+11. Visit the "Managed Apache Airflow" (Amazon MWAA) page and check the list of environments.
+
+12. Find the relevant Amazon MWAA environment (Default name: PDS-Nucleus-Airflow-Env) and click on
     Open Airflow UI link to open the Airflow UI.
 
-12. The DAGs can be added to the Airflow by uploading Airflow DAG files to the DAG folder of S3 bucket
+13. The DAGs can be added to the Airflow by uploading Airflow DAG files to the DAG folder of S3 bucket
 configured as `mwaa_dag_s3_bucket_name` in the `terraform.tfvars` file.
 
-13. Go to EFS service and locate the newly created `Nucleus EFS` file system.
+14. Go to the AWS Secret manager (https://us-west-2.console.aws.amazon.com/secretsmanager/listsecrets?region=us-west-2) and locate the secrets in the following format.
+    - pds/nucleus/opensearch/creds/<PDS NODE NAME>/user
+    - pds/nucleus/opensearch/creds/<PDS NODE NAME>/password
+   
+    E.g.: 
+      - pds/nucleus/opensearch/creds/PDS_IMG/user
+      - pds/nucleus/opensearch/creds/PDS_SBN/user
+      - pds/nucleus/opensearch/creds/PDS_IMG/password
+      - pds/nucleus/opensearch/creds/PDS_SBN/password
 
-14. Mount the `Nuclues EFS` file system in any Linux based EC2 Container (you may launch a new EC2 Container) as
-explained in the document [Mounting on Amazon EC2 Linux instances using the EFS mount helper](https://docs.aws.amazon.com/efs/latest/ug/mounting-fs-mount-helper-ec2-linux.html)
+15. Obtain the Opensearch username and password for each PDS Node and update the above secrets with relevant usernames and passwords.
+      - To update a secret, click on a secret -> Retrieve secret value -> Edit -> Save 
 
-15. Create a directory `/pds-data/configs/` in EFS file system with the help of mounted file system above.
 
-16. Create a file named `es-auth.cfg` inside the `/pds-data/configs/` directory. The file name of this file should match with the file name of the file 
-configured as `pds_nucleus_opensearch_auth_config_file_path`. 
-
-17. Open the `es-auth.cfg` file and configure the OpenSearch credentials as follows.
-
-Example: 
-
-```shell
-trust.self-signed = true
-user = user1
-password = ChangeMe!
-```
-
-18. Use the PDS Data Upload Manager (DUM) tool to upload files to pds_nucleus_staging_bucket.
+15. Use the PDS Data Upload Manager (DUM) tool to upload files to pds_nucleus_staging_bucket.

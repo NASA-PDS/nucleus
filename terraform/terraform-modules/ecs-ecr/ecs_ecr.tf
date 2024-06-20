@@ -182,7 +182,7 @@ resource "aws_secretsmanager_secret" "opensearch_user" {
 resource "aws_secretsmanager_secret_version" "opensearch_user_version" {
   count         = length(var.pds_node_names)
   secret_id     = aws_secretsmanager_secret.opensearch_user[count.index].id
-  secret_string = "user = "
+  secret_string = "Replace this with Opensearch username of PDS Node: ${var.pds_node_names[count.index]}"
 }
 
 # Create secrets to keep passwords for each PDS Node
@@ -196,7 +196,7 @@ resource "aws_secretsmanager_secret" "opensearch_password" {
 resource "aws_secretsmanager_secret_version" "opensearch_password_version" {
   count         = length(var.pds_node_names)
   secret_id     = aws_secretsmanager_secret.opensearch_password[count.index].id
-  secret_string = "password = "
+  secret_string = "Replace this with Opensearch password of PDS Node: ${var.pds_node_names[count.index]}"
 }
 
 # Replace PDS Registry Loader Harvest related variables in pds-airflow-registry-loader-harvest-containers.json
