@@ -1,0 +1,34 @@
+[
+  {
+    "name": "pds-validate-ref-task",
+    "image": "${pds_validate_ref_ecr_image_path}",
+    "cpu": 0,
+    "portMappings": [],
+    "essential": true,
+    "entryPoint": [
+      "validate-refs"
+    ],
+    "command": [
+      "/mnt/data/harvest-configs/harvest_manifest.txt",
+      "--auth-opensearch",
+      "/mnt/data/harvest-configs/harvest.cfg"
+    ],
+    "environment": [],
+    "mountPoints": [
+      {
+        "sourceVolume": "pds-validate-data",
+        "containerPath": "/mnt/data/",
+        "readOnly": false
+      }
+    ],
+    "volumesFrom": [],
+    "logConfiguration": {
+      "logDriver": "awslogs",
+      "options": {
+        "awslogs-group": "${pds_validate_ref_cloudwatch_logs_group}",
+        "awslogs-region": "${pds_validate_ref_cloudwatch_logs_region}",
+        "awslogs-stream-prefix": "ecs"
+      }
+    }
+  }
+]

@@ -1,0 +1,42 @@
+[
+  {
+    "name": "${pds_registry_loader_harvest_ecs_task_name}",
+    "image": "${pds_registry_loader_harvest_ecr_image_path}",
+    "cpu": 0,
+    "portMappings": [],
+    "essential": true,
+    "entryPoint": [
+      "/bin/sh",
+      "-c",
+      "echo 'trust.self-signed = true' >> /etc/es-auth.cfg && echo 'user = $OPENSEARCH_USER' >> /etc/es-auth.cfg && echo 'password = $OPENSEARCH_PASSWORD' >> /etc/es-auth.cfg && harvest"
+    ],
+    "command": [],
+    "environment": [],
+    "mountPoints": [
+      {
+        "sourceVolume": "pds-data",
+        "containerPath": "/mnt/data/",
+        "readOnly": false
+      }
+    ],
+    "volumesFrom": [],
+    "secrets": [
+      {
+        "name": "OPENSEARCH_USER",
+        "valueFrom": "${opensearch_user_secretmanager_arn}"
+      },
+      {
+        "name": "OPENSEARCH_PASSWORD",
+        "valueFrom": "${opensearch_password_secretmanager_arn}"
+      }
+    ],
+    "logConfiguration": {
+      "logDriver": "awslogs",
+      "options": {
+        "awslogs-group": "${pds_registry_loader_harvest_cloudwatch_logs_group}",
+        "awslogs-region": "${pds_registry_loader_harvest_cloudwatch_logs_region}",
+        "awslogs-stream-prefix": "ecs"
+      }
+    }
+  }
+]

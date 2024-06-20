@@ -1,6 +1,12 @@
-variable "region" {
+variable "env" {
+  description = "Environment"
   type        = string
+  default     = "dev"
+}
+
+variable "region" {
   description = "Region"
+  type        = string
   default     = "us-west-2"
 }
 
@@ -16,63 +22,123 @@ variable "vpc_cidr" {
   sensitive   = true
 }
 
-variable "nucleus_security_group_ingress_cidr" {
-  description = "Ingress CIDR for Nucleus Security Group"
-  type        = list(string)
-  sensitive   = true
-}
-
 variable "subnet_ids" {
   description = "Subnet IDs"
   type        = list(string)
   sensitive   = true
 }
 
-variable "airflow_execution_role" {
-  description = "Airflow AWS Execution Role"
-  type        = string
+variable "database_availability_zones" {
+  description = "Comma Separated List of Availability Zones for Database"
+  type        = list(string)
   sensitive   = true
 }
 
-variable "efs_file_system_id" {
-  type        = string
-  description = "EFS File System ID"
-  sensitive   = true
-}
-
-variable "registry_loader_scripts_access_point_id" {
-  type        = string
-  description = "Registry Loader Scripts EFS Access Point ID"
-  sensitive   = true
-}
-
-variable "registry_loader_default_configs_access_point_id" {
-  type        = string
-  description = "Registry Loader Default Configs EFS Access Point ID"
-  sensitive   = true
-}
-
-variable "pds_data_access_point_id" {
-  type        = string
-  description = "PDS Data Access Point ID"
-  sensitive   = true
-}
-
-variable "task_role_arn" {
-  type        = string
-  description = "Airflow Task Role ARN"
-  sensitive   = true
-}
-
-variable "execution_role_arn" {
-  type        = string
-  description = "Airflow Execution Role ARN"
-  sensitive   = true
+variable "permission_boundary_for_iam_roles" {
+  description = "Permission boundary to be used when creating IAM roles"
+  type      = string
+  sensitive = true
 }
 
 variable "mwaa_dag_s3_bucket_name" {
-  type        = string
   description = "The name of the S3 bucket containing MWAA DAG files"
+  type        = string
   sensitive   = true
 }
 
+variable "pds_nucleus_staging_bucket_name_postfix" {
+  description = "The postfix of the name of the S3 staging bucket to receive data to be processed"
+  default     = "staging-<venue-name>"
+  type        = string
+  sensitive   = true
+}
+
+variable "pds_nucleus_config_bucket_name" {
+  description = "PDS Nucleus Configuration S3 Bucket Name"
+  default     = "pds-nucleus-config-<venue-name>"
+  type        = string
+  sensitive   = true
+}
+
+variable "pds_nucleus_default_airflow_dag_id" {
+  description = "PDS Nucleus Default Airflow DAG ID"
+  type        = string
+  sensitive   = true
+}
+
+variable "pds_node_names" {
+  description = "List of PDS Node Names"
+  type        = list(string)
+  default     = ["pds-sbn", "pds-img"]
+}
+
+variable "pds_nucleus_opensearch_urls" {
+  description = "List of PDS Nucleus OpenSearch Config file paths"
+  type        =  list(string)
+  default     = ["https://search-sbnpsi-abcde.us-west-2.es.amazonaws.com:443","https://search-img-abcde.us-west-2.es.amazonaws.com:443"]
+  sensitive   = true
+}
+
+variable "pds_nucleus_harvest_replace_prefix_with_list" {
+  description = "List of PDS Nucleus Harvest Replace Prefix With"
+  type        =  list(string)
+  default     = ["s3://pds-nucleus-staging-sbn","s3://pds-nucleus-staging-img"]
+}
+
+variable "aws_secretmanager_key_arn" {
+  description = "The ARN of aws/secretsmanager key"
+  type        = string
+  sensitive   = true
+}
+
+
+# ---------------------------------------------
+# Default values that are unchanged usually
+# ---------------------------------------------
+variable "airflow_env_name" {
+  description = "PDS Nucleus Airflow Env Name"
+  default     = "pds-nucleus-airflow-env"
+  type        = string
+}
+
+variable "pds_nucleus_ecs_cluster_name" {
+  description = "The name of the PDS Nucleus ECS cluster"
+  type        = string
+  default     = "pds-nucleus-ecs"
+}
+
+variable "pds_registry_loader_harvest_cloudwatch_logs_group" {
+  description = "PDS Registry Loader Harvest Cloudwatch Logs Group"
+  type        = string
+  default     = "/pds/ecs/harvest"
+}
+
+variable "pds_validate_cloudwatch_logs_group" {
+  description = "PDS Validate Cloudwatch Logs Group"
+  type        = string
+  default     = "/pds/ecs/validate"
+}
+
+variable "pds_validate_ref_cloudwatch_logs_group" {
+  description = "PDS Validate Ref Cloudwatch Logs Group"
+  type        = string
+  default     = "/pds/ecs/validate-ref"
+}
+
+variable "pds_nucleus_config_init_cloudwatch_logs_group" {
+  description = "PDS Nucleus Config Init CloudWatch Logs Group"
+  type        = string
+  default     = "/pds/ecs/pds-nucleus-config-init"
+}
+
+variable "pds_nucleus_s3_to_efs_copy_cloudwatch_logs_group" {
+  description = "PDS Nucleus S3 to EFS CopyCloudWatch Logs Group"
+  type        = string
+  default     = "/pds/ecs/pds-nucleus-s3-to-efs-copy"
+}
+
+variable "database_port" {
+  description = "PDS Database Port"
+  type        = string
+  default     = "3306"
+}

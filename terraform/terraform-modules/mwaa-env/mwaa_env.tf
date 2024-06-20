@@ -1,105 +1,57 @@
 # Terraform script to create the baseline MWAA environment for Nucleus
 
-resource "aws_security_group" "nucleus_security_group" {
-  name        = "nucleus_security_group"
-  description = "nucleus_security_group"
-  vpc_id      = var.vpc_id
-
-  ingress {
-    description = "All traffic"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = var.nucleus_security_group_ingress_cidr
-  }
-
-  egress {
-    from_port        = 0
-    to_port          = 0
-    protocol         = "-1"
-    cidr_blocks      = ["0.0.0.0/0"]
-    ipv6_cidr_blocks = ["::/0"]
-  }
-}
-
-resource "aws_s3_bucket" "nucleus_airflow_dags_bucket" {
-  bucket = var.mwaa_dag_s3_bucket_name
-
-  tags = {
-    Name        = "Nucleus Airflow DAGS bucket terraform"
-    Environment = "Dev"
-  }
-
-  force_destroy = true
-}
-
-resource "aws_s3_bucket_versioning" "nucleus_dags_bucket_versioning" {
-  bucket = aws_s3_bucket.nucleus_airflow_dags_bucket.id
-  versioning_configuration {
-    status = "Enabled"
-  }
-}
-
-resource "aws_s3_bucket_server_side_encryption_configuration" "nucleus_dags_bucket_encryption" {
-  bucket = aws_s3_bucket.nucleus_airflow_dags_bucket.id
-
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
-}
-
-resource "aws_s3_object" "dags" {
-  bucket        = aws_s3_bucket.nucleus_airflow_dags_bucket.id
-  acl           = "private"
-  key           = "dags/"
-  source        = "/dev/null"
-  force_destroy = true
-  depends_on    = [aws_s3_bucket.nucleus_airflow_dags_bucket]
-}
-
-resource "aws_s3_object" "requirements" {
-
-  bucket        = aws_s3_bucket.nucleus_airflow_dags_bucket.id
-  key           = "requirements.txt"
-  acl           = "private"
-  force_destroy = true
-  source        = "./terraform-modules/mwaa-env/requirements.txt"
-}
-
-resource "aws_s3_bucket_public_access_block" "nucleus_airflow_dags_bucket_public_access_block" {
-  bucket = aws_s3_bucket.nucleus_airflow_dags_bucket.id
-
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
-
-resource "aws_s3_bucket_policy" "allow_access_from_another_account" {
-  bucket = aws_s3_bucket.nucleus_airflow_dags_bucket.id
-  policy = data.aws_iam_policy_document.allow_access_from_another_account.json
-}
-
-data "aws_iam_policy_document" "allow_access_from_another_account" {
+# IAM Policy Document for Assume Role
+data "aws_iam_policy_document" "assume_role" {
   statement {
-    principals {
-      type        = "AWS"
-      identifiers = [var.airflow_execution_role]
-    }
-
-    actions = [
-      "s3:*"
-    ]
-
     effect = "Allow"
-
-    resources = [
-      aws_s3_bucket.nucleus_airflow_dags_bucket.arn,
-      "${aws_s3_bucket.nucleus_airflow_dags_bucket.arn}/*",
-    ]
+    principals {
+      type        = "Service"
+      identifiers = ["airflow-env.amazonaws.com", "airflow.amazonaws.com"]
+    }
+    actions = ["sts:AssumeRole"]
   }
+}
+
+data "aws_caller_identity" "current" {}
+
+data "template_file" "mwaa_inline_policy_template" {
+  template = file("terraform-modules/mwaa-env/template_mwaa_iam_policy.json")
+  vars     = {
+    pds_nucleus_aws_account_id      = data.aws_caller_identity.current.account_id
+    pds_nucleus_region              = var.region
+    airflow_env_name                = var.airflow_env_name
+  }
+
+  depends_on = [data.aws_caller_identity.current]
+}
+
+resource "local_file" "mwaa_inline_policy_file" {
+  content  = data.template_file.mwaa_inline_policy_template.rendered
+  filename = "terraform-modules/mwaa-env/mwaa_iam_policy.json"
+
+  depends_on = [data.template_file.mwaa_inline_policy_template]
+}
+
+# IAM Policy Document for Inline Policy
+data "aws_iam_policy_document" "mwaa_inline_policy" {
+  source_policy_documents = [file("${path.module}/mwaa_iam_policy.json")]
+
+  depends_on = [local_file.mwaa_inline_policy_file]
+}
+
+# The Policy for Permission Boundary
+data "aws_iam_policy" "mcp_operator_policy" {
+  name = var.permission_boundary_for_iam_roles
+}
+
+resource "aws_iam_role" "pds_nucleus_mwaa_execution_role" {
+  name = "pds_nucleus_mwaa_execution_role"
+  inline_policy {
+    name   = "pds-nucleus-mwaa-execution-role-inline-policy"
+    policy = data.aws_iam_policy_document.mwaa_inline_policy.json
+  }
+  assume_role_policy   = data.aws_iam_policy_document.assume_role.json
+  permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
 }
 
 resource "aws_mwaa_environment" "pds_nucleus_airflow_env" {
@@ -109,22 +61,20 @@ resource "aws_mwaa_environment" "pds_nucleus_airflow_env" {
   environment_class = var.airflow_env_class
 
   dag_s3_path        = var.airflow_dags_path
-  execution_role_arn = var.airflow_execution_role
+  execution_role_arn = aws_iam_role.pds_nucleus_mwaa_execution_role.arn
 
   requirements_s3_path = var.airflow_requirements_path
 
-  depends_on = [aws_s3_object.dags, aws_security_group.nucleus_security_group]
-
   min_workers           = 1
-  max_workers           = 25
+  max_workers           = 10
   webserver_access_mode = "PUBLIC_ONLY"
 
   network_configuration {
-    security_group_ids = [aws_security_group.nucleus_security_group.id]
+    security_group_ids = [var.nucleus_security_group_id]
     subnet_ids         = var.subnet_ids
   }
 
-  source_bucket_arn = aws_s3_bucket.nucleus_airflow_dags_bucket.arn
+  source_bucket_arn = var.airflow_dags_bucket_arn
 
   airflow_configuration_options = {
     "core.load_default_connections" = "false"
@@ -133,4 +83,34 @@ resource "aws_mwaa_environment" "pds_nucleus_airflow_env" {
     "webserver.dag_orientation"     = "TB"
     "logging.logging_level"         = "INFO"
   }
+
+  logging_configuration {
+    dag_processing_logs {
+      enabled   = true
+      log_level = "DEBUG"
+    }
+
+    scheduler_logs {
+      enabled   = true
+      log_level = "INFO"
+    }
+
+    task_logs {
+      enabled   = true
+      log_level = "INFO"
+    }
+
+    webserver_logs {
+      enabled   = true
+      log_level = "ERROR"
+    }
+
+    worker_logs {
+      enabled   = true
+      log_level = "CRITICAL"
+    }
+  }
+
+
+  depends_on = [aws_iam_role.pds_nucleus_mwaa_execution_role]
 }
