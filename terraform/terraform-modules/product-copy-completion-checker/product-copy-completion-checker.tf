@@ -143,7 +143,6 @@ data "archive_file" "pds_nucleus_s3_file_file_event_processor_function_zip" {
 }
 
 
-
 data "archive_file" "pds_nucleus_product_completion_checker_zip" {
   type        = "zip"
   source_file = "${path.module}/lambda/pds-nucleus-product-completion-checker.py"
@@ -172,8 +171,8 @@ resource "aws_lambda_function" "pds_nucleus_init_function" {
       DB_SECRET_ARN  = aws_secretsmanager_secret.pds_nucleus_rds_credentials.arn
     }
   }
-
 }
+
 resource "aws_s3_bucket" "pds_nucleus_s3_config_bucket" {
   bucket = var.pds_nucleus_config_bucket_name
 }
@@ -257,16 +256,57 @@ resource "aws_lambda_permission" "s3-lambda-permission" {
   source_arn    = aws_s3_bucket.pds_nucleus_s3_staging_bucket[count.index].arn
 }
 
-# Creat  aws_s3_bucket_notification for each s3 bucket nof each Node
+# Create an SQS queue to receive S3 bucket notifications for each s3 bucket of each Node
+resource "aws_sqs_queue" "pds_nucleus_files_to_save_in_database_sqs_queue" {
+  count                      = length(var.pds_node_names)
+  name                       = "pds-nucleus-files-to-save-in-database-${var.pds_node_names[count.index]}"
+  delay_seconds              = 0
+  visibility_timeout_seconds = 30
+  message_retention_seconds  = 345600
+  receive_wait_time_seconds  = 0
+  sqs_managed_sse_enabled    = true
+}
+
+# Create an SQS policy document for SQS queue of each Node
+data "aws_iam_policy_document" "pds_nucleus_files_to_save_in_database_sqs_queue_policy_document" {
+  count = length(var.pds_node_names)
+
+  statement {
+    effect = "Allow"
+
+    principals {
+      type        = "Service"
+      identifiers = ["s3.amazonaws.com"]
+    }
+
+    actions   = ["sqs:SendMessage"]
+    resources = [aws_sqs_queue.pds_nucleus_files_to_save_in_database_sqs_queue[count.index].arn]
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceArn"
+      values   = [aws_s3_bucket.pds_nucleus_s3_staging_bucket[count.index].arn]
+    }
+  }
+}
+
+# Create an SQS policy for SQS queue of each Node
+resource "aws_sqs_queue_policy" "pds_nucleus_files_to_save_in_database_sqs_queue_policy" {
+  count     = length(var.pds_node_names)
+  queue_url = aws_sqs_queue.pds_nucleus_files_to_save_in_database_sqs_queue[count.index].url
+  policy    = data.aws_iam_policy_document.pds_nucleus_files_to_save_in_database_sqs_queue_policy_document[count.index].json
+}
+
+# Create an aws_s3_bucket_notification for each s3 bucket of each Node
 resource "aws_s3_bucket_notification" "pds_nucleus_s3_staging_bucket_notification" {
 
   count = length(var.pds_node_names)
   # convert PDS node name to S3 bucket name compatible format
   bucket = "${lower(replace(var.pds_node_names[count.index], "_", "-"))}-${var.pds_nucleus_staging_bucket_name_postfix}"
 
-  lambda_function {
-    lambda_function_arn = aws_lambda_function.pds_nucleus_s3_file_file_event_processor_function[count.index].arn
-    events              = ["s3:ObjectCreated:*"]
+  queue {
+    events    = ["s3:ObjectCreated:*"]
+    queue_arn = aws_sqs_queue.pds_nucleus_files_to_save_in_database_sqs_queue[count.index].arn
   }
 }
 
