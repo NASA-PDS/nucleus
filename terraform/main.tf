@@ -80,6 +80,7 @@ module "product-copy-completion-checker" {
 
   database_availability_zones = var.database_availability_zones
   airflow_env_name            = var.airflow_env_name
+  region                      = var.region
 
   depends_on = [module.common]
 }

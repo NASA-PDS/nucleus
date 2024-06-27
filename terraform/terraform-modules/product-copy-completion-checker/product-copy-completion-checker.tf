@@ -27,7 +27,7 @@ resource "aws_secretsmanager_secret_version" "pds_nucleus_rds_password" {
 }
 
 resource "aws_rds_cluster" "default" {
-  cluster_identifier           = "pdsnucleus"
+  cluster_identifier           = var.rds_cluster_id
   engine                       = "aurora-mysql"
   engine_version               = "5.7.mysql_aurora.2.03.2"
   availability_zones           = var.database_availability_zones
@@ -94,34 +94,43 @@ data "aws_iam_policy_document" "assume_role_lambda_apigw" {
     effect = "Allow"
     principals {
       type        = "Service"
-      identifiers = ["lambda.amazonaws.com", "apigateway.amazonaws.com"]
+      identifiers = ["lambda.amazonaws.com"]
     }
     actions = ["sts:AssumeRole"]
   }
 }
 
-data "aws_iam_policy_document" "inline_policy_lambda" {
-  statement {
-    actions = [
-      "logs:CreateLogGroup",
-      "logs:CreateLogStream",
-      "logs:PutLogEvents",
-      "lambda:InvokeFunction",
-      "rds-data:ExecuteStatement",
-      "secretsmanager:GetSecretValue",
-      "s3:GetObject",
-      "s3:PutObject",
-      "airflow:CreateCliToken"
-    ]
-    resources = ["*"]
+data "aws_caller_identity" "current" {}
+
+data "template_file" "lambda_inline_policy_template" {
+  template = file("terraform-modules/product-copy-completion-checker/template_lambda_inline_policy.json")
+  vars = {
+    pds_nucleus_aws_account_id = data.aws_caller_identity.current.account_id
+    rds_cluster_id             = var.rds_cluster_id
+    region                     = var.region
   }
+
+  depends_on = [data.aws_caller_identity.current]
+}
+
+resource "local_file" "lambda_inline_policy_file" {
+  content  = data.template_file.lambda_inline_policy_template.rendered
+  filename = "terraform-modules/product-copy-completion-checker/lambda_inline_policy.json"
+
+  depends_on = [data.template_file.lambda_inline_policy_template]
+}
+
+data "aws_iam_policy_document" "lambda_inline_policy" {
+  source_policy_documents = [file("${path.module}/lambda_inline_policy.json")]
+
+  depends_on = [local_file.lambda_inline_policy_file]
 }
 
 resource "aws_iam_role" "pds_nucleus_lambda_execution_role" {
   name = "pds_nucleus_lambda_execution_role"
   inline_policy {
-    name   = "unity-cs-lambda-auth-inline-policy"
-    policy = data.aws_iam_policy_document.inline_policy_lambda.json
+    name   = "pds-nucleus-lambda-execution-inline-policy"
+    policy = data.aws_iam_policy_document.lambda_inline_policy.json
   }
   assume_role_policy   = data.aws_iam_policy_document.assume_role_lambda_apigw.json
   permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn

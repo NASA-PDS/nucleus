@@ -1,0 +1,43 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogStream",
+        "logs:CreateLogGroup",
+        "logs:PutLogEvents"
+      ],
+      "Resource": "arn:aws:logs:*:${pds_nucleus_aws_account_id}:log-group:*:log-stream:*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "rds-data:ExecuteStatement",
+      "Resource": "arn:aws:rds:*:${pds_nucleus_aws_account_id}:cluster:${rds_cluster_id}"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "secretsmanager:GetSecretValue",
+      "Resource": "arn:aws:secretsmanager:*:${pds_nucleus_aws_account_id}:secret:pds/nucleus/rds/*"
+    },
+    {
+      "Action": [
+        "s3:GetBucket*",
+        "s3:GetObject*",
+        "s3:List*"
+      ],
+      "Effect": "Allow",
+      "Resource": [
+        "arn:aws:s3:::pds-nucleus*",
+        "arn:aws:s3:::pds-nucleus*/*",
+        "arn:aws:s3:::pds-*-staging*",
+        "arn:aws:s3:::pds-*-staging*/*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": "airflow:CreateCliToken",
+      "Resource": "arn:aws:ecr:*:${pds_nucleus_aws_account_id}:repository/pds*"
+    }
+  ]
+}
