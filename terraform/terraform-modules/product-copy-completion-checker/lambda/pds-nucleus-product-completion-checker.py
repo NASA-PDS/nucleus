@@ -77,7 +77,7 @@ def process_completed_products():
                 NOT IN (SELECT s3_url_of_product_label  from product_data_file_mapping
                 where s3_url_of_data_file
                 NOT IN (SELECT s3_url_of_data_file from data_file)) and s3_url_of_product_label
-                IN (SELECT s3_url_of_product_label  from product_data_file_mapping) limit 5;
+                IN (SELECT s3_url_of_product_label  from product_data_file_mapping) limit 100;
             """
 
     pds_node_param = {'name': 'pds_node_param',

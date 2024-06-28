@@ -212,6 +212,15 @@ resource "aws_cloudwatch_log_group" "pds_nucleus_s3_file_file_event_processor_fu
   name  = "/aws/lambda/pds_nucleus_s3_file_event_processor-${var.pds_node_names[count.index]}"
 }
 
+# Create SQS queue event source for pds_nucleus_s3_file_file_event_processor_function for each PDS Node
+resource "aws_lambda_event_source_mapping" "event_source_mapping" {
+  count            = length(var.pds_node_names)
+  event_source_arn = aws_sqs_queue.pds_nucleus_files_to_save_in_database_sqs_queue[count.index].arn
+  enabled          = true
+  function_name    = aws_lambda_function.pds_nucleus_s3_file_file_event_processor_function[count.index].function_name
+  batch_size       = 1
+}
+
 # Create pds_nucleus_product_completion_checker_function for each PDS Node
 resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function" {
   count            = length(var.pds_node_names)

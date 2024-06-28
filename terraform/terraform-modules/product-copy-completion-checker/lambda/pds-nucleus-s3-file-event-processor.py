@@ -25,11 +25,9 @@ pds_node = os.environ.get('PDS_NODE_NAME')
 rds_data = boto3.client('rds-data')
 
 def lambda_handler(event, context):
-
-    s3_bucket = event['Records'][0].get("s3").get("bucket").get("name")
-
-    s3_key = event['Records'][0].get("s3").get("object").get("key")
-
+    s3_event = json.loads(event['Records'][0].get("body"))
+    s3_bucket = s3_event['Records'][0].get("s3").get("bucket").get("name")
+    s3_key = s3_event['Records'][0].get("s3").get("object").get("key")
     s3_url_of_file = "s3://" + s3_bucket + "/" + s3_key
 
     logger.info(f"s3_url_of_file: {s3_url_of_file}")
