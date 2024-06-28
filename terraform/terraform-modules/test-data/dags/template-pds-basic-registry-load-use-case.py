@@ -169,7 +169,8 @@ config_init_cleanup = EcsRunTaskOperator(
     awslogs_group="/pds/ecs/pds-nucleus-config-init",
     awslogs_stream_prefix="ecs/pds-nucleus-config-init",
     awslogs_fetch_interval=timedelta(seconds=1),
-    number_logs_exception=500
+    number_logs_exception=500,
+    trigger_rule=TriggerRule.ALL_DONE
 )
 
 
@@ -198,7 +199,8 @@ config_s3_to_efs_copy_cleanup = EcsRunTaskOperator(
     awslogs_group="/pds/ecs/pds-nucleus-s3-to-efs-copy",
     awslogs_stream_prefix="ecs/pds-nucleus-s3-to-efs-copy",
     awslogs_fetch_interval=timedelta(seconds=1),
-    number_logs_exception=500
+    number_logs_exception=500,
+    trigger_rule=TriggerRule.ALL_DONE
 )
 
 
@@ -207,7 +209,7 @@ print_end_time = BashOperator(
     task_id='Print_End_Time',
     dag=dag,
     bash_command='date',
-    trigger_rule=TriggerRule.ALL_SUCCESS
+    trigger_rule=TriggerRule.ALL_DONE
 )
 
 # Workflow

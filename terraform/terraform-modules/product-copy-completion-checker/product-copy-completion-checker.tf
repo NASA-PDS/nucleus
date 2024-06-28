@@ -89,12 +89,12 @@ data "aws_iam_policy" "mcp_operator_policy" {
   name = var.permission_boundary_for_iam_roles
 }
 
-data "aws_iam_policy_document" "assume_role_lambda_apigw" {
+data "aws_iam_policy_document" "assume_role_lambda" {
   statement {
     effect = "Allow"
     principals {
       type        = "Service"
-      identifiers = ["lambda.amazonaws.com"]
+      identifiers = ["lambda.amazonaws.com", "scheduler.amazonaws.com"]
     }
     actions = ["sts:AssumeRole"]
   }
@@ -132,7 +132,7 @@ resource "aws_iam_role" "pds_nucleus_lambda_execution_role" {
     name   = "pds-nucleus-lambda-execution-inline-policy"
     policy = data.aws_iam_policy_document.lambda_inline_policy.json
   }
-  assume_role_policy   = data.aws_iam_policy_document.assume_role_lambda_apigw.json
+  assume_role_policy   = data.aws_iam_policy_document.assume_role_lambda.json
   permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
 }
 
@@ -253,6 +253,24 @@ resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function"
 resource "aws_cloudwatch_log_group" "pds_nucleus_product_completion_checker_function_log_group" {
   count = length(var.pds_node_names)
   name  = "/aws/lambda/pds-nucleus-product-completion-checker-${var.pds_node_names[count.index]}"
+}
+
+# Create aws_scheduler_schedule for pds_nucleus_product_completion_checker_function for each PDS Node
+resource "aws_scheduler_schedule" "schedule_for_pds_nucleus_product_completion_checker" {
+  count      = length(var.pds_node_names)
+  name       = "schedule_for_pds_nucleus_product_completion_checker_${var.pds_node_names[count.index]}"
+  group_name = "default"
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  schedule_expression = "rate(1 minute)"
+
+  target {
+    arn      = aws_lambda_function.pds_nucleus_product_completion_checker_function[count.index].arn
+    role_arn = aws_iam_role.pds_nucleus_lambda_execution_role.arn
+  }
 }
 
 # Apply lambda permissions for each pds_nucleus_s3_file_file_event_processor_function of each Node
