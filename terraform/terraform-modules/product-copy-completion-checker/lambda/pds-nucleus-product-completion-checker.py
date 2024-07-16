@@ -71,7 +71,7 @@ def process_completed_products():
 
     sql =   """
                 SELECT DISTINCT s3_url_of_product_label from product
-                WHERE processing_status = 'INCOMPLETE' and
+                WHERE completion_status = 'INCOMPLETE' and
                 pds_node = :pds_node_param and
                 s3_url_of_product_label
                 NOT IN (SELECT s3_url_of_product_label  from product_data_file_mapping
@@ -104,7 +104,7 @@ def process_completed_products():
 
         for data_dict in record:
             for data_type, s3_url_of_product_label in data_dict.items():
-                update_product_processing_status_in_database(s3_url_of_product_label, 'COMPLETE')
+                update_product_completion_status_in_database(s3_url_of_product_label, 'COMPLETE')
                 list_of_product_labels_to_process.append(s3_url_of_product_label)
 
         if count == n:
@@ -116,22 +116,22 @@ def process_completed_products():
     count = 0
     list_of_product_labels_to_process = []
 
-def update_product_processing_status_in_database(s3_url_of_product_label, processing_status):
+def update_product_completion_status_in_database(s3_url_of_product_label, completion_status):
     """ Updates the product processing status of the given s3_url_of_product_label """
     sql = """
             UPDATE product
-            SET processing_status = :processing_status_param,
+            SET completion_status = :completion_status_param,
             last_updated_epoch_time = :last_updated_epoch_time_param
             WHERE s3_url_of_product_label = :s3_url_of_product_label_param
                 """
 
-    processing_status_param = {'name': 'processing_status_param', 'value': {'stringValue': processing_status}}
+    completion_status_param = {'name': 'completion_status_param', 'value': {'stringValue': completion_status}}
     last_updated_epoch_time_param = {'name': 'last_updated_epoch_time_param',
                                      'value': {'longValue': round(time.time() * 1000)}}
     s3_url_of_product_label_param = {'name': 's3_url_of_product_label_param',
                                      'value': {'stringValue': s3_url_of_product_label}}
 
-    param_set = [processing_status_param, last_updated_epoch_time_param, s3_url_of_product_label_param]
+    param_set = [completion_status_param, last_updated_epoch_time_param, s3_url_of_product_label_param]
 
     response = rds_data.execute_statement(
         resourceArn=db_clust_arn,
@@ -140,7 +140,7 @@ def update_product_processing_status_in_database(s3_url_of_product_label, proces
         sql=sql,
         parameters=param_set)
 
-    logger.debug(f"Response for update_product_processing_status_in_database: {str(response)}")
+    logger.debug(f"Response for update_product_completion_status_in_database: {str(response)}")
 
 def submit_data_to_nucleus(list_of_product_labels_to_process):
     """ Submits data to Nucleus """
@@ -168,7 +168,7 @@ def create_harvest_configs_and_trigger_nucleus(list_of_product_labels_to_process
         list_of_s3_urls_to_copy.extend(get_list_of_data_files(s3_url_of_product_label))
 
     # Generate a random suffix for harvest config file name and manifest file name to avoid conflicting duplicate file names
-    current_time = datetime.now().strftime("%m-%d-%Y-%H-%M-%S")
+    current_time = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     random_batch_number = current_time + uuid.uuid4().hex
 
     try:
@@ -225,7 +225,7 @@ def create_harvest_configs_and_trigger_nucleus(list_of_product_labels_to_process
         logger.error(f"Error creating harvest config files in s3 bucker: {pds_nucleus_config_bucket_name}. Exception: {str(e)}")
         return
 
-    trigger_nucleus_workflow(list_of_product_labels_to_process_with_file_paths, s3_config_dir, efs_config_dir)
+    trigger_nucleus_workflow(random_batch_number, list_of_product_labels_to_process_with_file_paths, s3_config_dir, efs_config_dir)
 
     logger.info(f"Triggered Nucleus workflow: {dag_name} for product labels: {list_of_product_labels_to_process_with_file_paths}")
 
@@ -268,7 +268,7 @@ def get_list_of_data_files(s3_url_of_product_label):
     return list_of_data_files
 
 
-def trigger_nucleus_workflow(list_of_product_labels_to_process, s3_config_dir, efs_config_dir):
+def trigger_nucleus_workflow(random_batch_number, list_of_product_labels_to_process, s3_config_dir, efs_config_dir):
     """ Triggers Nucleus workflow with parameters """
 
     # Convert list to comma seperated list
@@ -290,9 +290,17 @@ def trigger_nucleus_workflow(list_of_product_labels_to_process, s3_config_dir, e
     list_of_product_labels_to_process_key = "list_of_product_labels_to_process"
     list_of_product_labels_to_process_value = str(comma_seperated_list_of_product_labels_to_process)
 
+    pds_node_name_key = "pds_node_name"
+    pds_node_name_value = pds_node_name
+
+    batch_number_key = "batch_number"
+    batch_number_value = random_batch_number
+
     conf = "{\"" + \
             s3_config_dir_key + "\":\"" + s3_config_dir_value + "\",\"" + \
             list_of_product_labels_to_process_key + "\":\"" + list_of_product_labels_to_process_value + "\",\"" + \
+            pds_node_name_key + "\":\"" + pds_node_name_value + "\",\"" + \
+            batch_number_key + "\":\"" + batch_number_value + "\",\"" + \
             efs_config_dir_key + "\":\"" + efs_config_dir_value + "\"}"
 
     logger.info(f"Triggering Nucleus workflow {dag_name} with parameters : {conf}")

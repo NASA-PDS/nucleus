@@ -30,6 +30,7 @@ def lambda_handler(event, context):
         create_product_table()
         create_datafile_table()
         create_product_datafile_mapping_table()
+        create_product_processing_status_table()
         return f"Processed lambda request ID: {context.aws_request_id}"
     except Exception as e:
         logger.error(f"Error creating database tables. Exception: {str(e)}")
@@ -41,9 +42,9 @@ def create_product_table():
                    CREATE TABLE product
                    (
                        s3_url_of_product_label VARCHAR(1500) CHARACTER SET latin1,
-                       processing_status VARCHAR(10),
+                       completion_status VARCHAR(50),
                        last_updated_epoch_time BIGINT,
-                       pds_node VARCHAR(10),
+                       pds_node VARCHAR(50),
                        PRIMARY KEY (s3_url_of_product_label)
                    );
              """
@@ -92,3 +93,24 @@ def create_product_datafile_mapping_table():
         database='pds_nucleus',
         sql=sql)
     logger.debug(f"Response for create_product_datafile_mapping_table()  : {str(response)}")
+
+
+def create_product_processing_status_table():
+    """ Created product processing status table """
+    sql =   """
+                   CREATE TABLE product_processing_status
+                   (
+                       s3_url_of_product_label VARCHAR(1500) CHARACTER SET latin1,
+                       processing_status VARCHAR(50),
+                       last_updated_epoch_time BIGINT,
+                       pds_node VARCHAR(50),
+                       batch_number VARCHAR(100),
+                       PRIMARY KEY (s3_url_of_product_label)
+                   );
+             """
+    response = rds_data.execute_statement(
+        resourceArn=db_clust_arn,
+        secretArn=db_secret_arn,
+        database='pds_nucleus',
+        sql=sql)
+    logger.debug(f"Response for create_product_processing_status_table()  : {str(response)}")

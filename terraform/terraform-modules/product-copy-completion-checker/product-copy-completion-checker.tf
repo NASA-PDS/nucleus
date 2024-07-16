@@ -350,3 +350,34 @@ resource "aws_lambda_invocation" "invoke_pds_nucleus_init_function" {
 
   depends_on = [aws_lambda_function.pds_nucleus_init_function, aws_rds_cluster.default]
 }
+
+
+data "archive_file" "pds_nucleus_product_processing_status_tracker_function_zip" {
+  type        = "zip"
+  source_file = "${path.module}/lambda/pds-nucleus-product-processing-status-tracker.py"
+  output_path = "${path.module}/lambda/pds-nucleus-product-processing-status-tracker.zip"
+}
+
+# Create pds_nucleus_product_processing_status_tracker_function for each PDS Node
+resource "aws_lambda_function" "pds_nucleus_product_processing_status_tracker_function" {
+  function_name    = "pds_nucleus_product_processing_status_tracker"
+  filename         = "${path.module}/lambda/pds-nucleus-product-processing-status-tracker.zip"
+  source_code_hash = data.archive_file.pds_nucleus_product_processing_status_tracker_function_zip.output_base64sha256
+  role             = aws_iam_role.pds_nucleus_lambda_execution_role.arn
+  runtime          = "python3.9"
+  handler          = "pds-nucleus-product-processing-status-tracker.lambda_handler"
+  timeout          = 10
+  depends_on       = [data.archive_file.pds_nucleus_product_processing_status_tracker_function_zip]
+
+  environment {
+    variables = {
+      DB_CLUSTER_ARN = aws_rds_cluster.default.arn
+      DB_SECRET_ARN  = aws_secretsmanager_secret.pds_nucleus_rds_credentials.arn
+    }
+  }
+}
+
+# Create CloudWatch Log Group for pds_nucleus_s3_file_file_event_processor_function for each PDS Node
+resource "aws_cloudwatch_log_group" "pds_nucleus_product_processing_status_tracker_function_log_group" {
+  name  = "/aws/lambda/pds_nucleus_product_processing_status_tracker"
+}

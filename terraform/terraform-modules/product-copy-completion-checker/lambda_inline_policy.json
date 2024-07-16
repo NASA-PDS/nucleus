@@ -24,6 +24,7 @@
       "Action": [
         "s3:GetBucket*",
         "s3:GetObject*",
+        "s3:PutObject*",
         "s3:List*"
       ],
       "Effect": "Allow",
@@ -37,7 +38,16 @@
     {
       "Effect": "Allow",
       "Action": "airflow:CreateCliToken",
-      "Resource": "arn:aws:ecr:*:${pds_nucleus_aws_account_id}:repository/pds*"
+      "Resource": "arn:aws:airflow:*:${pds_nucleus_aws_account_id}:environment/pds*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "sqs:ReceiveMessage",
+        "sqs:DeleteMessage",
+        "sqs:GetQueueAttributes"
+       ],
+      "Resource": "arn:aws:sqs:*:${pds_nucleus_aws_account_id}:pds-*"
     }
   ]
 }
