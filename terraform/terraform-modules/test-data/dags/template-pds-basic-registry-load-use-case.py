@@ -16,6 +16,86 @@ ECS_CLUSTER_NAME = "${pds_nucleus_ecs_cluster_name}"
 ECS_LAUNCH_TYPE = "FARGATE"
 ECS_SUBNETS = ${pds_nucleus_ecs_subnets}
 ECS_SECURITY_GROUPS = ["${pds_nucleus_ecs_security_groups}"]
+LAMBDA_FUNCTION_NAME = "pds_nucleus_product_processing_status_tracker"
+
+
+##################################################################################
+# Success/Failure monitoring
+##################################################################################
+
+# Save product processing status validate_successful
+def save_product_processing_status_validate_successful(context):
+    client = boto3.client('lambda')
+
+    response = client.invoke(
+        FunctionName=LAMBDA_FUNCTION_NAME,
+        InvocationType='Event',
+        Payload=json.dumps({
+            "productsList": context["dag_run"].conf["list_of_product_labels_to_process"],
+            "pdsNode": context["dag_run"].conf["pds_node_name"],
+            "processingStatus": "validate_successful",
+            "batchNumber": context["dag_run"].conf["batch_number"],
+        }),
+    )
+
+    print(response)
+
+# Save product processing status validate_failed
+def save_product_processing_status_validate_failed(context):
+    client = boto3.client('lambda')
+
+    response = client.invoke(
+        FunctionName=LAMBDA_FUNCTION_NAME,
+        InvocationType='Event',
+        Payload=json.dumps({
+            "productsList": context["dag_run"].conf["list_of_product_labels_to_process"],
+            "pdsNode": context["dag_run"].conf["pds_node_name"],
+            "processingStatus": "validate_failed",
+            "batchNumber": context["dag_run"].conf["batch_number"],
+        }),
+    )
+
+    print(response)
+
+# Save product processing status harvest_successful
+def save_product_processing_status_harvest_successful(context):
+    client = boto3.client('lambda')
+
+    response = client.invoke(
+        FunctionName=LAMBDA_FUNCTION_NAME,
+        InvocationType='Event',
+        Payload=json.dumps({
+            "productsList": context["dag_run"].conf["list_of_product_labels_to_process"],
+            "pdsNode": context["dag_run"].conf["pds_node_name"],
+            "processingStatus": "harvest_successful",
+            "batchNumber": context["dag_run"].conf["batch_number"],
+        }),
+    )
+
+    print(response)
+
+
+# Save product processing status harvest_failed
+def save_product_processing_status_harvest_failed(context):
+    client = boto3.client('lambda')
+
+    response = client.invoke(
+        FunctionName=LAMBDA_FUNCTION_NAME,
+        InvocationType='Event',
+        Payload=json.dumps({
+            "productsList": context["dag_run"].conf["list_of_product_labels_to_process"],
+            "pdsNode": context["dag_run"].conf["pds_node_name"],
+            "processingStatus": "harvest_failed",
+            "batchNumber": context["dag_run"].conf["batch_number"],
+        }),
+    )
+
+    print(response)
+
+
+##################################################################################
+# DAG and Tasks Definitions
+##################################################################################
 
 dag = DAG(
         dag_id="${pds_nucleus_basic_registry_dag_id}",
@@ -59,7 +139,9 @@ validate = EcsRunTaskOperator(
     awslogs_group="/pds/ecs/validate",
     awslogs_stream_prefix="ecs/pds-validate-task",
     awslogs_fetch_interval=timedelta(seconds=1),
-    number_logs_exception=500
+    number_logs_exception=500,
+    on_success_callback=save_product_processing_status_validate_successful,
+    on_failure_callback=save_product_processing_status_validate_failed,
 )
 
 # PDS Harvest Task
@@ -87,7 +169,9 @@ harvest = EcsRunTaskOperator(
     awslogs_stream_prefix="ecs/pds-registry-loader-harvest",
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,
-    trigger_rule=TriggerRule.ALL_DONE
+    trigger_rule=TriggerRule.ALL_DONE,
+    on_success_callback=save_product_processing_status_harvest_successful,
+    on_failure_callback=save_product_processing_status_harvest_failed,
 )
 
 # PDS Nucleus Config Init Task
@@ -213,4 +297,4 @@ print_end_time = BashOperator(
 )
 
 # Workflow
-print_start_time >> config_init  >> config_s3_to_efs_copy >> validate >> harvest  >> config_s3_to_efs_copy_cleanup >> config_init_cleanup >> print_end_time
+print_start_time >> config_init  >> config_s3_to_efs_copy >> validate  >> harvest >> config_s3_to_efs_copy_cleanup >> config_init_cleanup >> print_end_time
