@@ -25,11 +25,9 @@ pds_node = os.environ.get('PDS_NODE_NAME')
 rds_data = boto3.client('rds-data')
 
 def lambda_handler(event, context):
-
-    s3_bucket = event['Records'][0].get("s3").get("bucket").get("name")
-
-    s3_key = event['Records'][0].get("s3").get("object").get("key")
-
+    s3_event = json.loads(event['Records'][0].get("body"))
+    s3_bucket = s3_event['Records'][0].get("s3").get("bucket").get("name")
+    s3_key = s3_event['Records'][0].get("s3").get("object").get("key")
     s3_url_of_file = "s3://" + s3_bucket + "/" + s3_key
 
     logger.info(f"s3_url_of_file: {s3_url_of_file}")
@@ -47,7 +45,7 @@ def handle_file_types(s3_url_of_file, s3_bucket, s3_key):
         # TODO:  Product label received (THIS CAN BE LBLX )
         if s3_url_of_file.lower().endswith(".xml") and not s3_url_of_file.lower().endswith(".aux.xml"):
             logger.debug(f"Received product file: {s3_url_of_file}")
-            save_product_processing_status_in_database(s3_url_of_file, "INCOMPLETE")
+            save_product_completion_status_in_database(s3_url_of_file, "INCOMPLETE")
             save_files_for_product_label(s3_url_of_file, s3_bucket, s3_key)
 
         # Data file received
@@ -115,8 +113,8 @@ def save_product_data_file_mapping_in_database(s3_url_of_product_label, s3_url_o
         raise e
 
 
-def save_product_processing_status_in_database(s3_url_of_product_label, processing_status):
-    """ Creates a record for product """
+def save_product_completion_status_in_database(s3_url_of_product_label, completion_status):
+    """ Creates a product completion status record for product """
 
     logger.debug(f"Saving product processing status for: {s3_url_of_product_label} in database")
 
@@ -124,12 +122,12 @@ def save_product_processing_status_in_database(s3_url_of_product_label, processi
             REPLACE INTO product
             (
                 s3_url_of_product_label,
-                processing_status,
+                completion_status,
                 pds_node,
                 last_updated_epoch_time)
             VALUES(
                 :s3_url_of_product_label_param,
-                :processing_status_param,
+                :completion_status_param,
                 :pds_node_param,
                 :last_updated_epoch_time_param
                 )
@@ -137,12 +135,12 @@ def save_product_processing_status_in_database(s3_url_of_product_label, processi
 
     s3_url_of_product_label_param = {'name': 's3_url_of_product_label_param',
                                      'value': {'stringValue': s3_url_of_product_label}}
-    processing_status_param = {'name': 'processing_status_param', 'value': {'stringValue': processing_status}}
+    completion_status_param = {'name': 'completion_status_param', 'value': {'stringValue': completion_status}}
     last_updated_epoch_time_param = {'name': 'last_updated_epoch_time_param',
                                      'value': {'longValue': round(time.time() * 1000)}}
     pds_node_param = {'name': 'pds_node_param', 'value': {'stringValue': pds_node}}
 
-    param_set = [s3_url_of_product_label_param, processing_status_param, last_updated_epoch_time_param, pds_node_param]
+    param_set = [s3_url_of_product_label_param, completion_status_param, last_updated_epoch_time_param, pds_node_param]
 
     try:
         response = rds_data.execute_statement(

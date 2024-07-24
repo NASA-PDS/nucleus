@@ -3,6 +3,12 @@ variable "permission_boundary_for_iam_roles" {
   sensitive = true
 }
 
+variable "rds_cluster_id" {
+  default   = "pdsnucleus"
+  type      = string
+  sensitive = true
+}
+
 variable "database_name" {
   default   = "pds_nucleus"
   type      = string
@@ -90,5 +96,10 @@ variable "pds_nucleus_staging_bucket_name_postfix" {
 variable "airflow_env_name" {
   description = "PDS Nucleus Airflow Env Name"
   default     = "pds-nucleus-airflow-env"
+  type        = string
+}
+
+variable "region" {
+  description = "AWS Region"
   type        = string
 }

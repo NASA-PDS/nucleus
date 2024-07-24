@@ -1,8 +1,8 @@
 # Terraform script to create the common resources for PDS Nucleus
 
 resource "aws_security_group" "nucleus_security_group" {
-  name        = "nucleus_security_group"
-  description = "nucleus_security_group"
+  name        = var.nucleus_security_group_name
+  description = "PDS Nucleus security group"
   vpc_id      = var.vpc_id
 
   ingress {

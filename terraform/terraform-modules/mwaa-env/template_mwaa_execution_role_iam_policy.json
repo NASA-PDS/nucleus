@@ -134,6 +134,11 @@
       "Action": "iam:PassRole",
       "Effect": "Allow",
       "Resource": "arn:aws:iam::${pds_nucleus_aws_account_id}:role/pds_nucleus_*"
+    },
+    {
+      "Action": "lambda:InvokeFunction",
+      "Effect": "Allow",
+      "Resource": "arn:aws:lambda:${pds_nucleus_region}:${pds_nucleus_aws_account_id}:function:pds_nucleus_*"
     }
   ]
 }
