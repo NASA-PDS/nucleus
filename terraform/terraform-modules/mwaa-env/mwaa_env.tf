@@ -15,7 +15,7 @@ data "aws_iam_policy_document" "assume_role" {
 data "aws_caller_identity" "current" {}
 
 data "template_file" "mwaa_inline_policy_template" {
-  template = file("terraform-modules/mwaa-env/template_mwaa_iam_policy.json")
+  template = file("terraform-modules/mwaa-env/template_mwaa_execution_role_iam_policy.json")
   vars     = {
     pds_nucleus_aws_account_id      = data.aws_caller_identity.current.account_id
     pds_nucleus_region              = var.region
@@ -27,14 +27,14 @@ data "template_file" "mwaa_inline_policy_template" {
 
 resource "local_file" "mwaa_inline_policy_file" {
   content  = data.template_file.mwaa_inline_policy_template.rendered
-  filename = "terraform-modules/mwaa-env/mwaa_iam_policy.json"
+  filename = "terraform-modules/mwaa-env/mwaa_execution_role_iam_policy.json"
 
   depends_on = [data.template_file.mwaa_inline_policy_template]
 }
 
 # IAM Policy Document for Inline Policy
 data "aws_iam_policy_document" "mwaa_inline_policy" {
-  source_policy_documents = [file("${path.module}/mwaa_iam_policy.json")]
+  source_policy_documents = [file("${path.module}/mwaa_execution_role_iam_policy.json")]
 
   depends_on = [local_file.mwaa_inline_policy_file]
 }
