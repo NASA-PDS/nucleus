@@ -6,10 +6,10 @@ resource "aws_security_group" "nucleus_security_group" {
   vpc_id      = var.vpc_id
 
   ingress {
-    from_port = 0
-    to_port = 0
-    protocol = -1
-    self = true
+    from_port = 2049
+    to_port   = 2049
+    protocol  = "tcp"
+    self      = true
   }
 
   egress {
@@ -22,25 +22,25 @@ resource "aws_security_group" "nucleus_security_group" {
 }
 
 resource "aws_s3_bucket" "pds_nucleus_airflow_dags_bucket" {
-  bucket        = var.mwaa_dag_s3_bucket_name
-#  force_destroy = true
+  bucket = var.mwaa_dag_s3_bucket_name
+  #  force_destroy = true
 }
 
 resource "aws_s3_object" "dags" {
-  bucket        = aws_s3_bucket.pds_nucleus_airflow_dags_bucket.id
-  acl           = "private"
-  key           = "dags/"
-  source        = "/dev/null"
+  bucket = aws_s3_bucket.pds_nucleus_airflow_dags_bucket.id
+  acl    = "private"
+  key    = "dags/"
+  source = "/dev/null"
 
   depends_on = [aws_s3_bucket.pds_nucleus_airflow_dags_bucket]
 }
 
 resource "aws_s3_object" "requirements" {
 
-  bucket        = aws_s3_bucket.pds_nucleus_airflow_dags_bucket.id
-  key           = "requirements.txt"
-  acl           = "private"
-  source        = "./terraform-modules/mwaa-env/requirements.txt"
+  bucket = aws_s3_bucket.pds_nucleus_airflow_dags_bucket.id
+  key    = "requirements.txt"
+  acl    = "private"
+  source = "./terraform-modules/mwaa-env/requirements.txt"
 
   depends_on = [aws_s3_bucket.pds_nucleus_airflow_dags_bucket]
 }
