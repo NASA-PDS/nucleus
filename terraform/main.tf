@@ -96,7 +96,7 @@ module "test-data" {
   depends_on                         = [module.common, module.ecs_ecr]
 }
 
-module "test-data" {
+module "archive" {
   source                             = "./terraform-modules/archive"
   pds_node_names                     = var.pds_node_names
   depends_on                         = [module.common, module.ecs_ecr]
