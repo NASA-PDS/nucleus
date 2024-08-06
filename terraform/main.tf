@@ -100,5 +100,7 @@ module "archive" {
   source                             = "./terraform-modules/archive"
   pds_node_names                     = var.pds_node_names
   depends_on                         = [module.common, module.ecs_ecr]
+  pds_nucleus_archive_hot_bucket_name_postfix = var.pds_nucleus_archive_hot_bucket_name_postfix
+  pds_nucleus_archive_cold_bucket_name_postfix = var.pds_nucleus_archive_cold_bucket_name_postfix
 }
 
