@@ -111,6 +111,11 @@ resource "aws_mwaa_environment" "pds_nucleus_airflow_env" {
     }
   }
 
+  timeouts {
+    create = "4h"
+    update = "4h"
+    delete = "1h"
+  }
 
   depends_on = [aws_iam_role.pds_nucleus_mwaa_execution_role]
 }
