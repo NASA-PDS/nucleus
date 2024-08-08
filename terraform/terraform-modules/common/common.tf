@@ -12,6 +12,20 @@ resource "aws_security_group" "nucleus_security_group" {
     self      = true
   }
 
+  ingress {
+    from_port = 5432
+    to_port   = 5432
+    protocol  = "tcp"
+    self      = true
+  }
+
+  ingress {
+    from_port = 443
+    to_port   = 443
+    protocol  = "tcp"
+    self      = true
+  }
+
   egress {
     from_port        = 0
     to_port          = 0
