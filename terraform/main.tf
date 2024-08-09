@@ -39,19 +39,19 @@ module "ecs_ecr" {
 
   pds_nucleus_ecs_cluster_name = var.pds_nucleus_ecs_cluster_name
 
-  efs_file_system_id           = module.efs.efs_file_system_id
-  pds_data_access_point_id     = module.efs.efs_access_point_id_pds-data
+  efs_file_system_id       = module.efs.efs_file_system_id
+  pds_data_access_point_id = module.efs.efs_access_point_id_pds-data
 
   pds_registry_loader_harvest_cloudwatch_logs_group  = var.pds_registry_loader_harvest_cloudwatch_logs_group
   pds_registry_loader_harvest_cloudwatch_logs_region = var.region
 
-  pds_validate_cloudwatch_logs_group  = var.pds_validate_cloudwatch_logs_group
-  pds_validate_cloudwatch_logs_region = var.region
+  pds_validate_cloudwatch_logs_group      = var.pds_validate_cloudwatch_logs_group
+  pds_validate_cloudwatch_logs_region     = var.region
   pds_validate_ref_cloudwatch_logs_group  = var.pds_validate_ref_cloudwatch_logs_group
   pds_validate_ref_cloudwatch_logs_region = var.region
 
-  pds_nucleus_config_init_cloudwatch_logs_group  = var.pds_nucleus_config_init_cloudwatch_logs_group
-  pds_nucleus_config_init_cloudwatch_logs_region = var.region
+  pds_nucleus_config_init_cloudwatch_logs_group    = var.pds_nucleus_config_init_cloudwatch_logs_group
+  pds_nucleus_config_init_cloudwatch_logs_region   = var.region
   pds_nucleus_s3_to_efs_copy_cloudwatch_logs_group = var.pds_nucleus_s3_to_efs_copy_cloudwatch_logs_group
 
   permission_boundary_for_iam_roles = var.permission_boundary_for_iam_roles
@@ -74,9 +74,9 @@ module "product-copy-completion-checker" {
   subnet_ids                              = var.subnet_ids
   pds_nucleus_default_airflow_dag_id      = var.pds_nucleus_default_airflow_dag_id
 
-  pds_node_names                                = var.pds_node_names
-  pds_nucleus_opensearch_urls                   = var.pds_nucleus_opensearch_urls
-  pds_nucleus_harvest_replace_prefix_with_list  = var.pds_nucleus_harvest_replace_prefix_with_list
+  pds_node_names                               = var.pds_node_names
+  pds_nucleus_opensearch_urls                  = var.pds_nucleus_opensearch_urls
+  pds_nucleus_harvest_replace_prefix_with_list = var.pds_nucleus_harvest_replace_prefix_with_list
 
   database_availability_zones = var.database_availability_zones
   airflow_env_name            = var.airflow_env_name
@@ -97,10 +97,10 @@ module "test-data" {
 }
 
 module "archive" {
-  source                             = "./terraform-modules/archive"
-  pds_node_names                     = var.pds_node_names
-  depends_on                         = [module.common, module.ecs_ecr]
-  pds_nucleus_archive_hot_bucket_name_postfix = var.pds_nucleus_archive_hot_bucket_name_postfix
-  pds_nucleus_archive_cold_bucket_name_postfix = var.pds_nucleus_archive_cold_bucket_name_postfix
+  source                                = "./terraform-modules/archive"
+  pds_node_names                        = var.pds_node_names
+  depends_on                            = [module.common, module.ecs_ecr]
+  pds_nucleus_hot_archive_name_postfix  = var.pds_nucleus_hot_archive_name_postfix
+  pds_nucleus_cold_archive_name_postfix = var.pds_nucleus_cold_archive_name_postfix
 }
 

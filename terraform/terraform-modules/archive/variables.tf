@@ -4,16 +4,16 @@ variable "pds_node_names" {
   sensitive   = true
 }
 
-variable "pds_nucleus_archive_hot_bucket_name_postfix" {
-  description = "The postfix of the name of the S3 archive hot bucket to receive data to be processed"
-  default     = "archive-hot-<venue-name>"
+variable "pds_nucleus_hot_archive_name_postfix" {
+  description = "The postfix of the name of the hot archive"
+  default     = "hot-archive-<venue-name>"
   type        = string
   sensitive   = true
 }
 
-variable "pds_nucleus_archive_cold_bucket_name_postfix" {
-  description = "The postfix of the name of the S3 archive cold bucket to receive data to be processed"
-  default     = "archive-cold-<venue-name>"
+variable "pds_nucleus_cold_archive_name_postfix" {
+  description = "The postfix of the name of the cold archive"
+  default     = "cold-archive-<venue-name>"
   type        = string
   sensitive   = true
 }
