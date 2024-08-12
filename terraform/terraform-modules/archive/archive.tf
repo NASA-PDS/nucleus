@@ -12,10 +12,6 @@ resource "aws_s3_bucket" "pds_nucleus_cold_archive" {
   count = length(var.pds_node_names)
   # convert PDS node name to S3 bucket name compatible format
   name = "${lower(replace(var.pds_node_names[count.index], "_", "-"))}-${var.pds_nucleus_cold_archive_name_postfix}"
-
-  transition {
-    storage_class = GLACIER_IR
-  }
 }
 
 
