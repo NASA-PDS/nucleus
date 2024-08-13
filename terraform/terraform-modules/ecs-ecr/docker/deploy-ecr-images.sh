@@ -10,7 +10,7 @@ docker tag pds-nucleus-config-init:latest 441083951559.dkr.ecr.us-west-2.amazona
 docker push 441083951559.dkr.ecr.us-west-2.amazonaws.com/pds-nucleus-config-init:latest
 
 # Deploy pds-nucleus-s3-to-efs-copy ECR image
-cd ./terraform-modules/ecs-ecr/docker/s3-to-efs-copy
+cd ../s3-to-efs-copy
 docker build -t pds-nucleus-s3-to-efs-copy .
 docker tag pds-nucleus-s3-to-efs-copy:latest 441083951559.dkr.ecr.us-west-2.amazonaws.com/pds-nucleus-s3-to-efs-copy:latest
 docker push 441083951559.dkr.ecr.us-west-2.amazonaws.com/pds-nucleus-s3-to-efs-copy:latest
