@@ -37,6 +37,8 @@ aws sts get-caller-identity
 
 EFS_CONFIG_DIR=$1
 OPERATION=$2
+HOT_ARCHIVE_S3_BUCKET_NAME=$3
+COLD_ARCHIVE_S3_BUCKET_NAME=$4
 
 if [ "$OPERATION" = "DELETE" ]
 then
@@ -50,9 +52,12 @@ then
       rm "$file_to_delete"
   done < "$filename"
 
-else # Not a delete command
+fi
 
-  echo "Copying data files in $EFS_CONFIG_DIR/data_file_list.txt"
+if [ "$OPERATION" = "COPY" ]
+then
+
+  echo "Copying data files listed in $EFS_CONFIG_DIR/data_file_list.txt from staging S3 to EFS"
   filename=$EFS_CONFIG_DIR/data_file_list.txt
   while read -r line; do
       s3_url_of_file="$line"
@@ -83,4 +88,30 @@ else # Not a delete command
 
 fi
 
+
+if [ "$OPERATION" = "ARCHIVE" ]
+then
+
+  echo "Archiving data files listed in $EFS_CONFIG_DIR/data_file_list.txt from staging S3 to archive"
+  filename=$EFS_CONFIG_DIR/data_file_list.txt
+  while read -r line; do
+      s3_url_of_file="$line"
+      echo "Name read from file - $s3_url_of_file"
+      file_path=$(awk '{print substr($0, 6)}' <<< "$s3_url_of_file")
+      dir_path=$(dirname "$file_path")
+      str_to_replace="s3://"
+
+      replace_with="s3://{$HOT_ARCHIVE_S3_BUCKET_NAME}/"
+      target_location="${s3_url_of_file//$str_to_replace/$replace_with}"
+      echo "Archiving files to hot archive: $target_location"
+      aws s3 cp "$s3_url_of_file" "$target_location"
+
+      replace_with="s3://{$COLD_ARCHIVE_S3_BUCKET_NAME}/"
+      target_location="${s3_url_of_file//$str_to_replace/$replace_with}"
+      echo "Archiving files to cold archive: $target_location"
+      aws s3 cp "$s3_url_of_file" "$target_location"
+
+  done < "$filename"
+
+fi
 
