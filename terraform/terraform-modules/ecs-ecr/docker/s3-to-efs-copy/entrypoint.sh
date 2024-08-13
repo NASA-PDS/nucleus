@@ -109,7 +109,7 @@ then
       replace_with="s3://$COLD_ARCHIVE_S3_BUCKET_NAME/"
       target_location="${s3_url_of_file//$str_to_replace/$replace_with}"
       echo "Archiving files to cold archive: $target_location"
-      aws s3 cp "$s3_url_of_file" "$target_location"
+      aws s3 cp "$s3_url_of_file" "$target_location" --storage-class GLACIER
 
   done < "$filename"
 
