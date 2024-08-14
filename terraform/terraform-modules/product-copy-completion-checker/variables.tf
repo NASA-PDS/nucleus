@@ -93,14 +93,16 @@ variable "pds_nucleus_staging_bucket_name_postfix" {
   sensitive   = true
 }
 
-variable "pds_nucleus_hot_archive_bucket_name" {
-  description = "Name of the hot archive s3 bucket"
+variable "pds_nucleus_hot_archive_name_postfix" {
+  description = "The postfix of the name of the hot archive"
+  default     = "hot-archive-<venue-name>"
   type        = string
   sensitive   = true
 }
 
-variable "pds_nucleus_cold_archive_bucket_name" {
-  description = "Name of the cold archive s3 bucket"
+variable "pds_nucleus_cold_archive_name_postfix" {
+  description = "The postfix of the name of the cold archive"
+  default     = "cold-archive-<venue-name>"
   type        = string
   sensitive   = true
 }
