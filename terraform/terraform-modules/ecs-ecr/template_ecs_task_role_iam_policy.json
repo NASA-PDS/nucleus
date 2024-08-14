@@ -41,14 +41,17 @@
       "Action": [
         "s3:GetBucket*",
         "s3:GetObject*",
-        "s3:List*"
+        "s3:List*",
+        "s3:PutObject"
       ],
       "Effect": "Allow",
       "Resource": [
         "arn:aws:s3:::pds-nucleus*",
         "arn:aws:s3:::pds-nucleus*/*",
         "arn:aws:s3:::pds-*-staging*",
-        "arn:aws:s3:::pds-*-staging*/*"
+        "arn:aws:s3:::pds-*-staging*/*",
+        "arn:aws:s3:::pds-*-archive*",
+        "arn:aws:s3:::pds-*-archive*/*"
       ]
     }
   ]
