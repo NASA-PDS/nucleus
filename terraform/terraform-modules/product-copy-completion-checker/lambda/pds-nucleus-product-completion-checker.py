@@ -315,7 +315,7 @@ def trigger_nucleus_workflow(random_batch_number, list_of_product_labels_to_proc
             pds_node_name_key + "\":\"" + pds_cold_archive_bucket_name_value + "\",\"" + \
             batch_number_key + "\":\"" + batch_number_value + "\",\"" + \
             pds_hot_archive_bucket_name_key + "\":\"" + pds_hot_archive_bucket_name_value + "\",\"" + \
-            pds_cold_archive_bucket_name_key + "\":\"" + batch_number_value + "\",\"" + \
+            pds_cold_archive_bucket_name_key + "\":\"" + pds_cold_archive_bucket_name_value + "\",\"" + \
             pds_staging_bucket_name_key + "\":\"" + pds_staging_bucket_name_value + "\",\"" + \
             efs_config_dir_key + "\":\"" + efs_config_dir_value + "\"}"
 
