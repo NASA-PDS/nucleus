@@ -39,6 +39,7 @@ EFS_CONFIG_DIR=$1
 OPERATION=$2
 HOT_ARCHIVE_S3_BUCKET_NAME=$3
 COLD_ARCHIVE_S3_BUCKET_NAME=$4
+STAGING_S3_BUCKET_NAME=$5
 
 if [ "$OPERATION" = "DELETE" ]
 then
@@ -62,8 +63,6 @@ then
   while read -r line; do
       s3_url_of_file="$line"
       echo "Name read from file - $s3_url_of_file"
-      file_path=$(awk '{print substr($0, 6)}' <<< "$s3_url_of_file")
-      dir_path=$(dirname "$file_path")
       str_to_replace="s3://"
       replace_with="/mnt/data/"
       target_location="${s3_url_of_file//$str_to_replace/$replace_with}"
@@ -97,9 +96,7 @@ then
   while read -r line; do
       s3_url_of_file="$line"
       echo "Name read from file - $s3_url_of_file"
-      file_path=$(awk '{print substr($0, 6)}' <<< "$s3_url_of_file")
-      dir_path=$(dirname "$file_path")
-      str_to_replace="s3://"
+      str_to_replace="s3://$STAGING_S3_BUCKET_NAME/"
 
       replace_with="s3://$HOT_ARCHIVE_S3_BUCKET_NAME/"
       target_location="${s3_url_of_file//$str_to_replace/$replace_with}"
