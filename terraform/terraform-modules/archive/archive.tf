@@ -14,4 +14,13 @@ resource "aws_s3_bucket" "pds_nucleus_cold_archive" {
   bucket = "${lower(replace(var.pds_node_names[count.index], "_", "-"))}-${var.pds_nucleus_cold_archive_name_postfix}"
 }
 
+output "pds_nucleus_hot_archive_bucket_name" {
+  value = aws_s3_bucket.pds_nucleus_hot_archive.id
+}
+
+output "pds_nucleus_cold_archive_bucket_name" {
+  value = aws_s3_bucket.pds_nucleus_cold_archive.id
+}
+
+
 

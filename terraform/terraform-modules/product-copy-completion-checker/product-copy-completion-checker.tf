@@ -177,7 +177,7 @@ resource "aws_s3_bucket" "pds_nucleus_s3_config_bucket" {
   bucket = var.pds_nucleus_config_bucket_name
 }
 
-# Create an S3 Bucket for each PDS Node
+# Create a staging S3 Bucket for each PDS Node
 resource "aws_s3_bucket" "pds_nucleus_s3_staging_bucket" {
   count = length(var.pds_node_names)
   # convert PDS node name to S3 bucket name compatible format
@@ -245,6 +245,9 @@ resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function"
       PDS_NUCLEUS_CONFIG_BUCKET_NAME = var.pds_nucleus_config_bucket_name
       REPLACE_PREFIX_WITH            = var.pds_nucleus_harvest_replace_prefix_with_list[count.index]
       PDS_MWAA_ENV_NAME              = var.airflow_env_name
+      HOT_ARCHIVE_S3_BUCKET_NAME     = var.pds_nucleus_cold_archive_bucket_name
+      COLD_ARCHIVE_S3_BUCKET_NAME    = var.pds_nucleus_cold_archive_bucket_name
+      STAGING_S3_BUCKET_NAME         = aws_s3_bucket.pds_nucleus_s3_staging_bucket.id
     }
   }
 }
@@ -379,5 +382,5 @@ resource "aws_lambda_function" "pds_nucleus_product_processing_status_tracker_fu
 
 # Create CloudWatch Log Group for pds_nucleus_s3_file_file_event_processor_function for each PDS Node
 resource "aws_cloudwatch_log_group" "pds_nucleus_product_processing_status_tracker_function_log_group" {
-  name  = "/aws/lambda/pds_nucleus_product_processing_status_tracker"
+  name = "/aws/lambda/pds_nucleus_product_processing_status_tracker"
 }

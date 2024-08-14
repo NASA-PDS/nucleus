@@ -1,10 +1,19 @@
-# Terraform script to create the common resources for PDS Nucleus
+# Terraform module to create the common resources for PDS Nucleus
 module "common" {
   source = "./terraform-modules/common"
 
   vpc_id                  = var.vpc_id
   vpc_cidr                = var.vpc_cidr
   mwaa_dag_s3_bucket_name = var.mwaa_dag_s3_bucket_name
+}
+
+# Terraform module to create archive for PDS Nucleus
+module "archive" {
+  source                                = "./terraform-modules/archive"
+  pds_node_names                        = var.pds_node_names
+  depends_on                            = [module.common, module.ecs_ecr]
+  pds_nucleus_hot_archive_name_postfix  = var.pds_nucleus_hot_archive_name_postfix
+  pds_nucleus_cold_archive_name_postfix = var.pds_nucleus_cold_archive_name_postfix
 }
 
 # The Terraform module to create the PDS Nucleus Baseline System (without any project specific components)
@@ -73,6 +82,8 @@ module "product-copy-completion-checker" {
   pds_nucleus_config_bucket_name          = var.pds_nucleus_config_bucket_name
   subnet_ids                              = var.subnet_ids
   pds_nucleus_default_airflow_dag_id      = var.pds_nucleus_default_airflow_dag_id
+  pds_nucleus_hot_archive_bucket_name     = module.archive.pds_nucleus_hot_archive_bucket_name
+  pds_nucleus_cold_archive_bucket_name    = module.archive.pds_nucleus_cold_archive_bucket_name
 
   pds_node_names                               = var.pds_node_names
   pds_nucleus_opensearch_urls                  = var.pds_nucleus_opensearch_urls
@@ -96,11 +107,5 @@ module "test-data" {
   depends_on                         = [module.common, module.ecs_ecr]
 }
 
-module "archive" {
-  source                                = "./terraform-modules/archive"
-  pds_node_names                        = var.pds_node_names
-  depends_on                            = [module.common, module.ecs_ecr]
-  pds_nucleus_hot_archive_name_postfix  = var.pds_nucleus_hot_archive_name_postfix
-  pds_nucleus_cold_archive_name_postfix = var.pds_nucleus_cold_archive_name_postfix
-}
+
 

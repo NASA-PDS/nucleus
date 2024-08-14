@@ -93,6 +93,18 @@ variable "pds_nucleus_staging_bucket_name_postfix" {
   sensitive   = true
 }
 
+variable "pds_nucleus_hot_archive_bucket_name" {
+  description = "Name of the hot archive s3 bucket"
+  type        = string
+  sensitive   = true
+}
+
+variable "pds_nucleus_cold_archive_bucket_name" {
+  description = "Name of the cold archive s3 bucket"
+  type        = string
+  sensitive   = true
+}
+
 variable "airflow_env_name" {
   description = "PDS Nucleus Airflow Env Name"
   default     = "pds-nucleus-airflow-env"
