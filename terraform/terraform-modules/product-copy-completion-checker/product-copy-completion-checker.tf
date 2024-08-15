@@ -177,7 +177,7 @@ resource "aws_s3_bucket" "pds_nucleus_s3_config_bucket" {
   bucket = var.pds_nucleus_config_bucket_name
 }
 
-# Create an S3 Bucket for each PDS Node
+# Create a staging S3 Bucket for each PDS Node
 resource "aws_s3_bucket" "pds_nucleus_s3_staging_bucket" {
   count = length(var.pds_node_names)
   # convert PDS node name to S3 bucket name compatible format
@@ -206,12 +206,6 @@ resource "aws_lambda_function" "pds_nucleus_s3_file_file_event_processor_functio
   }
 }
 
-# Create CloudWatch Log Group for pds_nucleus_s3_file_file_event_processor_function for each PDS Node
-resource "aws_cloudwatch_log_group" "pds_nucleus_s3_file_file_event_processor_function_log_group" {
-  count = length(var.pds_node_names)
-  name  = "/aws/lambda/pds_nucleus_s3_file_event_processor-${var.pds_node_names[count.index]}"
-}
-
 # Create SQS queue event source for pds_nucleus_s3_file_file_event_processor_function for each PDS Node
 resource "aws_lambda_event_source_mapping" "event_source_mapping" {
   count            = length(var.pds_node_names)
@@ -235,16 +229,19 @@ resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function"
 
   environment {
     variables = {
-      AIRFLOW_DAG_NAME               = "${var.pds_node_names[count.index]}-${var.pds_nucleus_default_airflow_dag_id}"
-      DB_CLUSTER_ARN                 = aws_rds_cluster.default.arn
-      DB_SECRET_ARN                  = aws_secretsmanager_secret.pds_nucleus_rds_credentials.arn
-      EFS_MOUNT_PATH                 = "/mnt/data"
-      ES_AUTH_CONFIG_FILE_PATH       = "/etc/es-auth.cfg"
-      ES_URL                         = var.pds_nucleus_opensearch_urls[count.index]
-      PDS_NODE_NAME                  = var.pds_node_names[count.index]
-      PDS_NUCLEUS_CONFIG_BUCKET_NAME = var.pds_nucleus_config_bucket_name
-      REPLACE_PREFIX_WITH            = var.pds_nucleus_harvest_replace_prefix_with_list[count.index]
-      PDS_MWAA_ENV_NAME              = var.airflow_env_name
+      AIRFLOW_DAG_NAME                = "${var.pds_node_names[count.index]}-${var.pds_nucleus_default_airflow_dag_id}"
+      DB_CLUSTER_ARN                  = aws_rds_cluster.default.arn
+      DB_SECRET_ARN                   = aws_secretsmanager_secret.pds_nucleus_rds_credentials.arn
+      EFS_MOUNT_PATH                  = "/mnt/data"
+      ES_AUTH_CONFIG_FILE_PATH        = "/etc/es-auth.cfg"
+      ES_URL                          = var.pds_nucleus_opensearch_urls[count.index]
+      PDS_NODE_NAME                   = var.pds_node_names[count.index]
+      PDS_NUCLEUS_CONFIG_BUCKET_NAME  = var.pds_nucleus_config_bucket_name
+      REPLACE_PREFIX_WITH             = var.pds_nucleus_harvest_replace_prefix_with_list[count.index]
+      PDS_MWAA_ENV_NAME               = var.airflow_env_name
+      PDS_HOT_ARCHIVE_S3_BUCKET_NAME  = "${lower(replace(var.pds_node_names[count.index], "_", "-"))}-${var.pds_nucleus_hot_archive_bucket_name_postfix}"
+      PDS_COLD_ARCHIVE_S3_BUCKET_NAME = "${lower(replace(var.pds_node_names[count.index], "_", "-"))}-${var.pds_nucleus_cold_archive_bucket_name_postfix}"
+      PDS_STAGING_S3_BUCKET_NAME      = aws_s3_bucket.pds_nucleus_s3_staging_bucket[count.index].id
     }
   }
 }
@@ -379,5 +376,5 @@ resource "aws_lambda_function" "pds_nucleus_product_processing_status_tracker_fu
 
 # Create CloudWatch Log Group for pds_nucleus_s3_file_file_event_processor_function for each PDS Node
 resource "aws_cloudwatch_log_group" "pds_nucleus_product_processing_status_tracker_function_log_group" {
-  name  = "/aws/lambda/pds_nucleus_product_processing_status_tracker"
+  name = "/aws/lambda/pds_nucleus_product_processing_status_tracker"
 }
