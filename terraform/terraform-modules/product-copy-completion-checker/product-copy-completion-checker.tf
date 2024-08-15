@@ -205,12 +205,6 @@ resource "aws_lambda_function" "pds_nucleus_s3_file_file_event_processor_functio
     }
   }
 }
-#
-## Create CloudWatch Log Group for pds_nucleus_s3_file_file_event_processor_function for each PDS Node
-#resource "aws_cloudwatch_log_group" "pds_nucleus_s3_file_file_event_processor_function_log_group" {
-#  count = length(var.pds_node_names)
-#  name  = "/aws/lambda/pds_nucleus_s3_file_event_processor-${var.pds_node_names[count.index]}"
-#}
 
 # Create SQS queue event source for pds_nucleus_s3_file_file_event_processor_function for each PDS Node
 resource "aws_lambda_event_source_mapping" "event_source_mapping" {
