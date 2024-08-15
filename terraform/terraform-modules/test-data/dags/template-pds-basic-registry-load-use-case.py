@@ -93,6 +93,7 @@ def save_product_processing_status_harvest_failed(context):
     print(response)
 
 
+
 ##################################################################################
 # DAG and Tasks Definitions
 ##################################################################################
@@ -218,7 +219,7 @@ config_s3_to_efs_copy = EcsRunTaskOperator(
         "containerOverrides": [
             {
                 "name": "pds-nucleus-s3-to-efs-copy",
-                "command": ['{{ dag_run.conf["efs_config_dir"] }}'],
+                "command": ['{{ dag_run.conf["efs_config_dir"] }}','COPY'],
 
             },
         ],
@@ -256,6 +257,37 @@ config_init_cleanup = EcsRunTaskOperator(
     number_logs_exception=500,
     trigger_rule=TriggerRule.ALL_DONE
 )
+
+
+# PDS Nucleus Archive Task
+data_archive = EcsRunTaskOperator(
+    task_id="Data_Archive",
+    dag=dag,
+    cluster=ECS_CLUSTER_NAME,
+    task_definition="pds-nucleus-s3-to-efs-copy-task-definition",
+    launch_type=ECS_LAUNCH_TYPE,
+    network_configuration={
+            "awsvpcConfiguration": {
+                "securityGroups": ECS_SECURITY_GROUPS,
+                "subnets": ECS_SUBNETS,
+            },
+    },
+    overrides={
+        "containerOverrides": [
+            {
+                "name": "pds-nucleus-s3-to-efs-copy",
+                "command": ['{{ dag_run.conf["efs_config_dir"] }}','ARCHIVE','{{ dag_run.conf["pds_hot_archive_bucket_name"] }}', '{{ dag_run.conf["pds_cold_archive_bucket_name"] }}', '{{ dag_run.conf["pds_staging_bucket_name"] }}'],
+
+            },
+        ],
+    },
+    awslogs_group="/pds/ecs/pds-nucleus-s3-to-efs-copy",
+    awslogs_stream_prefix="ecs/pds-nucleus-s3-to-efs-copy",
+    awslogs_fetch_interval=timedelta(seconds=1),
+    number_logs_exception=500,
+    trigger_rule=TriggerRule.ALL_DONE
+)
+
 
 
 # PDS Nucleus S3 to EFS Copy Cleanup Task
@@ -297,4 +329,5 @@ print_end_time = BashOperator(
 )
 
 # Workflow
-print_start_time >> config_init  >> config_s3_to_efs_copy >> validate  >> harvest >> config_s3_to_efs_copy_cleanup >> config_init_cleanup >> print_end_time
+print_start_time >> config_init  >> config_s3_to_efs_copy >> validate  >> harvest >> data_archive >> config_s3_to_efs_copy_cleanup >> config_init_cleanup >> print_end_time
+
