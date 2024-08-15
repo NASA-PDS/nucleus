@@ -77,10 +77,12 @@ cd nucleus/terraform
       - pds_nucleus_opensearch_urls                   = List of Node specific OpenSearch URLs (E.g.:["https://search-node2-dev-abcdefghijklmnop.us-west-2.es.amazonaws.com:443","https://search-node2-dev-abcdefghijklmnop.us-west-2.es.amazonaws.com:443"])
       - pds_nucleus_harvest_replace_prefix_with_list       = List of harvest replace with strings (E.g.: ["s3://pds-sbn-nucleus-staging","s3://pds-img-nucleus-staging"])
       
-    - pds_nucleus_harvest_replace_prefix_with      : Prefix to replace in PDS Harvest tool
+    - pds_nucleus_harvest_replace_prefix_with : Prefix to replace in PDS Harvest tool
     - airflow_env_name: Name of the Nucleus Airflow environment (E.g.: "pds-nucleus-airflow-env")
-    - mwaa_dag_s3_bucket_name         : S3 Bucket name to keep Airflow DAG files (E.g.: pds-nucleus-airflow-dags-bucket-mcp-test)
-    - pds_nucleus_staging_bucket_name : S3 Bucket name to keep PDS staging data files (E.g.: pds-nucleus-staging-mcp-test)
+    - mwaa_dag_s3_bucket_name : S3 Bucket name to keep Airflow DAG files (E.g.: pds-nucleus-airflow-dags-bucket-mcp-test)
+    - pds_nucleus_staging_bucket_name_postfix : Postfix of the S3 Bucket name to keep PDS staging data files (E.g.: staging-mcp-dev)
+    - pds_nucleus_hot_archive_bucket_name_postfix : Postfix of the S3 Bucket name to keep PDS hot archive data files (E.g.: archive-hot-mcp-dev)
+    - pds_nucleus_cold_archive_bucket_name_postfix : Postfix of the S3 Bucket name to keep PDS cold archive data files (E.g.: archive-cold-mcp-dev)
     - pds_nucleus_config_bucket_name  : S3 Bucket name to keep temporary configurations (E.g.: pds-nucleus-config-mcp-test)
     - pds_nucleus_default_airflow_dag_id : The default example DAG to be included for testing (E.g.: pds-basic-registry-load-use-case)
 
@@ -107,10 +109,12 @@ pds_node_names = ["PDS_SBN", "PDS_IMG"]
 pds_nucleus_opensearch_urls                   = ["https://search-node2-dev-abcdefghijklmnop.us-west-2.es.amazonaws.com:443","https://search-node2-dev-abcdefghijklmnop.us-west-2.es.amazonaws.com:443"]
 pds_nucleus_harvest_replace_prefix_with_list      = ["s3://pds-sbn-nucleus-staging","s3://pds-img-nucleus-staging"]
 
-airflow_env_name                = "pds-nucleus-airflow-env"
-mwaa_dag_s3_bucket_name         = "pds-nucleus-airflow-dags-bucket-mcp-test"
-pds_nucleus_staging_bucket_name = "pds-nucleus-staging-mcp-test"
-pds_nucleus_config_bucket_name  = "pds-nucleus-config-mcp-test"
+airflow_env_name                        = "pds-nucleus-airflow-env"
+mwaa_dag_s3_bucket_name                 = "pds-nucleus-airflow-dags-bucket-mcp-dev"
+pds_nucleus_staging_bucket_name_postfix = "staging-mcp-dev"
+pds_nucleus_hot_archive_bucket_name_postfix = "archive-hot-mcp-dev"
+pds_nucleus_cold_archive_bucket_name_postfix = "archive-cold-mcp-dev"
+pds_nucleus_config_bucket_name          = "pds-nucleus-config-mcp-dev"
 
 pds_nucleus_default_airflow_dag_id = "pds-basic-registry-load-use-case"
 ```

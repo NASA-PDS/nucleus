@@ -17,8 +17,3 @@ variable "pds_nucleus_cold_archive_bucket_name_postfix" {
   type        = string
   sensitive   = true
 }
-
-
-
-
-
