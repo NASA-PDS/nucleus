@@ -37,7 +37,6 @@ resource "aws_security_group" "nucleus_security_group" {
 
 resource "aws_s3_bucket" "pds_nucleus_airflow_dags_bucket" {
   bucket = var.mwaa_dag_s3_bucket_name
-  #  force_destroy = true
 }
 
 resource "aws_s3_object" "dags" {
