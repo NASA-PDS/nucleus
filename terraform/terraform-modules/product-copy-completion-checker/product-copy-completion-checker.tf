@@ -245,8 +245,8 @@ resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function"
       PDS_NUCLEUS_CONFIG_BUCKET_NAME  = var.pds_nucleus_config_bucket_name
       REPLACE_PREFIX_WITH             = var.pds_nucleus_harvest_replace_prefix_with_list[count.index]
       PDS_MWAA_ENV_NAME               = var.airflow_env_name
-      PDS_HOT_ARCHIVE_S3_BUCKET_NAME  = "${lower(replace(var.pds_node_names[count.index], "_", "-"))}-${var.pds_nucleus_cold_archive_name_postfix}"
-      PDS_COLD_ARCHIVE_S3_BUCKET_NAME = "${lower(replace(var.pds_node_names[count.index], "_", "-"))}-${var.pds_nucleus_hot_archive_name_postfix}"
+      PDS_HOT_ARCHIVE_S3_BUCKET_NAME  = "${lower(replace(var.pds_node_names[count.index], "_", "-"))}-${var.pds_nucleus_hot_archive_name_postfix}"
+      PDS_COLD_ARCHIVE_S3_BUCKET_NAME = "${lower(replace(var.pds_node_names[count.index], "_", "-"))}-${var.pds_nucleus_cold_archive_name_postfix}"
       PDS_STAGING_S3_BUCKET_NAME      = aws_s3_bucket.pds_nucleus_s3_staging_bucket[count.index].id
     }
   }
