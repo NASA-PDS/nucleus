@@ -9,11 +9,11 @@ module "common" {
 
 # Terraform module to create archive for PDS Nucleus
 module "archive" {
-  source                                = "./terraform-modules/archive"
-  pds_node_names                        = var.pds_node_names
-  depends_on                            = [module.common, module.ecs_ecr]
-  pds_nucleus_hot_archive_name_postfix  = var.pds_nucleus_hot_archive_name_postfix
-  pds_nucleus_cold_archive_name_postfix = var.pds_nucleus_cold_archive_name_postfix
+  source                                       = "./terraform-modules/archive"
+  pds_node_names                               = var.pds_node_names
+  depends_on                                   = [module.common, module.ecs_ecr]
+  pds_nucleus_hot_archive_bucket_name_postfix  = var.pds_nucleus_hot_archive_bucket_name_postfix
+  pds_nucleus_cold_archive_bucket_name_postfix = var.pds_nucleus_cold_archive_bucket_name_postfix
 }
 
 # The Terraform module to create the PDS Nucleus Baseline System (without any project specific components)
