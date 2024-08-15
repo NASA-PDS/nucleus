@@ -64,8 +64,8 @@ then
       s3_url_of_file="$line"
       echo "Name read from file - $s3_url_of_file"
       staging_bucket_name="s3://"
-      hot_archive_staging_bucket_name="/mnt/data/"
-      hot_archive_target_location="${s3_url_of_file//$staging_bucket_name/$hot_archive_staging_bucket_name}"
+      hot_archive_bucket_name="/mnt/data/"
+      hot_archive_target_location="${s3_url_of_file//$staging_bucket_name/$hot_archive_bucket_name}"
       aws s3 cp "$s3_url_of_file" "$hot_archive_target_location"
       echo "$hot_archive_target_location" >> "$EFS_CONFIG_DIR"/files_created.txt
 
@@ -98,13 +98,13 @@ then
       echo "Name read from file - $s3_url_of_file"
       staging_bucket_name="s3://$STAGING_S3_BUCKET_NAME/"
 
-      hot_archive_staging_bucket_name="s3://$HOT_ARCHIVE_S3_BUCKET_NAME/"
-      hot_archive_target_location="${s3_url_of_file//$staging_bucket_name/$hot_archive_staging_bucket_name}"
+      hot_archive_bucket_name="s3://$HOT_ARCHIVE_S3_BUCKET_NAME/"
+      hot_archive_target_location="${s3_url_of_file//$staging_bucket_name/$hot_archive_bucket_name}"
       echo "Archiving files to hot archive: $hot_archive_target_location"
       aws s3 cp "$s3_url_of_file" "$hot_archive_target_location"
 
-      cold_archive_staging_bucket_name="s3://$COLD_ARCHIVE_S3_BUCKET_NAME/"
-      cold_archive_target_location="${s3_url_of_file//$staging_bucket_name/cold_archive_staging_bucket_name}"
+      cold_archive_bucket_name="s3://$COLD_ARCHIVE_S3_BUCKET_NAME/"
+      cold_archive_target_location="${s3_url_of_file//$staging_bucket_name/$cold_archive_bucket_name}"
       echo "Archiving files to cold archive: $cold_archive_target_location"
       aws s3 cp "$s3_url_of_file" "$cold_archive_target_location" --storage-class GLACIER --force-glacier-transfer
 
