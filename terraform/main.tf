@@ -73,17 +73,17 @@ module "ecs_ecr" {
 }
 
 module "product-copy-completion-checker" {
-  source                                  = "./terraform-modules/product-copy-completion-checker"
-  database_port                           = var.database_port
-  vpc_id                                  = var.vpc_id
-  permission_boundary_for_iam_roles       = var.permission_boundary_for_iam_roles
-  nucleus_security_group_id               = module.common.pds_nucleus_security_group_id
-  pds_nucleus_staging_bucket_name_postfix = var.pds_nucleus_staging_bucket_name_postfix
-  pds_nucleus_config_bucket_name          = var.pds_nucleus_config_bucket_name
-  subnet_ids                              = var.subnet_ids
-  pds_nucleus_default_airflow_dag_id      = var.pds_nucleus_default_airflow_dag_id
-  pds_nucleus_cold_archive_name_postfix   = var.pds_nucleus_cold_archive_name_postfix
-  pds_nucleus_hot_archive_name_postfix    = var.pds_nucleus_hot_archive_name_postfix
+  source                                       = "./terraform-modules/product-copy-completion-checker"
+  database_port                                = var.database_port
+  vpc_id                                       = var.vpc_id
+  permission_boundary_for_iam_roles            = var.permission_boundary_for_iam_roles
+  nucleus_security_group_id                    = module.common.pds_nucleus_security_group_id
+  pds_nucleus_staging_bucket_name_postfix      = var.pds_nucleus_staging_bucket_name_postfix
+  pds_nucleus_config_bucket_name               = var.pds_nucleus_config_bucket_name
+  subnet_ids                                   = var.subnet_ids
+  pds_nucleus_default_airflow_dag_id           = var.pds_nucleus_default_airflow_dag_id
+  pds_nucleus_hot_archive_bucket_name_postfix  = var.pds_nucleus_hot_archive_bucket_name_postfix
+  pds_nucleus_cold_archive_bucket_name_postfix = var.pds_nucleus_cold_archive_bucket_name_postfix
 
   pds_node_names                               = var.pds_node_names
   pds_nucleus_opensearch_urls                  = var.pds_nucleus_opensearch_urls
