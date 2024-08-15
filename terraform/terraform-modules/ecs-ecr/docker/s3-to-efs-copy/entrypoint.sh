@@ -63,23 +63,23 @@ then
   while read -r line; do
       s3_url_of_file="$line"
       echo "Name read from file - $s3_url_of_file"
-      str_to_replace="s3://"
-      replace_with="/mnt/data/"
-      target_location="${s3_url_of_file//$str_to_replace/$replace_with}"
-      aws s3 cp "$s3_url_of_file" "$target_location"
-      echo "$target_location" >> "$EFS_CONFIG_DIR"/files_created.txt
+      staging_bucket_name="s3://"
+      hot_archive_staging_bucket_name="/mnt/data/"
+      hot_archive_target_location="${s3_url_of_file//$staging_bucket_name/$hot_archive_staging_bucket_name}"
+      aws s3 cp "$s3_url_of_file" "$hot_archive_target_location"
+      echo "$hot_archive_target_location" >> "$EFS_CONFIG_DIR"/files_created.txt
 
       # Extract .fz files
-      if [[ $target_location == *.fz ]]
+      if [[ $hot_archive_target_location == *.fz ]]
       then
-        echo "Extracting $target_location..."
-        extracted_file_name=${target_location%.*}
+        echo "Extracting $hot_archive_target_location..."
+        extracted_file_name=${hot_archive_target_location%.*}
 
         if [ -f "$extracted_file_name" ] ; then
             rm "$extracted_file_name"
         fi
 
-        funpack -v "$target_location"
+        funpack -v "$hot_archive_target_location"
         echo "$extracted_file_name" >> "$EFS_CONFIG_DIR"/files_created.txt
       fi
 
@@ -96,17 +96,17 @@ then
   while read -r line; do
       s3_url_of_file="$line"
       echo "Name read from file - $s3_url_of_file"
-      str_to_replace="s3://$STAGING_S3_BUCKET_NAME/"
+      staging_bucket_name="s3://$STAGING_S3_BUCKET_NAME/"
 
-      replace_with="s3://$HOT_ARCHIVE_S3_BUCKET_NAME/"
-      target_location="${s3_url_of_file//$str_to_replace/$replace_with}"
-      echo "Archiving files to hot archive: $target_location"
-      aws s3 cp "$s3_url_of_file" "$target_location"
+      hot_archive_staging_bucket_name="s3://$HOT_ARCHIVE_S3_BUCKET_NAME/"
+      hot_archive_target_location="${s3_url_of_file//$staging_bucket_name/$hot_archive_staging_bucket_name}"
+      echo "Archiving files to hot archive: $hot_archive_target_location"
+      aws s3 cp "$s3_url_of_file" "$hot_archive_target_location"
 
-      replace_with="s3://$COLD_ARCHIVE_S3_BUCKET_NAME/"
-      target_location="${s3_url_of_file//$str_to_replace/$replace_with}"
-      echo "Archiving files to cold archive: $target_location"
-      aws s3 cp "$s3_url_of_file" "$target_location" --storage-class GLACIER --force-glacier-transfer
+      cold_archive_staging_bucket_name="s3://$COLD_ARCHIVE_S3_BUCKET_NAME/"
+      cold_archive_target_location="${s3_url_of_file//$staging_bucket_name/cold_archive_staging_bucket_name}"
+      echo "Archiving files to cold archive: $cold_archive_target_location"
+      aws s3 cp "$s3_url_of_file" "$cold_archive_target_location" --storage-class GLACIER --force-glacier-transfer
 
   done < "$filename"
 
