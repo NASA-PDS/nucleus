@@ -119,7 +119,12 @@ pds_nucleus_config_bucket_name          = "pds-nucleus-config-mcp-dev"
 pds_nucleus_default_airflow_dag_id = "pds-basic-registry-load-use-case"
 ```
 
-5. Initialize Terraform working directory.
+
+5. Make sure to have an S3 bucket available in the AWS account to keep Terraform remote state. 
+The name of the S3 bucket should match with the bucket name in the `terraform/backend.tf` file. 
+If a bucket to keep the Terraform remote state is not available, please create a new bucket.
+
+6. Initialize Terraform working directory.
 
 ```shell
 terraform init
