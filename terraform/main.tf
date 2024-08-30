@@ -7,13 +7,28 @@ module "common" {
   mwaa_dag_s3_bucket_name = var.mwaa_dag_s3_bucket_name
 }
 
-# Terraform module to create archive for PDS Nucleus
+# Terraform module to create primary archive for PDS Nucleus
 module "archive" {
   source                                       = "./terraform-modules/archive"
   pds_node_names                               = var.pds_node_names
   depends_on                                   = [module.common, module.ecs_ecr]
   pds_nucleus_hot_archive_bucket_name_postfix  = var.pds_nucleus_hot_archive_bucket_name_postfix
   pds_nucleus_cold_archive_bucket_name_postfix = var.pds_nucleus_cold_archive_bucket_name_postfix
+  pds_nucleus_cold_archive_buckets             = module.archive-secondary.pds_nucleus_cold_archive_buckets
+  permission_boundary_for_iam_roles            = var.permission_boundary_for_iam_roles
+  pds_nucleus_cold_archive_storage_class       = var.pds_nucleus_cold_archive_storage_class
+}
+
+# Terraform module to create secondary archive for PDS Nucleus
+module "archive-secondary" {
+  source                                       = "./terraform-modules/archive-secondary"
+  pds_node_names                               = var.pds_node_names
+  depends_on                                   = [module.common, module.ecs_ecr]
+  pds_nucleus_cold_archive_bucket_name_postfix = var.pds_nucleus_cold_archive_bucket_name_postfix
+
+  providers = {
+    aws = aws.secondary
+  }
 }
 
 # The Terraform module to create the PDS Nucleus Baseline System (without any project specific components)
