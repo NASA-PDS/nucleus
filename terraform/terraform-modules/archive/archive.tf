@@ -92,20 +92,43 @@ resource "aws_s3_bucket_replication_configuration" "pds_nucleus_s3_bucket_replic
 
   count = length(var.pds_node_names)
 
-  # Must have bucket versioning enabled first
-  depends_on = [aws_s3_bucket_versioning.pds_nucleus_hot_archive]
-
   role   = aws_iam_role.pds_nucleus_archive_replication_role.arn
   bucket = aws_s3_bucket.pds_nucleus_hot_archive[count.index].id
 
   rule {
+
+    filter {
+    }
+
     id = "pds-nucleus-replication-rule-${var.pds_node_names[count.index]}"
 
     status = "Enabled"
 
+    delete_marker_replication {
+      status = "Disabled"
+    }
+
     destination {
       bucket        = var.pds_nucleus_cold_archive_buckets[count.index].arn
       storage_class = var.pds_nucleus_cold_archive_storage_class
+
+      metrics {
+        event_threshold {
+          minutes = 15
+        }
+        status = "Enabled"
+      }
+
+
+      replication_time {
+        status = "Enabled"
+        time {
+          minutes = 15
+        }
+      }
+
     }
   }
+
+  depends_on = [aws_s3_bucket_versioning.pds_nucleus_hot_archive]
 }

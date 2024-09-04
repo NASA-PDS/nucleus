@@ -103,10 +103,7 @@ then
       echo "Archiving files to hot archive: $hot_archive_target_location"
       aws s3 cp "$s3_url_of_file" "$hot_archive_target_location"
 
-      cold_archive_bucket_name="s3://$COLD_ARCHIVE_S3_BUCKET_NAME/"
-      cold_archive_target_location="${s3_url_of_file//$staging_bucket_name/$cold_archive_bucket_name}"
-      echo "Archiving files to cold archive: $cold_archive_target_location"
-      aws s3 cp "$s3_url_of_file" "$cold_archive_target_location" --storage-class GLACIER --force-glacier-transfer
+      # Archiving files to hot archive will also add files to cold archive with the help of S3 replication
 
   done < "$filename"
 
