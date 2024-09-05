@@ -21,7 +21,7 @@ variable "database_port" {
 }
 
 variable "database_user" {
-  default   = "admin"
+  default   = "pds_nucleus_user"
   type      = string
   sensitive = true
 }
