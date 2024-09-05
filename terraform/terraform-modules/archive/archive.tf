@@ -62,7 +62,7 @@ data "aws_iam_policy_document" "pds_nucleus_archive_replication_policy" {
       "s3:GetObjectVersionTagging",
     ]
 
-    resources = ["*"]
+    resources = ["arn:aws:s3:::pds-*-archive-*"]
   }
 
   statement {
