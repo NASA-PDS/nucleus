@@ -118,6 +118,10 @@ resource "local_file" "lambda_inline_policy_file" {
   filename = "terraform-modules/product-copy-completion-checker/lambda_inline_policy.json"
 
   depends_on = [data.template_file.lambda_inline_policy_template]
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 data "aws_iam_policy_document" "lambda_inline_policy" {
@@ -252,22 +256,28 @@ resource "aws_cloudwatch_log_group" "pds_nucleus_product_completion_checker_func
   name  = "/aws/lambda/pds-nucleus-product-completion-checker-${var.pds_node_names[count.index]}"
 }
 
-# Create aws_scheduler_schedule for pds_nucleus_product_completion_checker_function for each PDS Node
-resource "aws_scheduler_schedule" "schedule_for_pds_nucleus_product_completion_checker" {
-  count      = length(var.pds_node_names)
-  name       = "schedule_for_pds_nucleus_product_completion_checker_${var.pds_node_names[count.index]}"
-  group_name = "default"
-
-  flexible_time_window {
-    mode = "OFF"
-  }
-
+resource "aws_cloudwatch_event_rule" "every_one_minute" {
+  name                = "pds-nucleus-every-one-minutes"
+  description         = "Fires every one minute"
   schedule_expression = "rate(1 minute)"
+}
 
-  target {
-    arn      = aws_lambda_function.pds_nucleus_product_completion_checker_function[count.index].arn
-    role_arn = aws_iam_role.pds_nucleus_lambda_execution_role.arn
-  }
+resource "aws_cloudwatch_event_target" "check_product_completion_event_target" {
+  count = length(var.pds_node_names)
+
+  rule      = aws_cloudwatch_event_rule.every_one_minute.name
+  target_id = "pds-nucleus-check-product-completion-event-target-${var.pds_node_names[count.index]}"
+  arn       = aws_lambda_function.pds_nucleus_product_completion_checker_function[count.index].arn
+}
+
+resource "aws_lambda_permission" "allow_cloudwatch_to_call_product_completion_checker_function" {
+  count = length(var.pds_node_names)
+
+  statement_id  = "AllowExecutionFromCloudWatch"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.pds_nucleus_product_completion_checker_function[count.index].function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.every_one_minute.arn
 }
 
 # Apply lambda permissions for each pds_nucleus_s3_file_file_event_processor_function of each Node

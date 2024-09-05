@@ -26,6 +26,10 @@ resource "local_file" "ecs_task_role_iam_policy_file" {
   filename = "terraform-modules/ecs-ecr/ecs_task_role_iam_policy.json"
 
   depends_on = [data.template_file.ecs_task_role_iam_policy_template]
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 data "template_file" "ecs_task_execution_role_iam_policy_template" {
@@ -43,6 +47,10 @@ resource "local_file" "ecs_task_execution_role_iam_policy_file" {
   filename = "terraform-modules/ecs-ecr/ecs_task_execution_role_iam_policy.json"
 
   depends_on = [data.template_file.ecs_task_execution_role_iam_policy_template]
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 data "template_file" "deploy_ecr_images_script_template" {
@@ -58,6 +66,10 @@ resource "local_file" "deploy_ecr_images_script_file" {
   filename = "terraform-modules/ecs-ecr/docker/deploy-ecr-images.sh"
 
   depends_on = [data.template_file.ecs_task_execution_role_iam_policy_template]
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 #-------------------------------------
