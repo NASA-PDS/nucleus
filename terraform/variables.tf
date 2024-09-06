@@ -10,6 +10,12 @@ variable "region" {
   default     = "us-west-2"
 }
 
+variable "region_secondary" {
+  description = "Secondary Region for Archive"
+  type        = string
+  default     = "us-east-2"
+}
+
 variable "vpc_id" {
   description = "VPC ID"
   type        = string
@@ -65,6 +71,12 @@ variable "pds_nucleus_cold_archive_bucket_name_postfix" {
   default     = "cold-archive-<venue-name>"
   type        = string
   sensitive   = true
+}
+
+variable "pds_nucleus_cold_archive_storage_class" {
+  description = "The storage class of the cold archive s3 buckets"
+  default     = "DEEP_ARCHIVE"
+  type        = string
 }
 
 variable "pds_nucleus_config_bucket_name" {

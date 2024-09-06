@@ -30,6 +30,10 @@ resource "local_file" "mwaa_inline_policy_file" {
   filename = "terraform-modules/mwaa-env/mwaa_execution_role_iam_policy.json"
 
   depends_on = [data.template_file.mwaa_inline_policy_template]
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 # IAM Policy Document for Inline Policy
