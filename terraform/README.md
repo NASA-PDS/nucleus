@@ -175,7 +175,7 @@ configured as `mwaa_dag_s3_bucket_name` in the `terraform.tfvars` file.
 15. Use the PDS Data Upload Manager (DUM) tool to upload files to pds_nucleus_staging_bucket.
 
 
-## Steps to access Nucleus Airflow UI with Cognito Credentials
+## Steps to Access Nucleus Airflow UI With Cognito Credentials
 
 Only some users have direct access to AWS and those users can access Airflow UI as explained in the step 9 to 12
 in the above section. However, there is another way to access Airflow UI using a Cognito account as follows.
