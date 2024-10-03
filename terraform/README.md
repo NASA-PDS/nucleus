@@ -173,3 +173,41 @@ configured as `mwaa_dag_s3_bucket_name` in the `terraform.tfvars` file.
 
 
 15. Use the PDS Data Upload Manager (DUM) tool to upload files to pds_nucleus_staging_bucket.
+
+
+## Steps to Access Nucleus Airflow UI With Cognito Credentials
+
+Only some users have direct access to AWS and those users can access Airflow UI as explained in the step 9 to 12
+in the above section. However, there is another way to access Airflow UI using a Cognito account as follows.
+
+1. Make sure you have a Cognito user created in the Cognito user pool with required role (Cognito group). The PDS engineering node team can 
+help with this.
+
+2. Download the `get-airflow-ui-webtoken.py` python script from https://github.com/NASA-PDS/nucleus/blob/airflow-ui-web-token/utils/get-airflow-ui-webtoken.py
+
+3. Create a python virtual environment as follows. 
+
+```shell
+python3 -m venv venv   
+```
+
+4. Activate python virtual environment.
+
+```shell
+source venv/bin/activate
+```
+
+5. Install boto3
+
+```shell
+ pip install boto3 
+```
+
+6. Execute the `get-airflow-ui-webtoken.py` python script and provide the Cognito username and password when prompted.
+
+```shell
+python get-airflow-ui-webtoken.py
+```
+
+7. Copy the generated Nucleus Airflow UI web token and paste that in a webbrowser address bar to access the Airflow UI.
+
