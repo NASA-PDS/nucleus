@@ -160,7 +160,7 @@ data "archive_file" "pds_nucleus_init_zip" {
 }
 
 resource "aws_lambda_function" "pds_nucleus_init_function" {
-  function_name    = "pds-nucleus-init2"
+  function_name    = "pds-nucleus-init"
   filename         = "${path.module}/lambda/pds_nucleus_init.zip"
   source_code_hash = data.archive_file.pds_nucleus_init_zip.output_base64sha256
   role             = aws_iam_role.pds_nucleus_lambda_execution_role.arn
