@@ -9,11 +9,12 @@ data "template_file" "pds-basic-registry-load-use-case-dag-template" {
   count    = length(var.pds_node_names)
   template = file("terraform-modules/test-data/dags/template-${var.pds_basic_registry_data_load_dag_file_name}")
   vars = {
-    pds_nucleus_ecs_cluster_name               = var.pds_nucleus_ecs_cluster_name
-    pds_nucleus_ecs_subnets                    = jsonencode(var.pds_nucleus_ecs_subnets)
-    pds_nucleus_ecs_security_groups            = var.pds_nucleus_security_group_id
-    pds_nucleus_basic_registry_dag_id          = "${var.pds_node_names[count.index]}-${var.pds_nucleus_default_airflow_dag_id}"
-    pds_registry_loader_harvest_container_name = "pds-registry-loader-harvest-${var.pds_node_names[count.index]}"
+    pds_nucleus_ecs_cluster_name                        = var.pds_nucleus_ecs_cluster_name
+    pds_nucleus_ecs_subnets                             = jsonencode(var.pds_nucleus_ecs_subnets)
+    pds_nucleus_ecs_security_groups                     = var.pds_nucleus_security_group_id
+    pds_nucleus_basic_registry_dag_id                   = "${var.pds_node_names[count.index]}-${var.pds_nucleus_default_airflow_dag_id}"
+    pds_registry_loader_harvest_container_name          = "pds-registry-loader-harvest-${var.pds_node_names[count.index]}"
+    pds_airflow_registry_loader_harvest_task_definition = "pds-airflow-registry-loader-harvest-task-definition-${var.pds_node_names[count.index]}"
   }
 }
 
