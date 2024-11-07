@@ -159,12 +159,17 @@ harvest = EcsRunTaskOperator(
             },
     },
     overrides={
-        "containerOverrides": [
-            {
-                "name": "pds-registry-loader-harvest",
-                "command": [' -c ' + '{{ dag_run.conf["efs_config_dir"] }}' + '/harvest.cfg'],
-            },
-        ],
+            "containerOverrides": [
+                {
+                    "name": "${pds_registry_loader_harvest_container_name}",
+                    "environment": [
+                        {
+                            "name": "HARVEST_CFG",
+                            "value": "{{ dag_run.conf['efs_config_dir'] }}/harvest.cfg"
+                        }
+                    ]
+                },
+            ],
     },
     awslogs_group="/pds/ecs/harvest",
     awslogs_stream_prefix="ecs/pds-registry-loader-harvest",
