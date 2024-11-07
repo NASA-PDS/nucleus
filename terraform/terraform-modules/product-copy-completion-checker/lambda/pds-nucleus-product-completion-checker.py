@@ -32,7 +32,8 @@ mwaa_cli_command = 'dags trigger'
 # Read environment variables from lambda configurations
 dag_name = os.environ.get('AIRFLOW_DAG_NAME')
 pds_node_name = os.environ.get('PDS_NODE_NAME')
-es_url = os.environ.get('ES_URL')
+opensearch_endpoint = os.environ.get('OPENSEARCH_ENDPOINT')
+pds_nucleus_opensearch_credential_relative_url = os.environ.get('OPENSEARCH_CREDENTIAL_RELATIVE_URL')
 replace_prefix_with = os.environ.get('REPLACE_PREFIX_WITH')
 efs_mount_path = os.environ.get('EFS_MOUNT_PATH')
 sqs_queue_url = os.environ.get('SQS_QUEUE_URL')
@@ -191,19 +192,27 @@ def create_harvest_configs_and_trigger_nucleus(list_of_product_labels_to_process
         s3_config_dir = f"s3://{pds_nucleus_config_bucket_name}/dag-data/{random_batch_number}"
         efs_config_dir = f"/mnt/data/dag-data/{random_batch_number}"
 
-        # Create harvest manifets file
+        # Create harvest config file
         harvest_config_xml_content = f"""<?xml version="1.0" encoding="UTF-8"?>
+            <harvest
+              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+              xsi:schemaLocation="https://github.com/NASA-PDS/harvest/blob/main/src/main/resources/conf/configuration.xsd">
 
-            <harvest nodeName="{pds_node_name}">
-              <files>
-                <manifest>{efs_config_dir + '/' + harvest_manifest_file_path}</manifest>
-              </files>
-              <registry url="{es_url}" index="registry" auth="{es_auth_file}" />
+              <!-- Registry configuration -->
+              <!-- UPDATE with your registry information -->
+
+              <registry auth="/etc/es-auth.cfg">file://{efs_config_dir + '/connection.xml'}</registry>
+              <load>
+                <files>
+                    <manifest>{efs_config_dir + '/' + harvest_manifest_file_path}</manifest>
+                </files>
+              </load>
               <autogenFields/>
               <fileInfo>
                 <!-- UPDATE with your own local path and base url where pds4 archive is published -->
                 <fileRef replacePrefix="{replace_prefix}" with="{replace_prefix_with}" />
               </fileInfo>
+
             </harvest>
             """
 
@@ -212,6 +221,16 @@ def create_harvest_configs_and_trigger_nucleus(list_of_product_labels_to_process
 
         logger.info(f"Created harvest config XML file: {harvest_config_file_path}")
 
+        connection_xml_content = f"""<?xml version="1.0" encoding="UTF-8"?>
+<registry_connection index="en-registry">
+    <ec2_credential_url endpoint="{opensearch_endpoint}">{pds_nucleus_opensearch_credential_relative_url}</ec2_credential_url>
+</registry_connection>
+            """
+
+        with open(f"/tmp/connection.xml", "w") as f:
+            f.write(connection_xml_content)
+
+        logger.info(f"Created connection.xml file: /tmp/connection.xml")
 
         # Create file in S3 with list of files to copy
         with open(f"/tmp/{list_of_data_files_to_copy_file_path}", 'w') as f:
@@ -223,6 +242,8 @@ def create_harvest_configs_and_trigger_nucleus(list_of_product_labels_to_process
         s3_client.upload_file(f"/tmp/{harvest_config_file_path}", pds_nucleus_config_bucket_name, f"dag-data/{random_batch_number}/{harvest_config_file_path}")
         s3_client.upload_file(f"/tmp/{harvest_manifest_file_path}", pds_nucleus_config_bucket_name, f"dag-data/{random_batch_number}/{harvest_manifest_file_path}")
         s3_client.upload_file(f"/tmp/{list_of_data_files_to_copy_file_path}", pds_nucleus_config_bucket_name, f"dag-data/{random_batch_number}/{list_of_data_files_to_copy_file_path}")
+
+        s3_client.upload_file(f"/tmp/connection.xml", pds_nucleus_config_bucket_name, f"dag-data/{random_batch_number}/connection.xml")
 
     except Exception as e:
         logger.error(f"Error creating harvest config files in s3 bucker: {pds_nucleus_config_bucket_name}. Exception: {str(e)}")
