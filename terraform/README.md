@@ -62,20 +62,24 @@ cd nucleus/terraform
 
 4. Create a `terraform.tfvars` file locally under `./terraform/terraform.tfvars` and enter the value for variables specified in `variables.tf` file at `nucleus/terraform/terraform-modules/mwaa-env/variables.tf`. Ensure these values match with your AWS Setup and also the variable value types (ex: string `" "`, number `1`, list(string)`[" "]`, etc). Most of the below values can be obtained by the system admin team of your AWS account.
 
+Note:  Examples of `terraform.tfvars` files are available at `terraform/variables` directory for your reference.
+
     - env        : Name of the Cloud environment to deploy PDS Nucleus (E.g: "mcp-dev", "mcp-test")
     - region     : AWS Region
     - vpc_id     : VPC ID of your AWS VPC
     - subnet_ids : List of Private Subnet IDs to be used for the MWAA
     - vpc_cidr   : VPC CIDR for MWAA (E.g.: "10.1.0.0/16")
     - permission_boundary_for_iam_roles : The permission boundary for IAM roles can be obtained from the MCP System Admins or PDS Engineering Node team
+    - database_availability_zones : RDS database availability zones (E.g.: ["us-west-2a"])
     - aws_secretmanager_key_arn : The ARN of aws/secretmanager key obtained from KMS -> AWS managed keys (E.g.: "arn:aws:kms:us-west-2:12345678:key/12345-1234-1234-1234-12345abcd")
 
     - Set node specific values the following lists in correct order
       - pds_node_names = List of PDS Node names to be supported (E.g.: ["PDS_SBN", "PDS_IMG", "PDS_EN"]).The following node name format should be used.
           - (PDS_ATM, PDS_ENG, PDS_GEO, PDS_IMG, PDS_NAIF, PDS_RMS, PDS_SBN, PSA, JAXA, ROSCOSMOS)
           - Please check https://nasa-pds.github.io/registry/user/harvest_job_configuration.html for PDS Node name descriptions.
-      - pds_nucleus_opensearch_urls                   = List of Node specific OpenSearch URLs (E.g.:["https://search-node2-dev-abcdefghijklmnop.us-west-2.es.amazonaws.com:443","https://search-node2-dev-abcdefghijklmnop.us-west-2.es.amazonaws.com:443"])
-      - pds_nucleus_harvest_replace_prefix_with_list       = List of harvest replace with strings (E.g.: ["s3://pds-sbn-nucleus-staging","s3://pds-img-nucleus-staging"])
+      - pds_nucleus_opensearch_urls : List of Node specific OpenSearch URLs (E.g.: ["https://abcdef.us-west-2.aoss.amazonaws.com", "https://opqrst.us-west-2.aoss.amazonaws.com"])
+      - pds_nucleus_opensearch_credential_relative_url : Opensearch Credential URL (E.g.: "http://<IP ADDRESS>/AWS_CONTAINER_CREDENTIALS_RELATIVE_URI")
+      - pds_nucleus_harvest_replace_prefix_with_list : List of harvest replace with strings (E.g.: ["s3://pds-sbn-nucleus-staging","s3://pds-img-nucleus-staging"])
       
     - pds_nucleus_harvest_replace_prefix_with : Prefix to replace in PDS Harvest tool
     - airflow_env_name: Name of the Nucleus Airflow environment (E.g.: "pds-nucleus-airflow-env")
@@ -85,6 +89,7 @@ cd nucleus/terraform
     - pds_nucleus_cold_archive_bucket_name_postfix : Postfix of the S3 Bucket name to keep PDS cold archive data files (E.g.: archive-cold-mcp-dev)
     - pds_nucleus_config_bucket_name  : S3 Bucket name to keep temporary configurations (E.g.: pds-nucleus-config-mcp-test)
     - pds_nucleus_default_airflow_dag_id : The default example DAG to be included for testing (E.g.: pds-basic-registry-load-use-case)
+    - pds_registry_loader_harvest_task_role_arn: An IAM role which is associated with a Cognito user group
 
 
 > Note: `terraform.tfvars` is only used to test with your configuration with the actual values in your AWS account. This file will not be uploaded to GitHub as it's ignored by Git. Once testing is completed successfully work with your admin to get the values for these tested variables updated via GitHub secrets, which are dynamically passed in during runtime.
@@ -92,31 +97,37 @@ cd nucleus/terraform
 ```
 # Example terraform.tfvars
 
-env        = "mcp-test"
-region     = "us-west-2"
-vpc_id     = "vpc-12345678"
-subnet_ids = ["subnet-123456789", "subnet-987654321"]
-vpc_cidr   = "10.2.0.0/16"
-permission_boundary_for_iam_roles = "mcp-example-role"database_availability_zones = ["us-west-2a"]
+env                               = "mcp-test"
+region                            = "us-west-2"
+vpc_id                            = "vpc-12345678"
+subnet_ids                        = ["subnet-123456789", "subnet-987654321"]
+vpc_cidr                          = "10.2.0.0/16"
+permission_boundary_for_iam_roles = "permission_boundary_role_name"
+database_availability_zones       = ["us-west-2a"]
 aws_secretmanager_key_arn         = "arn:aws:kms:us-west-2:12345678:key/12345-1234-1234-1234-12345abcd"
+
 
 # Set node specific values the following lists in correct order. For the list of node names
 # the following node name format should be used.
 # (PDS_ATM, PDS_ENG, PDS_GEO, PDS_IMG, PDS_NAIF, PDS_RMS, PDS_SBN, PSA, JAXA, ROSCOSMOS)
 # Please check https://nasa-pds.github.io/registry/user/harvest_job_configuration.html for PDS Node name descriptions.
 
-pds_node_names = ["PDS_SBN", "PDS_IMG"]
-pds_nucleus_opensearch_urls                   = ["https://search-node2-dev-abcdefghijklmnop.us-west-2.es.amazonaws.com:443","https://search-node2-dev-abcdefghijklmnop.us-west-2.es.amazonaws.com:443"]
-pds_nucleus_harvest_replace_prefix_with_list      = ["s3://pds-sbn-nucleus-staging","s3://pds-img-nucleus-staging"]
+pds_node_names                                 = ["PDS_SBN", "PDS_IMG"]
+pds_nucleus_opensearch_urls                    = ["https://abcdef.us-west-2.aoss.amazonaws.com", "https://opqrst.us-west-2.aoss.amazonaws.com"]
+pds_nucleus_opensearch_credential_relative_url = "http://<IP ADDRESS>/AWS_CONTAINER_CREDENTIALS_RELATIVE_URI"
+pds_nucleus_harvest_replace_prefix_with_list   = ["s3://pds-sbn-nucleus-staging", "s3://pds-img-nucleus-staging"]
 
-airflow_env_name                        = "pds-nucleus-airflow-env"
-mwaa_dag_s3_bucket_name                 = "pds-nucleus-airflow-dags-bucket-mcp-dev"
-pds_nucleus_staging_bucket_name_postfix = "staging-mcp-dev"
-pds_nucleus_hot_archive_bucket_name_postfix = "archive-hot-mcp-dev"
+
+airflow_env_name                             = "pds-nucleus-airflow-env"
+mwaa_dag_s3_bucket_name                      = "pds-nucleus-airflow-dags-bucket-mcp-dev"
+pds_nucleus_staging_bucket_name_postfix      = "staging-mcp-dev"
+pds_nucleus_hot_archive_bucket_name_postfix  = "archive-hot-mcp-dev"
 pds_nucleus_cold_archive_bucket_name_postfix = "archive-cold-mcp-dev"
-pds_nucleus_config_bucket_name          = "pds-nucleus-config-mcp-dev"
+pds_nucleus_config_bucket_name               = "pds-nucleus-config-mcp-dev"
 
 pds_nucleus_default_airflow_dag_id = "pds-basic-registry-load-use-case"
+
+pds_registry_loader_harvest_task_role_arn = "arn:aws:iam::12345678:role/harvest-task-role"
 ```
 
 
@@ -211,3 +222,27 @@ python get-airflow-ui-webtoken.py
 
 7. Copy the generated Nucleus Airflow UI web token and paste that in a webbrowser address bar to access the Airflow UI.
 
+
+## Steps to Uninstall the PDS Nucleus Baseline System
+
+1. Open a terminal and change current working directory to the `nucleus/terraform` directory.
+
+```shell
+cd nucleus/terraform
+```
+
+2. Uninstall Nucleus baseline system using Terraform destroy.
+
+```shell
+terraform destroy
+```
+
+3. The above command will fail to remove the non-empty S3 buckets (expected behaviour). Note the S3 bucket names failed to delete in 
+the output of the above `terraform destroy` command and empty those S3 buckets manually as explained in 
+https://docs.aws.amazon.com/AmazonS3/latest/userguide/empty-bucket.html.
+
+4. Execute the following command again to remove the remaining S3 buckets.
+
+```shell
+terraform destroy
+```

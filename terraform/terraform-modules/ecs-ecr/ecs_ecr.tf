@@ -26,10 +26,6 @@ resource "local_file" "ecs_task_role_iam_policy_file" {
   filename = "terraform-modules/ecs-ecr/ecs_task_role_iam_policy.json"
 
   depends_on = [data.template_file.ecs_task_role_iam_policy_template]
-
-  lifecycle {
-    prevent_destroy = true
-  }
 }
 
 data "template_file" "ecs_task_execution_role_iam_policy_template" {
@@ -47,10 +43,6 @@ resource "local_file" "ecs_task_execution_role_iam_policy_file" {
   filename = "terraform-modules/ecs-ecr/ecs_task_execution_role_iam_policy.json"
 
   depends_on = [data.template_file.ecs_task_execution_role_iam_policy_template]
-
-  lifecycle {
-    prevent_destroy = true
-  }
 }
 
 data "template_file" "deploy_ecr_images_script_template" {
@@ -66,10 +58,6 @@ resource "local_file" "deploy_ecr_images_script_file" {
   filename = "terraform-modules/ecs-ecr/docker/deploy-ecr-images.sh"
 
   depends_on = [data.template_file.ecs_task_execution_role_iam_policy_template]
-
-  lifecycle {
-    prevent_destroy = true
-  }
 }
 
 #-------------------------------------
@@ -253,7 +241,7 @@ resource "aws_ecs_task_definition" "pds-registry-loader-harvest" {
 
 
   container_definitions = data.template_file.pds-registry-loader-harvest-containers-json-template[count.index].rendered
-  task_role_arn         = aws_iam_role.pds_nucleus_ecs_task_role.arn
+  task_role_arn         = var.pds_registry_loader_harvest_task_role_arn
   execution_role_arn    = aws_iam_role.pds_nucleus_ecs_task_execution_role.arn
 
   depends_on = [data.template_file.pds-validate-containers-json-template]

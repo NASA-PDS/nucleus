@@ -160,7 +160,7 @@ data "archive_file" "pds_nucleus_init_zip" {
 }
 
 resource "aws_lambda_function" "pds_nucleus_init_function" {
-  function_name    = "pds-nucleus-init2"
+  function_name    = "pds-nucleus-init"
   filename         = "${path.module}/lambda/pds_nucleus_init.zip"
   source_code_hash = data.archive_file.pds_nucleus_init_zip.output_base64sha256
   role             = aws_iam_role.pds_nucleus_lambda_execution_role.arn
@@ -233,19 +233,20 @@ resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function"
 
   environment {
     variables = {
-      AIRFLOW_DAG_NAME                = "${var.pds_node_names[count.index]}-${var.pds_nucleus_default_airflow_dag_id}"
-      DB_CLUSTER_ARN                  = aws_rds_cluster.default.arn
-      DB_SECRET_ARN                   = aws_secretsmanager_secret.pds_nucleus_rds_credentials.arn
-      EFS_MOUNT_PATH                  = "/mnt/data"
-      ES_AUTH_CONFIG_FILE_PATH        = "/etc/es-auth.cfg"
-      ES_URL                          = var.pds_nucleus_opensearch_urls[count.index]
-      PDS_NODE_NAME                   = var.pds_node_names[count.index]
-      PDS_NUCLEUS_CONFIG_BUCKET_NAME  = var.pds_nucleus_config_bucket_name
-      REPLACE_PREFIX_WITH             = var.pds_nucleus_harvest_replace_prefix_with_list[count.index]
-      PDS_MWAA_ENV_NAME               = var.airflow_env_name
-      PDS_HOT_ARCHIVE_S3_BUCKET_NAME  = "${lower(replace(var.pds_node_names[count.index], "_", "-"))}-${var.pds_nucleus_hot_archive_bucket_name_postfix}"
-      PDS_COLD_ARCHIVE_S3_BUCKET_NAME = "${lower(replace(var.pds_node_names[count.index], "_", "-"))}-${var.pds_nucleus_cold_archive_bucket_name_postfix}"
-      PDS_STAGING_S3_BUCKET_NAME      = aws_s3_bucket.pds_nucleus_s3_staging_bucket[count.index].id
+      AIRFLOW_DAG_NAME                   = "${var.pds_node_names[count.index]}-${var.pds_nucleus_default_airflow_dag_id}"
+      DB_CLUSTER_ARN                     = aws_rds_cluster.default.arn
+      DB_SECRET_ARN                      = aws_secretsmanager_secret.pds_nucleus_rds_credentials.arn
+      EFS_MOUNT_PATH                     = "/mnt/data"
+      ES_AUTH_CONFIG_FILE_PATH           = "/etc/es-auth.cfg"
+      OPENSEARCH_ENDPOINT                = var.pds_nucleus_opensearch_urls[count.index]
+      OPENSEARCH_CREDENTIAL_RELATIVE_URL = var.pds_nucleus_opensearch_credential_relative_url
+      PDS_NODE_NAME                      = var.pds_node_names[count.index]
+      PDS_NUCLEUS_CONFIG_BUCKET_NAME     = var.pds_nucleus_config_bucket_name
+      REPLACE_PREFIX_WITH                = var.pds_nucleus_harvest_replace_prefix_with_list[count.index]
+      PDS_MWAA_ENV_NAME                  = var.airflow_env_name
+      PDS_HOT_ARCHIVE_S3_BUCKET_NAME     = "${lower(replace(var.pds_node_names[count.index], "_", "-"))}-${var.pds_nucleus_hot_archive_bucket_name_postfix}"
+      PDS_COLD_ARCHIVE_S3_BUCKET_NAME    = "${lower(replace(var.pds_node_names[count.index], "_", "-"))}-${var.pds_nucleus_cold_archive_bucket_name_postfix}"
+      PDS_STAGING_S3_BUCKET_NAME         = aws_s3_bucket.pds_nucleus_s3_staging_bucket[count.index].id
     }
   }
 }

@@ -31,7 +31,13 @@ variable "pds_registry_loader_harvest_cloudwatch_logs_group" {
 
 variable "pds_registry_loader_harvest_cloudwatch_logs_region" {
   type        = string
-  description = "PDS Validate CloudWatch Logs Region"
+  description = "PDS Registry Loader Harvest CloudWatch Logs Region"
+  sensitive   = true
+}
+
+variable "pds_registry_loader_harvest_task_role_arn" {
+  type        = string
+  description = "PDS Registry Loader Harvest Task Role ARN"
   sensitive   = true
 }
 

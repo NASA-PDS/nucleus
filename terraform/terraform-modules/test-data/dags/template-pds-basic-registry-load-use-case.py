@@ -4,6 +4,7 @@
 # Nucleus baseline deployment.
 
 import boto3
+import json
 from airflow import DAG
 from airflow.operators.bash import BashOperator
 from airflow.providers.amazon.aws.operators.ecs import EcsRunTaskOperator
@@ -150,7 +151,7 @@ harvest = EcsRunTaskOperator(
     task_id="Harvest_Data",
     dag=dag,
     cluster=ECS_CLUSTER_NAME,
-    task_definition="pds-airflow-registry-loader-harvest-task-definition",
+    task_definition="pds-airflow-registry-loader-harvest-task-definition-${pds_node_name}",
     launch_type=ECS_LAUNCH_TYPE,
     network_configuration={
             "awsvpcConfiguration": {
@@ -159,15 +160,20 @@ harvest = EcsRunTaskOperator(
             },
     },
     overrides={
-        "containerOverrides": [
-            {
-                "name": "pds-registry-loader-harvest",
-                "command": [' -c ' + '{{ dag_run.conf["efs_config_dir"] }}' + '/harvest.cfg'],
-            },
-        ],
+            "containerOverrides": [
+                {
+                    "name": "pds-registry-loader-harvest-${pds_node_name}",
+                    "environment": [
+                        {
+                            "name": "HARVEST_CFG",
+                            "value": "{{ dag_run.conf['efs_config_dir'] }}/harvest.cfg"
+                        }
+                    ]
+                },
+            ],
     },
     awslogs_group="/pds/ecs/harvest",
-    awslogs_stream_prefix="ecs/pds-registry-loader-harvest",
+    awslogs_stream_prefix="ecs/pds-registry-loader-harvest-${pds_node_name}",
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,
     trigger_rule=TriggerRule.ALL_DONE,

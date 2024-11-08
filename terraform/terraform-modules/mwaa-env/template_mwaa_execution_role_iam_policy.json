@@ -28,7 +28,7 @@
     {
       "Effect": "Allow",
       "Action": "iam:PassRole",
-      "Resource": "arn:aws:iam::${pds_nucleus_aws_account_id}:role/pds-nucleus*"
+      "Resource": "arn:aws:iam::${pds_nucleus_aws_account_id}:role/pds-*"
     },
     {
       "Effect": "Allow",

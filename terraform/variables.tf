@@ -101,7 +101,12 @@ variable "pds_node_names" {
 variable "pds_nucleus_opensearch_urls" {
   description = "List of PDS Nucleus OpenSearch Config file paths"
   type        =  list(string)
-  default     = ["https://search-sbnpsi-abcde.us-west-2.es.amazonaws.com:443","https://search-img-abcde.us-west-2.es.amazonaws.com:443"]
+  sensitive   = true
+}
+
+variable "pds_nucleus_opensearch_credential_relative_url" {
+  description = "List of PDS Nucleus OpenSearch Credential Relative URL"
+  type        =  string
   sensitive   = true
 }
 
@@ -109,6 +114,12 @@ variable "pds_nucleus_harvest_replace_prefix_with_list" {
   description = "List of PDS Nucleus Harvest Replace Prefix With"
   type        =  list(string)
   default     = ["s3://pds-nucleus-staging-sbn","s3://pds-nucleus-staging-img"]
+}
+
+variable "pds_registry_loader_harvest_task_role_arn" {
+  type        = string
+  description = "PDS Registry Loader Harvest Task Role ARN"
+  sensitive   = true
 }
 
 variable "aws_secretmanager_key_arn" {
