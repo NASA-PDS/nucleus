@@ -62,6 +62,8 @@ cd nucleus/terraform
 
 4. Create a `terraform.tfvars` file locally under `./terraform/terraform.tfvars` and enter the value for variables specified in `variables.tf` file at `nucleus/terraform/terraform-modules/mwaa-env/variables.tf`. Ensure these values match with your AWS Setup and also the variable value types (ex: string `" "`, number `1`, list(string)`[" "]`, etc). Most of the below values can be obtained by the system admin team of your AWS account.
 
+Note:  Examples of `terraform.tfvars` files are available at `terraform/variables` directory for your reference.
+
     - env        : Name of the Cloud environment to deploy PDS Nucleus (E.g: "mcp-dev", "mcp-test")
     - region     : AWS Region
     - vpc_id     : VPC ID of your AWS VPC
@@ -76,7 +78,7 @@ cd nucleus/terraform
           - (PDS_ATM, PDS_ENG, PDS_GEO, PDS_IMG, PDS_NAIF, PDS_RMS, PDS_SBN, PSA, JAXA, ROSCOSMOS)
           - Please check https://nasa-pds.github.io/registry/user/harvest_job_configuration.html for PDS Node name descriptions.
       - pds_nucleus_opensearch_urls : List of Node specific OpenSearch URLs (E.g.: ["https://abcdef.us-west-2.aoss.amazonaws.com", "https://opqrst.us-west-2.aoss.amazonaws.com"])
-      - pds_nucleus_opensearch_credential_relative_url : Opensearch Credential URL (E.g.: "http://169.254.170.2/AWS_CONTAINER_CREDENTIALS_RELATIVE_URI")
+      - pds_nucleus_opensearch_credential_relative_url : Opensearch Credential URL (E.g.: "http://<IP ADDRESS>/AWS_CONTAINER_CREDENTIALS_RELATIVE_URI")
       - pds_nucleus_harvest_replace_prefix_with_list : List of harvest replace with strings (E.g.: ["s3://pds-sbn-nucleus-staging","s3://pds-img-nucleus-staging"])
       
     - pds_nucleus_harvest_replace_prefix_with : Prefix to replace in PDS Harvest tool
@@ -112,7 +114,7 @@ aws_secretmanager_key_arn         = "arn:aws:kms:us-west-2:12345678:key/12345-12
 
 pds_node_names                                 = ["PDS_SBN", "PDS_IMG"]
 pds_nucleus_opensearch_urls                    = ["https://abcdef.us-west-2.aoss.amazonaws.com", "https://opqrst.us-west-2.aoss.amazonaws.com"]
-pds_nucleus_opensearch_credential_relative_url = "http://169.254.170.2/AWS_CONTAINER_CREDENTIALS_RELATIVE_URI"
+pds_nucleus_opensearch_credential_relative_url = "http://<IP ADDRESS>/AWS_CONTAINER_CREDENTIALS_RELATIVE_URI"
 pds_nucleus_harvest_replace_prefix_with_list   = ["s3://pds-sbn-nucleus-staging", "s3://pds-img-nucleus-staging"]
 
 
