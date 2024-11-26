@@ -13,38 +13,6 @@ data "aws_iam_policy" "mcp_operator_policy" {
 # Add account ID to templates
 data "aws_caller_identity" "current" {}
 
-data "template_file" "ecs_task_role_iam_policy_template" {
-  template = file("terraform-modules/ecs-ecr/template_ecs_task_role_iam_policy.json")
-  vars = {
-    pds_nucleus_aws_account_id = data.aws_caller_identity.current.account_id
-  }
-  depends_on = [data.aws_caller_identity.current]
-}
-
-resource "local_file" "ecs_task_role_iam_policy_file" {
-  content  = data.template_file.ecs_task_role_iam_policy_template.rendered
-  filename = "terraform-modules/ecs-ecr/ecs_task_role_iam_policy.json"
-
-  depends_on = [data.template_file.ecs_task_role_iam_policy_template]
-}
-
-data "template_file" "ecs_task_execution_role_iam_policy_template" {
-  template = file("terraform-modules/ecs-ecr/template_ecs_task_execution_role_iam_policy.json")
-  vars = {
-    pds_nucleus_aws_account_id = data.aws_caller_identity.current.account_id
-    pds_nucleus_region         = var.region
-    aws_secretmanager_key_arn     = var.aws_secretmanager_key_arn
-  }
-  depends_on = [data.aws_caller_identity.current]
-}
-
-resource "local_file" "ecs_task_execution_role_iam_policy_file" {
-  content  = data.template_file.ecs_task_execution_role_iam_policy_template.rendered
-  filename = "terraform-modules/ecs-ecr/ecs_task_execution_role_iam_policy.json"
-
-  depends_on = [data.template_file.ecs_task_execution_role_iam_policy_template]
-}
-
 data "template_file" "deploy_ecr_images_script_template" {
   template = file("terraform-modules/ecs-ecr/docker/template-deploy-ecr-images.sh")
   vars = {
@@ -57,7 +25,7 @@ resource "local_file" "deploy_ecr_images_script_file" {
   content  = data.template_file.deploy_ecr_images_script_template.rendered
   filename = "terraform-modules/ecs-ecr/docker/deploy-ecr-images.sh"
 
-  depends_on = [data.template_file.ecs_task_execution_role_iam_policy_template]
+  depends_on = [data.template_file.deploy_ecr_images_script_template]
 }
 
 #-------------------------------------
@@ -66,7 +34,71 @@ resource "local_file" "deploy_ecr_images_script_file" {
 
 # IAM Policy Document for Inline Policy
 data "aws_iam_policy_document" "ecs_task_role_inline_policy" {
-  source_policy_documents = [file("${path.module}/ecs_task_role_iam_policy.json")]
+  statement {
+    effect = "Allow"
+    actions = [
+      "ecr:GetDownloadUrlForLayer",
+      "ecr:BatchGetImage",
+      "ecr:BatchCheckLayerAvailability"
+    ]
+    resources = [
+      "arn:aws:ecr:*:${data.aws_caller_identity.current.account_id}:repository/pds*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "elasticfilesystem:DescribeMountTargets",
+      "elasticfilesystem:ClientMount",
+      "elasticfilesystem:ClientWrite",
+      "elasticfilesystem:ClientRootAccess"
+    ]
+    resources = [
+      "arn:aws:elasticfilesystem:*:${data.aws_caller_identity.current.account_id}:access-point/*",
+      "arn:aws:elasticfilesystem:*:${data.aws_caller_identity.current.account_id}:file-system/pds-nucleus*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "logs:CreateLogStream",
+      "logs:CreateLogGroup",
+      "logs:PutLogEvents"
+    ]
+    resources = [
+      "arn:aws:logs:*:${data.aws_caller_identity.current.account_id}:log-group:*:log-stream:*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "ecr:GetAuthorizationToken"
+    ]
+    resources = [
+      "arn:aws:ecr:*:${data.aws_caller_identity.current.account_id}:repository/pds*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "s3:GetBucket*",
+      "s3:GetObject*",
+      "s3:List*",
+      "s3:PutObject"
+    ]
+    resources = [
+      "arn:aws:s3:::pds-nucleus*",
+      "arn:aws:s3:::pds-nucleus*/*",
+      "arn:aws:s3:::pds-*-staging*",
+      "arn:aws:s3:::pds-*-staging*/*",
+      "arn:aws:s3:::pds-*-archive*",
+      "arn:aws:s3:::pds-*-archive*/*"
+    ]
+  }
 }
 
 
@@ -101,9 +133,73 @@ resource "aws_iam_role" "pds_nucleus_ecs_task_role" {
 
 # IAM Policy Document for Inline Policy
 data "aws_iam_policy_document" "ecs_task_execution_role_inline_policy" {
-  source_policy_documents = [file("${path.module}/ecs_task_execution_role_iam_policy.json")]
+  statement {
+    effect = "Allow"
+    actions = [
+      "ecr:GetDownloadUrlForLayer",
+      "ecr:BatchGetImage",
+      "ecr:BatchCheckLayerAvailability"
+    ]
+    resources = [
+      "arn:aws:ecr:*:${data.aws_caller_identity.current.account_id}:repository/pds*"
+    ]
+  }
 
-  depends_on = [local_file.ecs_task_execution_role_iam_policy_file]
+  statement {
+    effect = "Allow"
+    actions = [
+      "ecr:GetAuthorizationToken"
+    ]
+    resources = [
+      "arn:aws:ecr:region:${data.aws_caller_identity.current.account_id}:pds-*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "logs:CreateLogStream",
+      "logs:PutLogEvents",
+      "logs:CreateLogGroup"
+    ]
+    resources = [
+      "arn:aws:logs:*:${data.aws_caller_identity.current.account_id}:log-group:*:log-stream:*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "ecs:stopTask"
+    ]
+    resources = [
+      "arn:aws:ecs:*:${data.aws_caller_identity.current.account_id}:task/pds-nucleus-ecs/*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "secretsmanager:GetSecretValue",
+      "kms:Decrypt"
+    ]
+    resources = [
+      "arn:aws:secretsmanager:${var.region}:${data.aws_caller_identity.current.account_id}:secret:pds/nucleus/opensearch/creds/*",
+      var.aws_secretmanager_key_arn
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "secretsmanager:GetSecretValue",
+      "kms:Decrypt"
+    ]
+    resources = [
+      "arn:aws:secretsmanager:${var.region}:${data.aws_caller_identity.current.account_id}:secret:pds/nucleus/opensearch/creds/*",
+      var.aws_secretmanager_key_arn
+    ]
+  }
 }
 
 resource "aws_iam_role" "pds_nucleus_ecs_task_execution_role" {

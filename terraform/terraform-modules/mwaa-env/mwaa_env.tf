@@ -14,30 +14,208 @@ data "aws_iam_policy_document" "assume_role" {
 
 data "aws_caller_identity" "current" {}
 
-data "template_file" "mwaa_inline_policy_template" {
-  template = file("terraform-modules/mwaa-env/template_mwaa_execution_role_iam_policy.json")
-  vars     = {
-    pds_nucleus_aws_account_id      = data.aws_caller_identity.current.account_id
-    pds_nucleus_region              = var.region
-    airflow_env_name                = var.airflow_env_name
-  }
-
-  depends_on = [data.aws_caller_identity.current]
-}
-
-resource "local_file" "mwaa_inline_policy_file" {
-  content  = data.template_file.mwaa_inline_policy_template.rendered
-  filename = "terraform-modules/mwaa-env/mwaa_execution_role_iam_policy.json"
-
-  depends_on = [data.template_file.mwaa_inline_policy_template]
-}
-
 # IAM Policy Document for Inline Policy
 data "aws_iam_policy_document" "mwaa_inline_policy" {
-  source_policy_documents = [file("${path.module}/mwaa_execution_role_iam_policy.json")]
+  statement {
+    effect = "Allow"
+    actions = [
+      "airflow:PublishMetrics"
+    ]
+    resources = [
+      "arn:aws:airflow:*:${data.aws_caller_identity.current.account_id}:role/*/*",
+      "arn:aws:airflow:*:${data.aws_caller_identity.current.account_id}:environment/*"
+    ]
+  }
 
-  depends_on = [local_file.mwaa_inline_policy_file]
+  statement {
+    effect = "Allow"
+    actions = [
+      "cloudwatch:PutMetricData"
+    ]
+    resources = [
+      "*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "ecs:RunTask",
+      "ecs:DescribeTasks"
+    ]
+    resources = [
+      "arn:aws:ecs:*:${data.aws_caller_identity.current.account_id}:task-definition/pds*:*",
+      "arn:aws:ecs:*:${data.aws_caller_identity.current.account_id}:task/pds*/*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "iam:PassRole"
+    ]
+    resources = [
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/pds-*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "kms:Decrypt",
+      "kms:DescribeKey",
+      "kms:GenerateDataKey*",
+      "kms:Encrypt"
+    ]
+    not_resources = ["arn:aws:kms:*:${data.aws_caller_identity.current.account_id}:key/*"]
+    condition {
+      test     = "StringLike"
+      variable = "kms:ViaService"
+      values   = ["sqs.${var.region}.amazonaws.com"]
+    }
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "logs:CreateLogStream",
+      "logs:GetLogEvents",
+      "logs:PutLogEvents"
+    ]
+    resources = [
+      "arn:aws:logs:*:${data.aws_caller_identity.current.account_id}:log-group:*:log-stream:*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "logs:DescribeLogGroups"
+    ]
+    resources = [
+      "*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "logs:GetLogRecord",
+      "logs:GetQueryResults",
+      "logs:GetLogGroupFields",
+      "logs:CreateLogGroup"
+    ]
+    resources = [
+      "arn:aws:logs:*:${data.aws_caller_identity.current.account_id}:log-group:*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "sqs:ChangeMessageVisibility",
+      "sqs:DeleteMessage",
+      "sqs:GetQueueAttributes",
+      "sqs:GetQueueUrl",
+      "sqs:ReceiveMessage",
+      "sqs:SendMessage"
+    ]
+    resources = [
+      "arn:aws:sqs:${var.region}:*:airflow-celery-*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "s3:ListAllMyBuckets"
+    ]
+    resources = [
+      "*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "s3:GetBucket*",
+      "s3:GetObject*",
+      "s3:GetAccountPublicAccessBlock",
+      "s3:List*"
+    ]
+    resources = [
+      "arn:aws:s3:::pds-nucleus*",
+      "arn:aws:s3:::pds-nucleus*/*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "logs:CreateLogStream",
+      "logs:CreateLogGroup",
+      "logs:PutLogEvents",
+      "logs:GetLogEvents",
+      "logs:GetLogRecord",
+      "logs:GetLogGroupFields",
+      "logs:GetQueryResults"
+    ]
+    resources = [
+      "arn:aws:logs:${var.region}:${data.aws_caller_identity.current.account_id}:log-group:airflow-${var.airflow_env_name}-*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "logs:DescribeLogGroups"
+    ]
+    resources = [
+      "*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "cloudwatch:PutMetricData"
+    ]
+    resources = [
+      "*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "iam:PassRole"
+    ]
+    resources = [
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/pds_nucleus_*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "lambda:InvokeFunction"
+    ]
+    resources = [
+      "arn:aws:lambda:${var.region}:${data.aws_caller_identity.current.account_id}:function:pds_nucleus_*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "lambda:InvokeFunction"
+    ]
+    resources = [
+      "arn:aws:lambda:${var.region}:${data.aws_caller_identity.current.account_id}:function:pds_nucleus_*"
+    ]
+  }
 }
+
 
 # The Policy for Permission Boundary
 data "aws_iam_policy" "mcp_operator_policy" {
