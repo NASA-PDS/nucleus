@@ -151,7 +151,7 @@ data "aws_iam_policy_document" "ecs_task_execution_role_inline_policy" {
       "ecr:GetAuthorizationToken"
     ]
     resources = [
-      "arn:aws:ecr:region:${data.aws_caller_identity.current.account_id}:pds-*"
+      "*"
     ]
   }
 
