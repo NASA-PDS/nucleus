@@ -102,32 +102,76 @@ data "aws_iam_policy_document" "assume_role_lambda" {
 
 data "aws_caller_identity" "current" {}
 
-data "template_file" "lambda_inline_policy_template" {
-  template = file("terraform-modules/product-copy-completion-checker/template_lambda_inline_policy.json")
-  vars = {
-    pds_nucleus_aws_account_id = data.aws_caller_identity.current.account_id
-    rds_cluster_id             = var.rds_cluster_id
-    region                     = var.region
-  }
-
-  depends_on = [data.aws_caller_identity.current]
-}
-
-resource "local_file" "lambda_inline_policy_file" {
-  content  = data.template_file.lambda_inline_policy_template.rendered
-  filename = "terraform-modules/product-copy-completion-checker/lambda_inline_policy.json"
-
-  depends_on = [data.template_file.lambda_inline_policy_template]
-
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-
 data "aws_iam_policy_document" "lambda_inline_policy" {
-  source_policy_documents = [file("${path.module}/lambda_inline_policy.json")]
+  statement {
+    effect = "Allow"
+    actions = [
+      "logs:CreateLogStream",
+      "logs:CreateLogGroup",
+      "logs:PutLogEvents"
+    ]
+    resources = [
+      "arn:aws:logs:*:${data.aws_caller_identity.current.account_id}:log-group:*:log-stream:*"
+    ]
+  }
 
-  depends_on = [local_file.lambda_inline_policy_file]
+  statement {
+    effect = "Allow"
+    actions = [
+      "rds-data:ExecuteStatement"
+    ]
+    resources = [
+      "arn:aws:rds:*:${data.aws_caller_identity.current.account_id}:cluster:${var.rds_cluster_id}"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "secretsmanager:GetSecretValue"
+    ]
+    resources = [
+      "arn:aws:secretsmanager:*:${data.aws_caller_identity.current.account_id}:secret:pds/nucleus/rds/*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "s3:GetBucket*",
+      "s3:GetObject*",
+      "s3:PutObject*",
+      "s3:List*"
+    ]
+    resources = [
+      "arn:aws:s3:::pds-nucleus*",
+      "arn:aws:s3:::pds-nucleus*/*",
+      "arn:aws:s3:::pds-*-staging*",
+      "arn:aws:s3:::pds-*-staging*/*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "airflow:CreateCliToken"
+    ]
+    resources = [
+      "arn:aws:airflow:*:${data.aws_caller_identity.current.account_id}:environment/pds*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "sqs:ReceiveMessage",
+      "sqs:DeleteMessage",
+      "sqs:GetQueueAttributes"
+    ]
+    resources = [
+      "arn:aws:sqs:*:${data.aws_caller_identity.current.account_id}:pds-*"
+    ]
+  }
 }
 
 resource "aws_iam_role" "pds_nucleus_lambda_execution_role" {
@@ -178,7 +222,8 @@ resource "aws_lambda_function" "pds_nucleus_init_function" {
 }
 
 resource "aws_s3_bucket" "pds_nucleus_s3_config_bucket" {
-  bucket = var.pds_nucleus_config_bucket_name
+  bucket        = var.pds_nucleus_config_bucket_name
+  force_destroy = true
 }
 
 # Create a staging S3 Bucket for each PDS Node
