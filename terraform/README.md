@@ -246,3 +246,10 @@ https://docs.aws.amazon.com/AmazonS3/latest/userguide/empty-bucket.html.
 ```shell
 terraform destroy
 ```
+
+## Troubleshooting
+
+
+- Error saving credentials: error storing credentials - err: exec: "docker-credential-desktop": executable file not found in $PATH, out: ``
+
+check: https://stackoverflow.com/questions/67642620/docker-credential-desktop-not-installed-or-not-available-in-path
