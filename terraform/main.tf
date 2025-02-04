@@ -125,4 +125,19 @@ module "test-data" {
 }
 
 
+# The Terraform module to implement Cognito authentication for PDS Nucleus
+module "cognito-auth" {
+  source = "./terraform-modules/cognito-auth"
+
+  vpc_id                            = var.vpc_id
+  permission_boundary_for_iam_roles = var.permission_boundary_for_iam_roles
+  depends_on                        = [module.common]
+  airflow_env_name                  = var.airflow_env_name
+  auth_alb_listener_port            = var.auth_alb_listener_port
+  auth_alb_name                     = var.auth_alb_name
+  auth_alb_subnet_ids               = var.auth_alb_subnet_ids
+  auth_alb_listener_certificate_arn = var.auth_alb_listener_certificate_arn
+  cognito_user_pool_domain          = var.cognito_user_pool_domain
+  cognito_user_pool_id              = var.cognito_user_pool_id
+}
 
