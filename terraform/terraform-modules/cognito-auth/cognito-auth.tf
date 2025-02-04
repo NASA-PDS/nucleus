@@ -86,7 +86,6 @@ data "aws_iam_policy_document" "alb_auth_lambda_execution_role_policy" {
   }
 }
 
-
 resource "aws_iam_role" "pds_nucleus_alb_auth_lambda_execution_role" {
   name = "pds_nucleus_alb_auth_lambda_execution_role"
 
@@ -113,7 +112,6 @@ resource "null_resource" "install_dependencies" {
     source_versions       = filemd5("${path.module}/lambda/package/pds_nucleus_alb_auth.py")
   }
 }
-
 
 data "archive_file" "pds_nucleus_auth_alb_function_zip_packages" {
   type        = "zip"
@@ -148,8 +146,6 @@ resource "aws_lambda_function" "pds_nucleus_auth_alb_function" {
 resource "aws_cloudwatch_log_group" "pds_nucleus_product_processing_status_tracker_function_log_group" {
   name = "/aws/lambda/pds_nucleus_auth_alb"
 }
-
-
 
 resource "aws_lambda_permission" "lambda_permissions_auth_alb" {
   statement_id  = "AllowExecutionFromlb"
@@ -222,7 +218,6 @@ resource "aws_lb_listener_rule" "aws_console_sso_rule" {
   }
 }
 
-
 # Cognito user pool client
 resource "aws_cognito_user_pool_client" "cognito_user_pool_client_for_mwaa" {
   name                                 = "pds-nucleus-airflow-ui-client"
@@ -234,7 +229,6 @@ resource "aws_cognito_user_pool_client" "cognito_user_pool_client_for_mwaa" {
   allowed_oauth_scopes                 = ["email", "openid"]
   supported_identity_providers         = ["COGNITO"]
 }
-
 
 # Common assume role policy
 data "aws_iam_policy_document" "pds_nucleus_airflow_assume_role" {
@@ -250,7 +244,6 @@ data "aws_iam_policy_document" "pds_nucleus_airflow_assume_role" {
     }
   }
 }
-
 
 
 # Airflow Admin Role

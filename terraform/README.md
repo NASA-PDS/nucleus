@@ -38,7 +38,7 @@ system admin team of your AWS account)
 
 6. PDS Registry (OpenSearch) is accessible from the AWS account which is used to deploy PDS Nucleus)
 
-7. A Cognito User Pool to maintain the Nucleus users
+7. A Cognito User Pool to manage Nucleus users
 
 8. A certificate to be used for the ALB Listener facing Airflow UI
 
@@ -94,7 +94,7 @@ Note:  Examples of `terraform.tfvars` files are available at `terraform/variable
     - pds_nucleus_config_bucket_name  : S3 Bucket name to keep temporary configurations (E.g.: pds-nucleus-config-mcp-test)
     - pds_nucleus_default_airflow_dag_id : The default example DAG to be included for testing (E.g.: pds-basic-registry-load-use-case)
     - pds_registry_loader_harvest_task_role_arn: An IAM role which is associated with a Cognito user group
-    - cognito_user_pool_id: The ID of the Cognito user pool which is sued to create Nuclues user accounts
+    - cognito_user_pool_id: The ID of the Cognito user pool which is used to create Nuclues user accounts
     - cognito_user_pool_domain: Cognitp domain name of the Cognito user pool which is sued to create Nuclues user accounts
     - auth_alb_listener_certificate_arn: ARN of the certificate to be used for the ALB Listener facing Airflow UI
 
