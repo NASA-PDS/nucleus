@@ -97,6 +97,7 @@ Note:  Examples of `terraform.tfvars` files are available at `terraform/variable
     - cognito_user_pool_id: The ID of the Cognito user pool which is used to create Nuclues user accounts
     - cognito_user_pool_domain: Cognitp domain name of the Cognito user pool which is sued to create Nuclues user accounts
     - auth_alb_listener_certificate_arn: ARN of the certificate to be used for the ALB Listener facing Airflow UI
+    - aws_elb_account_id_for_the_region: The standard ELB account ID for the AWS region. For US West (Oregon), this is  797873946194. Read more at https://docs.aws.amazon.com/elasticloadbalancing/latest/application/enable-access-logging.html)
 
 
 > Note: `terraform.tfvars` is only used to test with your configuration with the actual values in your AWS account. This file will not be uploaded to GitHub as it's ignored by Git. Once testing is completed successfully work with your admin to get the values for these tested variables updated via GitHub secrets, which are dynamically passed in during runtime.
@@ -140,6 +141,7 @@ pds_registry_loader_harvest_task_role_arn = "arn:aws:iam::12345678:role/harvest-
 cognito_user_pool_id              = "us-west-2_ABCDEFG"
 cognito_user_pool_domain          = "pds-registry"
 auth_alb_listener_certificate_arn = "arn:aws:acm:us-west-2:123456789:certificate/ca123456-abcd-abcd-1234-abcdefghi"
+aws_elb_account_id_for_the_region = "797873946194"
 ```
 
 

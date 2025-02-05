@@ -139,5 +139,6 @@ module "cognito-auth" {
   auth_alb_listener_certificate_arn = var.auth_alb_listener_certificate_arn
   cognito_user_pool_domain          = var.cognito_user_pool_domain
   cognito_user_pool_id              = var.cognito_user_pool_id
+  aws_elb_account_id_for_the_region = var.aws_elb_account_id_for_the_region
 }
 

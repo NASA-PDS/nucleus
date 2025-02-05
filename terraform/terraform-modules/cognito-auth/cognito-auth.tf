@@ -26,12 +26,40 @@ resource "aws_security_group" "nucleus_alb_security_group" {
   }
 }
 
-resource "aws_lb" "auth_alb" {
+resource "aws_s3_bucket" "pds_nucleus_auth_alb_logs" {
+  bucket = "pds-nucleus-auth-alb-logs"
+}
+
+data "aws_iam_policy_document" "pds_nucleus_auth_alb_logs_s3_bucket_policy" {
+  statement {
+    effect = "Allow"
+    principals {
+      type        = "AWS"
+      identifiers = ["arn:aws:iam::${var.aws_elb_account_id_for_the_region}:root"]
+    }
+    actions = ["s3:PutObject"]
+    resources = ["${aws_s3_bucket.pds_nucleus_auth_alb_logs.arn}/*"]
+  }
+}
+
+resource "aws_s3_bucket_policy" "logs_prod_policy" {
+  bucket = aws_s3_bucket.pds_nucleus_auth_alb_logs.id
+
+  policy = data.aws_iam_policy_document.pds_nucleus_auth_alb_logs_s3_bucket_policy.json
+}
+
+resource "aws_lb" "pds_nucleus_auth_alb" {
   name               = var.auth_alb_name
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.nucleus_alb_security_group.id]
   subnets            = var.auth_alb_subnet_ids
+
+  access_logs {
+    enabled  = true
+    bucket  = aws_s3_bucket.pds_nucleus_auth_alb_logs.id
+    prefix  = "auth-alb-access-logs"
+  }
 }
 
 resource "aws_lb_target_group" "mwaa_auth_alb_lambda_tg" {
@@ -143,8 +171,9 @@ resource "aws_lambda_function" "pds_nucleus_auth_alb_function" {
 }
 
 # Create CloudWatch Log Group for pds_nucleus_s3_file_file_event_processor_function for each PDS Node
-resource "aws_cloudwatch_log_group" "pds_nucleus_product_processing_status_tracker_function_log_group" {
+resource "aws_cloudwatch_log_group" "pds_nucleus_auth_alb" {
   name = "/aws/lambda/pds_nucleus_auth_alb"
+  retention_in_days = 30
 }
 
 resource "aws_lambda_permission" "lambda_permissions_auth_alb" {
@@ -167,7 +196,7 @@ data "aws_cognito_user_pool" "cognito_user_pool" {
 
 # Default Listener
 resource "aws_lb_listener" "front_end" {
-  load_balancer_arn = aws_lb.auth_alb.arn
+  load_balancer_arn = aws_lb.pds_nucleus_auth_alb.arn
   port              = var.auth_alb_listener_port
   protocol          = "HTTPS"
   ssl_policy        = "ELBSecurityPolicy-2016-08"
@@ -177,8 +206,7 @@ resource "aws_lb_listener" "front_end" {
     type = "authenticate-cognito"
 
     authenticate_cognito {
-      user_pool_arn = format("arn:aws:cognito-idp:%s:%s:userpool/%s", data.aws_region.current.name,
-      data.aws_caller_identity.current.account_id, data.aws_cognito_user_pool.cognito_user_pool.user_pool_id)
+      user_pool_arn       = "arn:aws:cognito-idp:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:userpool/${data.aws_cognito_user_pool.cognito_user_pool.user_pool_id}"
       user_pool_client_id = aws_cognito_user_pool_client.cognito_user_pool_client_for_mwaa.id
       user_pool_domain    = var.cognito_user_pool_domain
     }
@@ -199,8 +227,7 @@ resource "aws_lb_listener_rule" "aws_console_sso_rule" {
     type             = "authenticate-cognito"
     target_group_arn = aws_lb_target_group.mwaa_auth_alb_lambda_tg.arn
     authenticate_cognito {
-      user_pool_arn = format("arn:aws:cognito-idp:%s:%s:userpool/%s", data.aws_region.current.name,
-      data.aws_caller_identity.current.account_id, data.aws_cognito_user_pool.cognito_user_pool.user_pool_id)
+      user_pool_arn = "arn:aws:cognito-idp:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:userpool/${data.aws_cognito_user_pool.cognito_user_pool.user_pool_id}"
       user_pool_client_id = aws_cognito_user_pool_client.cognito_user_pool_client_for_mwaa.id
       user_pool_domain    = var.cognito_user_pool_domain
     }
@@ -223,7 +250,7 @@ resource "aws_cognito_user_pool_client" "cognito_user_pool_client_for_mwaa" {
   name                                 = "pds-nucleus-airflow-ui-client"
   user_pool_id                         = data.aws_cognito_user_pool.cognito_user_pool.id
   generate_secret                      = true
-  callback_urls                        = [format("https://%s:%s/oauth2/idpresponse", aws_lb.auth_alb.dns_name, var.auth_alb_listener_port)]
+  callback_urls                        = ["https://${aws_lb.pds_nucleus_auth_alb.dns_name}:${var.auth_alb_listener_port}/oauth2/idpresponse"]
   allowed_oauth_flows_user_pool_client = true
   allowed_oauth_flows                  = ["code"]
   allowed_oauth_scopes                 = ["email", "openid"]
@@ -239,8 +266,7 @@ data "aws_iam_policy_document" "pds_nucleus_airflow_assume_role" {
     ]
     principals {
       type = "AWS"
-      identifiers = [format("arn:aws:sts::%s:assumed-role/%s/%s", data.aws_caller_identity.current.account_id,
-      aws_iam_role.pds_nucleus_alb_auth_lambda_execution_role.name, aws_lambda_function.pds_nucleus_auth_alb_function.function_name)]
+      identifiers = ["arn:aws:sts::${data.aws_caller_identity.current.account_id}:assumed-role/${aws_iam_role.pds_nucleus_alb_auth_lambda_execution_role.name}/${aws_lambda_function.pds_nucleus_auth_alb_function.function_name}"]
     }
   }
 }

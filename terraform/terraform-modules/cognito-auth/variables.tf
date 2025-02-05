@@ -52,6 +52,12 @@ variable "auth_alb_listener_certificate_arn" {
   sensitive   = true
 }
 
+variable "aws_elb_account_id_for_the_region" {
+  description = "Standard AWS ELB Account ID for the related region"
+  type        = string
+  sensitive   = true
+}
+
 variable "airflow_env_name" {
   description = "MWAA Airflow Environment Name"
   type = string
