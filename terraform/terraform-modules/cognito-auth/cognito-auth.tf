@@ -65,15 +65,6 @@ resource "aws_s3_bucket_policy" "pds_nucleus_auth_alb_logs_bucket_logs_policy" {
   policy = data.aws_iam_policy_document.pds_nucleus_auth_alb_logs_bucket_logs_bucket_policy.json
 }
 
-resource "aws_s3_bucket_public_access_block" "pds_nucleus_auth_alb_logs_public_access_block" {
-  bucket = aws_s3_bucket.pds_nucleus_auth_alb_logs.id
-
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
-
 data "aws_iam_policy_document" "pds_nucleus_auth_alb_logs_s3_bucket_policy" {
   statement {
     effect = "Allow"
