@@ -28,3 +28,8 @@ pds_nucleus_config_bucket_name               = "pds-nucleus-config-mcp-dev"
 pds_nucleus_default_airflow_dag_id = "pds-basic-registry-load-use-case"
 
 pds_registry_loader_harvest_task_role_arn = "arn:aws:iam::12345678:role/pds-registry-loader-harvest-role"
+
+cognito_user_pool_id              = "us-west-2_ABCDEFG"
+cognito_user_pool_domain          = "pds-registry"
+auth_alb_listener_certificate_arn = "arn:aws:acm:us-west-2:123456789:certificate/ca123456-abcd-abcd-1234-abcdefghi"
+aws_elb_account_id_for_the_region = "797873946194"

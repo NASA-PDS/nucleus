@@ -34,6 +34,12 @@ variable "subnet_ids" {
   sensitive   = true
 }
 
+variable "auth_alb_subnet_ids" {
+  description = "Auth ALB Subnet IDs"
+  type        = list(string)
+  sensitive   = true
+}
+
 variable "database_availability_zones" {
   description = "Comma Separated List of Availability Zones for Database"
   type        = list(string)
@@ -42,8 +48,8 @@ variable "database_availability_zones" {
 
 variable "permission_boundary_for_iam_roles" {
   description = "Permission boundary to be used when creating IAM roles"
-  type      = string
-  sensitive = true
+  type        = string
+  sensitive   = true
 }
 
 variable "mwaa_dag_s3_bucket_name" {
@@ -100,20 +106,20 @@ variable "pds_node_names" {
 
 variable "pds_nucleus_opensearch_urls" {
   description = "List of PDS Nucleus OpenSearch Config file paths"
-  type        =  list(string)
+  type        = list(string)
   sensitive   = true
 }
 
 variable "pds_nucleus_opensearch_credential_relative_url" {
   description = "List of PDS Nucleus OpenSearch Credential Relative URL"
-  type        =  string
+  type        = string
   sensitive   = true
 }
 
 variable "pds_nucleus_harvest_replace_prefix_with_list" {
   description = "List of PDS Nucleus Harvest Replace Prefix With"
-  type        =  list(string)
-  default     = ["s3://pds-nucleus-staging-sbn","s3://pds-nucleus-staging-img"]
+  type        = list(string)
+  default     = ["s3://pds-nucleus-staging-sbn", "s3://pds-nucleus-staging-img"]
 }
 
 variable "pds_registry_loader_harvest_task_role_arn" {
@@ -178,4 +184,43 @@ variable "database_port" {
   description = "PDS Database Port"
   type        = string
   default     = "3306"
+}
+
+variable "cognito_user_pool_id" {
+  description = "Cognito user pool ID"
+  type        = string
+  sensitive   = true
+}
+
+variable "cognito_user_pool_domain" {
+  description = "Cognito user pool domain"
+  type        = string
+  default     = "pds-registry"
+  sensitive   = true
+}
+
+variable "auth_alb_name" {
+  description = "Auth ALB Name"
+  default     = "pds-nucleus"
+  type        = string
+  sensitive   = true
+}
+
+variable "auth_alb_listener_port" {
+  description = "Auth ALB Listener Port"
+  default     = "4443"
+  type        = string
+  sensitive   = true
+}
+
+variable "auth_alb_listener_certificate_arn" {
+  description = "Auth ALB Listener Certificate ARN"
+  type        = string
+  sensitive   = true
+}
+
+variable "aws_elb_account_id_for_the_region" {
+  description = "Standard AWS ELB Account ID for the related region"
+  type        = string
+  sensitive   = true
 }

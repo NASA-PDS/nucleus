@@ -29,7 +29,8 @@ resource "aws_secretsmanager_secret_version" "pds_nucleus_rds_password" {
 resource "aws_rds_cluster" "default" {
   cluster_identifier           = var.rds_cluster_id
   engine                       = "aurora-mysql"
-  engine_version               = "5.7.mysql_aurora.2.03.2"
+  engine_mode                  = "provisioned"
+  engine_version               = "8.0.mysql_aurora.3.08.0"
   availability_zones           = var.database_availability_zones
   db_subnet_group_name         = aws_db_subnet_group.default.id
   database_name                = var.database_name
@@ -44,14 +45,22 @@ resource "aws_rds_cluster" "default" {
   skip_final_snapshot          = true
   vpc_security_group_ids       = [var.nucleus_security_group_id]
 
-  # Configuring aurora serverless
-  engine_mode = "serverless"
-  scaling_configuration {
-    auto_pause               = false
-    max_capacity             = 2
-    min_capacity             = 1
-    seconds_until_auto_pause = 600
+  serverlessv2_scaling_configuration {
+    min_capacity = 0.5
+    max_capacity = 128.0
   }
+
+  lifecycle {
+    ignore_changes = ["availability_zones"]
+  }
+}
+
+resource "aws_rds_cluster_instance" "rds_cluster_instance" {
+  identifier         = var.rds_cluster_id
+  cluster_identifier = aws_rds_cluster.default.id
+  instance_class     = "db.serverless"
+  engine             = aws_rds_cluster.default.engine
+  engine_version     = aws_rds_cluster.default.engine_version
 }
 
 resource "aws_secretsmanager_secret" "pds_nucleus_rds_credentials" {
@@ -390,6 +399,13 @@ resource "aws_s3_bucket_notification" "pds_nucleus_s3_staging_bucket_notificatio
   }
 }
 
+
+resource "time_sleep" "wait_for_database" {
+  create_duration = "2m"
+
+  depends_on = [aws_rds_cluster_instance.rds_cluster_instance]
+}
+
 resource "aws_lambda_invocation" "invoke_pds_nucleus_init_function" {
   function_name = aws_lambda_function.pds_nucleus_init_function.function_name
 
@@ -401,7 +417,7 @@ resource "aws_lambda_invocation" "invoke_pds_nucleus_init_function" {
     ]
   }
 
-  depends_on = [aws_lambda_function.pds_nucleus_init_function, aws_rds_cluster.default]
+  depends_on = [aws_lambda_function.pds_nucleus_init_function, aws_rds_cluster.default, aws_rds_cluster_instance.rds_cluster_instance, time_sleep.wait_for_database]
 }
 
 
