@@ -197,8 +197,6 @@ pds_nucleus_airflow_ui_url = "https://pds-nucleus-12345678.us-west-2.elb.amazona
 14. The DAGs can be added to the Airflow by uploading Airflow DAG files to the DAG folder of S3 bucket
 configured as `mwaa_dag_s3_bucket_name` in the `terraform.tfvars` file.
 
-15. Use the PDS Data Upload Manager (DUM) tool to upload files to pds_nucleus_staging_bucket.
-
 
 ## Steps to Access Nucleus Airflow UI With Cognito Credentials
 
