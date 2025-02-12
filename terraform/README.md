@@ -175,25 +175,55 @@ terraform apply
 
 8. Wait for `terraform apply` command to be completed. If it fails due to expiration of AWS credentials, please provide a new set of AWS credentials and execute `terraform apply` again.
 
-9. Login to the AWS Console with your AWS Account.
+9. Note the `pds_nucleus_airflow_ui_url` printed as an output at the end of the `terraform apply` command results. 
 
-10. Make sure that the correct AWS Region is selected and search for "Managed Apache Airflow".
+Example:
 
-11. Visit the "Managed Apache Airflow" (Amazon MWAA) page and check the list of environments.
+```shell
+Outputs:
 
-12. Find the relevant Amazon MWAA environment (Default name: PDS-Nucleus-Airflow-Env) and click on
+pds_nucleus_airflow_ui_url = "https://pds-nucleus-12345678.us-west-2.elb.amazonaws.com:4443/aws_mwaa/aws-console-sso"
+```
+
+10. Login to the AWS Console with your AWS Account.
+
+11. Make sure that the correct AWS Region is selected and search for "Managed Apache Airflow".
+
+12. Visit the "Managed Apache Airflow" (Amazon MWAA) page and check the list of environments. 
+
+13. Find the relevant Amazon MWAA environment (Default name: PDS-Nucleus-Airflow-Env) and click on
     Open Airflow UI link to open the Airflow UI.
 
-13. The DAGs can be added to the Airflow by uploading Airflow DAG files to the DAG folder of S3 bucket
+14. The DAGs can be added to the Airflow by uploading Airflow DAG files to the DAG folder of S3 bucket
 configured as `mwaa_dag_s3_bucket_name` in the `terraform.tfvars` file.
 
-16. Use the PDS Data Upload Manager (DUM) tool to upload files to pds_nucleus_staging_bucket.
+15. Use the PDS Data Upload Manager (DUM) tool to upload files to pds_nucleus_staging_bucket.
 
 
 ## Steps to Access Nucleus Airflow UI With Cognito Credentials
 
 Only some users have direct access to AWS and those users can access Airflow UI as explained in the step 9 to 12
 in the above section. However, there is another way to access Airflow UI using a Cognito account as follows.
+
+### Approach 1: Using the Web Based Login
+
+1. Make sure you have a Cognito user created in the Cognito user pool with required role (Cognito group). The PDS engineering node team can
+   help with this.
+
+2. Access the pds_nucleus_airflow_ui_url obtained in the step 9. of the section above.
+
+Example:
+
+```shell
+Outputs:
+
+pds_nucleus_airflow_ui_url = "https://pds-nucleus-12345678.us-west-2.elb.amazonaws.com:4443/aws_mwaa/aws-console-sso"
+```
+
+3. Use the Cognito username and password to login.
+
+
+### Approach 2: Using a Web Token
 
 1. Make sure you have a Cognito user created in the Cognito user pool with required role (Cognito group). The PDS engineering node team can 
 help with this.
