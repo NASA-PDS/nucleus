@@ -102,7 +102,8 @@ module "product-copy-completion-checker" {
   pds_nucleus_cold_archive_bucket_name_postfix = var.pds_nucleus_cold_archive_bucket_name_postfix
 
   pds_node_names                                 = var.pds_node_names
-  pds_nucleus_opensearch_urls                    = var.pds_nucleus_opensearch_urls
+  pds_nucleus_opensearch_url                     = var.pds_nucleus_opensearch_url
+  pds_nucleus_opensearch_registry_names          = var.pds_nucleus_opensearch_registry_names
   pds_nucleus_opensearch_credential_relative_url = var.pds_nucleus_opensearch_credential_relative_url
   pds_nucleus_harvest_replace_prefix_with_list   = var.pds_nucleus_harvest_replace_prefix_with_list
 
@@ -141,4 +142,3 @@ module "cognito-auth" {
   cognito_user_pool_id              = var.cognito_user_pool_id
   aws_elb_account_id_for_the_region = var.aws_elb_account_id_for_the_region
 }
-

@@ -81,6 +81,9 @@ Note:  Examples of `terraform.tfvars` files are available at `terraform/variable
       - pds_node_names = List of PDS Node names to be supported (E.g.: ["PDS_SBN", "PDS_IMG", "PDS_EN"]).The following node name format should be used.
           - (PDS_ATM, PDS_ENG, PDS_GEO, PDS_IMG, PDS_NAIF, PDS_RMS, PDS_SBN, PSA, JAXA, ROSCOSMOS)
           - Please check https://nasa-pds.github.io/registry/user/harvest_job_configuration.html for PDS Node name descriptions.
+      
+      - pds_nucleus_opensearch_url : OpenSearch URL to be used with Harvest tool
+      - pds_nucleus_opensearch_registry_names : List of Nod3e specific OpenSearch registry names (E.g.: ["pds-nucleus-sbn-registry"", "pds-nucleus-img-registry"])
       - pds_nucleus_opensearch_urls : List of Node specific OpenSearch URLs (E.g.: ["https://abcdef.us-west-2.aoss.amazonaws.com", "https://opqrst.us-west-2.aoss.amazonaws.com"])
       - pds_nucleus_opensearch_credential_relative_url : Opensearch Credential URL (E.g.: "http://<IP ADDRESS>/AWS_CONTAINER_CREDENTIALS_RELATIVE_URI")
       - pds_nucleus_harvest_replace_prefix_with_list : List of harvest replace with strings (E.g.: ["s3://pds-sbn-nucleus-staging","s3://pds-img-nucleus-staging"])
@@ -121,7 +124,8 @@ aws_secretmanager_key_arn         = "arn:aws:kms:us-west-2:12345678:key/12345-12
 # Please check https://nasa-pds.github.io/registry/user/harvest_job_configuration.html for PDS Node name descriptions.
 
 pds_node_names                                 = ["PDS_SBN", "PDS_IMG"]
-pds_nucleus_opensearch_urls                    = ["https://abcdef.us-west-2.aoss.amazonaws.com", "https://opqrst.us-west-2.aoss.amazonaws.com"]
+pds_nucleus_opensearch_url                     = "https://abcdef.us-west-2.aoss.amazonaws.com"
+pds_nucleus_opensearch_registry_names          = ["pds-nucleus-sbn-registry"", "pds-nucleus-img-registry"]
 pds_nucleus_opensearch_credential_relative_url = "http://<IP ADDRESS>/AWS_CONTAINER_CREDENTIALS_RELATIVE_URI"
 pds_nucleus_harvest_replace_prefix_with_list   = ["s3://pds-sbn-nucleus-staging", "s3://pds-img-nucleus-staging"]
 
@@ -183,21 +187,7 @@ terraform apply
 13. The DAGs can be added to the Airflow by uploading Airflow DAG files to the DAG folder of S3 bucket
 configured as `mwaa_dag_s3_bucket_name` in the `terraform.tfvars` file.
 
-14. Go to the AWS Secret manager (https://us-west-2.console.aws.amazon.com/secretsmanager/listsecrets?region=us-west-2) and locate the secrets in the following format.
-    - pds/nucleus/opensearch/creds/<PDS NODE NAME>/user
-    - pds/nucleus/opensearch/creds/<PDS NODE NAME>/password
-   
-    E.g.: 
-      - pds/nucleus/opensearch/creds/PDS_IMG/user
-      - pds/nucleus/opensearch/creds/PDS_SBN/user
-      - pds/nucleus/opensearch/creds/PDS_IMG/password
-      - pds/nucleus/opensearch/creds/PDS_SBN/password
-
-15. Obtain the Opensearch username and password for each PDS Node and update the above secrets with relevant usernames and passwords.
-      - To update a secret, click on a secret -> Retrieve secret value -> Edit -> Save 
-
-
-15. Use the PDS Data Upload Manager (DUM) tool to upload files to pds_nucleus_staging_bucket.
+16. Use the PDS Data Upload Manager (DUM) tool to upload files to pds_nucleus_staging_bucket.
 
 
 ## Steps to Access Nucleus Airflow UI With Cognito Credentials

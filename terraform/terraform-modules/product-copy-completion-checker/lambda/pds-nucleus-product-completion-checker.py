@@ -33,6 +33,7 @@ mwaa_cli_command = 'dags trigger'
 dag_name = os.environ.get('AIRFLOW_DAG_NAME')
 pds_node_name = os.environ.get('PDS_NODE_NAME')
 opensearch_endpoint = os.environ.get('OPENSEARCH_ENDPOINT')
+opensearch_registry_name = os.environ.get('OPENSEARCH_REGISTRY_NAME')
 pds_nucleus_opensearch_credential_relative_url = os.environ.get('OPENSEARCH_CREDENTIAL_RELATIVE_URL')
 replace_prefix_with = os.environ.get('REPLACE_PREFIX_WITH')
 efs_mount_path = os.environ.get('EFS_MOUNT_PATH')
@@ -45,6 +46,7 @@ mwaa_env_name = os.environ.get('PDS_MWAA_ENV_NAME')
 pds_hot_archive_bucket_name = os.environ.get('PDS_HOT_ARCHIVE_S3_BUCKET_NAME')
 pds_cold_archive_bucket_name = os.environ.get('PDS_COLD_ARCHIVE_S3_BUCKET_NAME')
 pds_staging_bucket_name = os.environ.get('PDS_STAGING_S3_BUCKET_NAME')
+product_batch_size = os.environ.get('PRODUCT_BATCH_SIZE')
 
 replace_prefix = efs_mount_path
 
@@ -98,7 +100,7 @@ def process_completed_products():
     logger.debug(f"Number of completed product labels : {str(response['records'])}")
     logger.debug(f"Number of completed product labels : {str(len(response['records']))}")
 
-    n = 10
+    n = product_batch_size
     count = 0
     list_of_product_labels_to_process = []
 
@@ -222,7 +224,7 @@ def create_harvest_configs_and_trigger_nucleus(list_of_product_labels_to_process
         logger.info(f"Created harvest config XML file: {harvest_config_file_path}")
 
         connection_xml_content = f"""<?xml version="1.0" encoding="UTF-8"?>
-<registry_connection index="en-registry">
+<registry_connection index="{opensearch_registry_name}">
     <ec2_credential_url endpoint="{opensearch_endpoint}">{pds_nucleus_opensearch_credential_relative_url}</ec2_credential_url>
 </registry_connection>
             """

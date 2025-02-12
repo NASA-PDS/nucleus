@@ -75,9 +75,15 @@ variable "pds_node_names" {
   sensitive   = true
 }
 
-variable "pds_nucleus_opensearch_urls" {
-  description = "List of PDS Nucleus OpenSearch Config file paths"
-  type        =  list(string)
+variable "pds_nucleus_opensearch_url" {
+  description = "List of PDS Nucleus OpenSearch URL"
+  type        = string
+  sensitive   = true
+}
+
+variable "pds_nucleus_opensearch_registry_names" {
+  description = "List of PDS Nucleus OpenSearch Registry Names"
+  type        = list(string)
   sensitive   = true
 }
 
@@ -117,6 +123,12 @@ variable "airflow_env_name" {
   description = "PDS Nucleus Airflow Env Name"
   default     = "pds-nucleus-airflow-env"
   type        = string
+}
+
+variable "product_batch_size" {
+  description = "Size of the product batch to send to Nuclees DAG top process per given DAG invocation"
+  default     = 10
+  type        = number
 }
 
 variable "region" {
