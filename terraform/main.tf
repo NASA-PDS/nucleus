@@ -142,3 +142,8 @@ module "cognito-auth" {
   cognito_user_pool_id              = var.cognito_user_pool_id
   aws_elb_account_id_for_the_region = var.aws_elb_account_id_for_the_region
 }
+
+# Output the ALB URL for Airflow UI
+output "pds_nucleus_airflow_ui_url" {
+  value = nonsensitive(module.cognito-auth.pds_nucleus_airflow_ui_url)
+}

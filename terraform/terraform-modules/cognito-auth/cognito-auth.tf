@@ -443,3 +443,7 @@ resource "aws_cognito_user_group" "pds_nucleus_viewer_cognito_user_group" {
   precedence   = 65
   role_arn     = aws_iam_role.pds_nucleus_viewer_role.arn
 }
+
+output "pds_nucleus_airflow_ui_url" {
+  value = "https://${aws_lb.pds_nucleus_auth_alb.dns_name}:${var.auth_alb_listener_port}/aws_mwaa/aws-console-sso"
+}

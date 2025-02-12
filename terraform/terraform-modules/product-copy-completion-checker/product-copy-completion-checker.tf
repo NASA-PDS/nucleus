@@ -51,7 +51,7 @@ resource "aws_rds_cluster" "default" {
   }
 
   lifecycle {
-    ignore_changes = ["availability_zones"]
+    ignore_changes = [availability_zones]
   }
 }
 

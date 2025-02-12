@@ -43,7 +43,6 @@ variable "auth_alb_name" {
 variable "auth_alb_listener_port" {
   description = "Auth ALB Listener Port"
   type        = string
-  sensitive   = true
 }
 
 variable "auth_alb_listener_certificate_arn" {
