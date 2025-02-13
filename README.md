@@ -48,3 +48,45 @@ User documentation is managed with Sphinx, which is also installed in your Pytho
     sphinx-build -b html docs/source docs/build/html
 
 Publish the pages on gh-pages branch
+
+
+## Secret Detection
+
+The following commands can be used to detect secrets in the code.
+
+1) Setup a pythion virtual environment.
+
+```shell
+mkdir ~/Tools
+python3 -m venv ~/Tools/detect-secrets
+source ~/Tools/detect-secrets/bin/activate
+pip install git+https://github.com/NASA-AMMOS/slim-detect-secrets.git@exp
+```
+
+2) Execute the following command in Nucleus root directory to scan the code for secrets.
+
+```shell
+detect-secrets scan --disable-plugin AbsolutePathDetectorExperimental \
+    --exclude-files '\.secrets\..*' \
+    --exclude-files '\.git.*' \
+    --exclude-files '\.pre-commit-config\.yaml' \
+    --exclude-files '\.mypy_cache' \
+    --exclude-files '\.pytest_cache' \
+    --exclude-files '\.tox' \
+    --exclude-files '\.venv' \
+    --exclude-files 'venv' \
+    --exclude-files 'dist' \
+    --exclude-files 'build' \
+    --exclude-files '.*\.egg-info' \
+    --exclude-files '.*\.tfstate' \
+    --exclude-files '.*\.tfvars' \
+    > .secrets.baseline
+```
+
+3) Execute the following command in Nucleus root directory to audit the possible secrets detected.
+
+```shell
+detect-secrets audit .secrets.baseline
+```
+
+This will create a `.secrets.baseline` in Nucleus root directory. Commit and push that file, in order to pass the checks in GitHub during a pull request.
