@@ -137,7 +137,7 @@ def login(headers, query_params=None, user_claims=None,iam_role_arn=None):
         logger.error(str(error))
 
     if not redirect:
-        redirect = close(headers, f"Login Failed. Please check your Cognito user groups", status_code=401)
+        redirect = close(headers, "Login Failed. Please check your Cognito user groups", status_code=401)
 
     return redirect
 
