@@ -18,7 +18,10 @@ Therefore, as a result of the Terraform scripts in this directory following thin
 
 ## Prerequisites to Deploy Nucleus Baseline System
 
-1. An AWS Account with permissions to deploy following AWS services
+1. Some of the libraries used in the ECS containers of PDS Nucleus are platform specific. Therefore, please execute the deployment 
+from an Amazon Linux EC2 instance with Architecture 64 bit (x86).
+
+2. An AWS Account with permissions to deploy following AWS services
    - Amazon Managed Workflows for Apache Airflow (MWAA)
    - AWS Security Groups
    - AWS S3 Bucket with relevant bucket policies
@@ -26,21 +29,21 @@ Therefore, as a result of the Terraform scripts in this directory following thin
    - EFS File System
    - ECR
 
-2. Ability to get AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and AWS_SESSION_TOKEN for the AWS account
+3. Ability to get AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and AWS_SESSION_TOKEN for the AWS account
 
-3. Terraform is installed in local environment (This was tested with Terraform v1.5.7. Any higher version should also work)
+4. Terraform is installed in local environment (This was tested with Terraform v1.5.7. Any higher version should also work)
  - Instructions to install Terraform is available at https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli
 
-4. A VPC and one or more subnets should be available on AWS (obtain the VPC ID and subnet IDs from AWS console or from the AWS
+5. A VPC and one or more subnets should be available on AWS (obtain the VPC ID and subnet IDs from AWS console or from the AWS
 system admin team of your AWS account)
 
-5. Docker service is installed and running (Instructions to install Docker: https://docs.docker.com/engine/install/)
+6. Docker service is installed and running (Instructions to install Docker: https://docs.docker.com/engine/install/)
 
-6. PDS Registry (OpenSearch) is accessible from the AWS account which is used to deploy PDS Nucleus)
+7. PDS Registry (OpenSearch) is accessible from the AWS account which is used to deploy PDS Nucleus)
 
-7. A Cognito User Pool to manage Nucleus users
+8. A Cognito User Pool to manage Nucleus users
 
-8. A certificate to be used for the ALB Listener facing Airflow UI
+9. A certificate to be used for the ALB Listener facing Airflow UI
 
 
 ## Steps to Deploy the PDS Nucleus Baseline System
@@ -81,6 +84,9 @@ Note:  Examples of `terraform.tfvars` files are available at `terraform/variable
       - pds_node_names = List of PDS Node names to be supported (E.g.: ["PDS_SBN", "PDS_IMG", "PDS_EN"]).The following node name format should be used.
           - (PDS_ATM, PDS_ENG, PDS_GEO, PDS_IMG, PDS_NAIF, PDS_RMS, PDS_SBN, PSA, JAXA, ROSCOSMOS)
           - Please check https://nasa-pds.github.io/registry/user/harvest_job_configuration.html for PDS Node name descriptions.
+      
+      - pds_nucleus_opensearch_url : OpenSearch URL to be used with Harvest tool
+      - pds_nucleus_opensearch_registry_names : List of Nod3e specific OpenSearch registry names (E.g.: ["pds-nucleus-sbn-registry"", "pds-nucleus-img-registry"])
       - pds_nucleus_opensearch_urls : List of Node specific OpenSearch URLs (E.g.: ["https://abcdef.us-west-2.aoss.amazonaws.com", "https://opqrst.us-west-2.aoss.amazonaws.com"])
       - pds_nucleus_opensearch_credential_relative_url : Opensearch Credential URL (E.g.: "http://<IP ADDRESS>/AWS_CONTAINER_CREDENTIALS_RELATIVE_URI")
       - pds_nucleus_harvest_replace_prefix_with_list : List of harvest replace with strings (E.g.: ["s3://pds-sbn-nucleus-staging","s3://pds-img-nucleus-staging"])
@@ -121,7 +127,8 @@ aws_secretmanager_key_arn         = "arn:aws:kms:us-west-2:12345678:key/12345-12
 # Please check https://nasa-pds.github.io/registry/user/harvest_job_configuration.html for PDS Node name descriptions.
 
 pds_node_names                                 = ["PDS_SBN", "PDS_IMG"]
-pds_nucleus_opensearch_urls                    = ["https://abcdef.us-west-2.aoss.amazonaws.com", "https://opqrst.us-west-2.aoss.amazonaws.com"]
+pds_nucleus_opensearch_url                     = "https://abcdef.us-west-2.aoss.amazonaws.com"
+pds_nucleus_opensearch_registry_names          = ["pds-nucleus-sbn-registry"", "pds-nucleus-img-registry"]
 pds_nucleus_opensearch_credential_relative_url = "http://<IP ADDRESS>/AWS_CONTAINER_CREDENTIALS_RELATIVE_URI"
 pds_nucleus_harvest_replace_prefix_with_list   = ["s3://pds-sbn-nucleus-staging", "s3://pds-img-nucleus-staging"]
 
@@ -171,39 +178,53 @@ terraform apply
 
 8. Wait for `terraform apply` command to be completed. If it fails due to expiration of AWS credentials, please provide a new set of AWS credentials and execute `terraform apply` again.
 
-9. Login to the AWS Console with your AWS Account.
+9. Note the `pds_nucleus_airflow_ui_url` printed as an output at the end of the `terraform apply` command results. 
 
-10. Make sure that the correct AWS Region is selected and search for "Managed Apache Airflow".
+Example:
 
-11. Visit the "Managed Apache Airflow" (Amazon MWAA) page and check the list of environments.
+```shell
+Outputs:
 
-12. Find the relevant Amazon MWAA environment (Default name: PDS-Nucleus-Airflow-Env) and click on
+pds_nucleus_airflow_ui_url = "https://pds-nucleus-12345678.us-west-2.elb.amazonaws.com:4443/aws_mwaa/aws-console-sso"
+```
+
+10. Login to the AWS Console with your AWS Account.
+
+11. Make sure that the correct AWS Region is selected and search for "Managed Apache Airflow".
+
+12. Visit the "Managed Apache Airflow" (Amazon MWAA) page and check the list of environments. 
+
+13. Find the relevant Amazon MWAA environment (Default name: PDS-Nucleus-Airflow-Env) and click on
     Open Airflow UI link to open the Airflow UI.
 
-13. The DAGs can be added to the Airflow by uploading Airflow DAG files to the DAG folder of S3 bucket
+14. The DAGs can be added to the Airflow by uploading Airflow DAG files to the DAG folder of S3 bucket
 configured as `mwaa_dag_s3_bucket_name` in the `terraform.tfvars` file.
-
-14. Go to the AWS Secret manager (https://us-west-2.console.aws.amazon.com/secretsmanager/listsecrets?region=us-west-2) and locate the secrets in the following format.
-    - pds/nucleus/opensearch/creds/<PDS NODE NAME>/user
-    - pds/nucleus/opensearch/creds/<PDS NODE NAME>/password
-   
-    E.g.: 
-      - pds/nucleus/opensearch/creds/PDS_IMG/user
-      - pds/nucleus/opensearch/creds/PDS_SBN/user
-      - pds/nucleus/opensearch/creds/PDS_IMG/password
-      - pds/nucleus/opensearch/creds/PDS_SBN/password
-
-15. Obtain the Opensearch username and password for each PDS Node and update the above secrets with relevant usernames and passwords.
-      - To update a secret, click on a secret -> Retrieve secret value -> Edit -> Save 
-
-
-15. Use the PDS Data Upload Manager (DUM) tool to upload files to pds_nucleus_staging_bucket.
 
 
 ## Steps to Access Nucleus Airflow UI With Cognito Credentials
 
 Only some users have direct access to AWS and those users can access Airflow UI as explained in the step 9 to 12
 in the above section. However, there is another way to access Airflow UI using a Cognito account as follows.
+
+### Approach 1: Using the Web Based Login
+
+1. Make sure you have a Cognito user created in the Cognito user pool with required role (Cognito group). The PDS engineering node team can
+   help with this.
+
+2. Access the pds_nucleus_airflow_ui_url obtained in the step 9. of the section above.
+
+Example:
+
+```shell
+Outputs:
+
+pds_nucleus_airflow_ui_url = "https://pds-nucleus-12345678.us-west-2.elb.amazonaws.com:4443/aws_mwaa/aws-console-sso"
+```
+
+3. Use the Cognito username and password to login.
+
+
+### Approach 2: Using a Web Token
 
 1. Make sure you have a Cognito user created in the Cognito user pool with required role (Cognito group). The PDS engineering node team can 
 help with this.

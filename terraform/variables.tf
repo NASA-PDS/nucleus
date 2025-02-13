@@ -101,14 +101,21 @@ variable "pds_nucleus_default_airflow_dag_id" {
 variable "pds_node_names" {
   description = "List of PDS Node Names"
   type        = list(string)
-  default     = ["pds-sbn", "pds-img"]
+  sensitive   = true
 }
 
-variable "pds_nucleus_opensearch_urls" {
-  description = "List of PDS Nucleus OpenSearch Config file paths"
+variable "pds_nucleus_opensearch_url" {
+  description = "List of PDS Nucleus OpenSearch URL"
+  type        = string
+  sensitive   = true
+}
+
+variable "pds_nucleus_opensearch_registry_names" {
+  description = "List of PDS Nucleus OpenSearch Registry Names"
   type        = list(string)
   sensitive   = true
 }
+
 
 variable "pds_nucleus_opensearch_credential_relative_url" {
   description = "List of PDS Nucleus OpenSearch Credential Relative URL"

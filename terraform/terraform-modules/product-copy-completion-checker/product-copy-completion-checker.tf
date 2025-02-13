@@ -51,7 +51,7 @@ resource "aws_rds_cluster" "default" {
   }
 
   lifecycle {
-    ignore_changes = ["availability_zones"]
+    ignore_changes = [availability_zones]
   }
 }
 
@@ -235,12 +235,35 @@ resource "aws_s3_bucket" "pds_nucleus_s3_config_bucket" {
   force_destroy = true
 }
 
-# Create a staging S3 Bucket for each PDS Node
-resource "aws_s3_bucket" "pds_nucleus_s3_staging_bucket" {
-  count = length(var.pds_node_names)
-  # convert PDS node name to S3 bucket name compatible format
+# This data source is added to access existing S3 buckets, bcause an S3 staging bucket is already available in MCP Prod environment.
+data "aws_s3_bucket" "pds_nucleus_s3_staging_bucket" {
+  count  = length(var.pds_node_names)
   bucket = "${lower(replace(var.pds_node_names[count.index], "_", "-"))}-${var.pds_nucleus_staging_bucket_name_postfix}"
 }
+
+# Commented out the following S3 bucket resources, because an S3 staging bucket is already available in MCP Prod environment.
+# However, this resource is useful when deploying in a fresh environment.
+
+# # Create a staging S3 Bucket for each PDS Node
+# resource "aws_s3_bucket" "pds_nucleus_s3_staging_bucket" {
+#   count = length(var.pds_node_names)
+#   # convert PDS node name to S3 bucket name compatible format
+#   bucket = "${lower(replace(var.pds_node_names[count.index], "_", "-"))}-${var.pds_nucleus_staging_bucket_name_postfix}"
+# }
+
+# # Create an aws_s3_bucket_notification for each s3 bucket of each Node
+# resource "aws_s3_bucket_notification" "pds_nucleus_s3_staging_bucket_notification" {
+#
+#   count = length(var.pds_node_names)
+#   # convert PDS node name to S3 bucket name compatible format
+#   bucket = "${lower(replace(var.pds_node_names[count.index], "_", "-"))}-${var.pds_nucleus_staging_bucket_name_postfix}"
+#
+#   queue {
+#     events    = ["s3:ObjectCreated:*"]
+#     queue_arn = aws_sqs_queue.pds_nucleus_files_to_save_in_database_sqs_queue[count.index].arn
+#   }
+# }
+
 
 # Create pds_nucleus_s3_file_file_event_processor_function for each PDS Node
 resource "aws_lambda_function" "pds_nucleus_s3_file_file_event_processor_function" {
@@ -292,7 +315,8 @@ resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function"
       DB_SECRET_ARN                      = aws_secretsmanager_secret.pds_nucleus_rds_credentials.arn
       EFS_MOUNT_PATH                     = "/mnt/data"
       ES_AUTH_CONFIG_FILE_PATH           = "/etc/es-auth.cfg"
-      OPENSEARCH_ENDPOINT                = var.pds_nucleus_opensearch_urls[count.index]
+      OPENSEARCH_ENDPOINT                = var.pds_nucleus_opensearch_url
+      OPENSEARCH_REGISTRY_NAME           = var.pds_nucleus_opensearch_registry_names[count.index]
       OPENSEARCH_CREDENTIAL_RELATIVE_URL = var.pds_nucleus_opensearch_credential_relative_url
       PDS_NODE_NAME                      = var.pds_node_names[count.index]
       PDS_NUCLEUS_CONFIG_BUCKET_NAME     = var.pds_nucleus_config_bucket_name
@@ -300,7 +324,8 @@ resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function"
       PDS_MWAA_ENV_NAME                  = var.airflow_env_name
       PDS_HOT_ARCHIVE_S3_BUCKET_NAME     = "${lower(replace(var.pds_node_names[count.index], "_", "-"))}-${var.pds_nucleus_hot_archive_bucket_name_postfix}"
       PDS_COLD_ARCHIVE_S3_BUCKET_NAME    = "${lower(replace(var.pds_node_names[count.index], "_", "-"))}-${var.pds_nucleus_cold_archive_bucket_name_postfix}"
-      PDS_STAGING_S3_BUCKET_NAME         = aws_s3_bucket.pds_nucleus_s3_staging_bucket[count.index].id
+      PDS_STAGING_S3_BUCKET_NAME         = data.aws_s3_bucket.pds_nucleus_s3_staging_bucket[count.index].id
+      PRODUCT_BATCH_SIZE                 = var.product_batch_size
     }
   }
 }
@@ -342,7 +367,7 @@ resource "aws_lambda_permission" "s3-lambda-permission" {
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.pds_nucleus_s3_file_file_event_processor_function[count.index].function_name
   principal     = "s3.amazonaws.com"
-  source_arn    = aws_s3_bucket.pds_nucleus_s3_staging_bucket[count.index].arn
+  source_arn    = data.aws_s3_bucket.pds_nucleus_s3_staging_bucket[count.index].arn
 }
 
 # Create an SQS queue to receive S3 bucket notifications for each s3 bucket of each Node
@@ -374,7 +399,7 @@ data "aws_iam_policy_document" "pds_nucleus_files_to_save_in_database_sqs_queue_
     condition {
       test     = "StringEquals"
       variable = "aws:SourceArn"
-      values   = [aws_s3_bucket.pds_nucleus_s3_staging_bucket[count.index].arn]
+      values   = [data.aws_s3_bucket.pds_nucleus_s3_staging_bucket[count.index].arn]
     }
   }
 }
@@ -385,20 +410,6 @@ resource "aws_sqs_queue_policy" "pds_nucleus_files_to_save_in_database_sqs_queue
   queue_url = aws_sqs_queue.pds_nucleus_files_to_save_in_database_sqs_queue[count.index].url
   policy    = data.aws_iam_policy_document.pds_nucleus_files_to_save_in_database_sqs_queue_policy_document[count.index].json
 }
-
-# Create an aws_s3_bucket_notification for each s3 bucket of each Node
-resource "aws_s3_bucket_notification" "pds_nucleus_s3_staging_bucket_notification" {
-
-  count = length(var.pds_node_names)
-  # convert PDS node name to S3 bucket name compatible format
-  bucket = "${lower(replace(var.pds_node_names[count.index], "_", "-"))}-${var.pds_nucleus_staging_bucket_name_postfix}"
-
-  queue {
-    events    = ["s3:ObjectCreated:*"]
-    queue_arn = aws_sqs_queue.pds_nucleus_files_to_save_in_database_sqs_queue[count.index].arn
-  }
-}
-
 
 resource "time_sleep" "wait_for_database" {
   create_duration = "2m"
