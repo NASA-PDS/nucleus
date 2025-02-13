@@ -18,7 +18,10 @@ Therefore, as a result of the Terraform scripts in this directory following thin
 
 ## Prerequisites to Deploy Nucleus Baseline System
 
-1. An AWS Account with permissions to deploy following AWS services
+1. Some of the libraries used in the ECS containers of PDS Nucleus are platform specific. Therefore, please execute the deployment 
+from an Amazon Linux EC2 instance with Architecture 64 bit (x86).
+
+2. An AWS Account with permissions to deploy following AWS services
    - Amazon Managed Workflows for Apache Airflow (MWAA)
    - AWS Security Groups
    - AWS S3 Bucket with relevant bucket policies
@@ -26,21 +29,21 @@ Therefore, as a result of the Terraform scripts in this directory following thin
    - EFS File System
    - ECR
 
-2. Ability to get AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and AWS_SESSION_TOKEN for the AWS account
+3. Ability to get AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and AWS_SESSION_TOKEN for the AWS account
 
-3. Terraform is installed in local environment (This was tested with Terraform v1.5.7. Any higher version should also work)
+4. Terraform is installed in local environment (This was tested with Terraform v1.5.7. Any higher version should also work)
  - Instructions to install Terraform is available at https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli
 
-4. A VPC and one or more subnets should be available on AWS (obtain the VPC ID and subnet IDs from AWS console or from the AWS
+5. A VPC and one or more subnets should be available on AWS (obtain the VPC ID and subnet IDs from AWS console or from the AWS
 system admin team of your AWS account)
 
-5. Docker service is installed and running (Instructions to install Docker: https://docs.docker.com/engine/install/)
+6. Docker service is installed and running (Instructions to install Docker: https://docs.docker.com/engine/install/)
 
-6. PDS Registry (OpenSearch) is accessible from the AWS account which is used to deploy PDS Nucleus)
+7. PDS Registry (OpenSearch) is accessible from the AWS account which is used to deploy PDS Nucleus)
 
-7. A Cognito User Pool to manage Nucleus users
+8. A Cognito User Pool to manage Nucleus users
 
-8. A certificate to be used for the ALB Listener facing Airflow UI
+9. A certificate to be used for the ALB Listener facing Airflow UI
 
 
 ## Steps to Deploy the PDS Nucleus Baseline System
