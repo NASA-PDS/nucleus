@@ -19,7 +19,8 @@ Therefore, as a result of the Terraform scripts in this directory following thin
 ## Prerequisites to Deploy Nucleus Baseline System
 
 1. Some of the libraries used in the ECS containers of PDS Nucleus are platform specific. Therefore, please execute the deployment 
-from an Amazon Linux EC2 instance with Architecture 64 bit (x86).
+from an Amazon Linux EC2 instance with Architecture 64 bit (x86) with about 120 GB of disk space. In the following points, this EC2 instance is
+referred as the "local machine" or "local environment". 
 
 2. An AWS Account with permissions to deploy following AWS services
    - Amazon Managed Workflows for Apache Airflow (MWAA)
@@ -34,16 +35,18 @@ from an Amazon Linux EC2 instance with Architecture 64 bit (x86).
 4. Terraform is installed in local environment (This was tested with Terraform v1.5.7. Any higher version should also work)
  - Instructions to install Terraform is available at https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli
 
-5. A VPC and one or more subnets should be available on AWS (obtain the VPC ID and subnet IDs from AWS console or from the AWS
+5. Python 3.12 or above is installed in local system.
+   
+6. A VPC and one or more subnets should be available on AWS (obtain the VPC ID and subnet IDs from AWS console or from the AWS
 system admin team of your AWS account)
 
-6. Docker service is installed and running (Instructions to install Docker: https://docs.docker.com/engine/install/)
+7. Docker service is installed and running (Instructions to install Docker: https://docs.docker.com/engine/install/)
 
-7. PDS Registry (OpenSearch) is accessible from the AWS account which is used to deploy PDS Nucleus)
+8. PDS Registry (OpenSearch) is accessible from the AWS account which is used to deploy PDS Nucleus)
 
-8. A Cognito User Pool to manage Nucleus users
+9. A Cognito User Pool to manage Nucleus users
 
-9. A certificate to be used for the ALB Listener facing Airflow UI
+10. A certificate to be used for the ALB Listener facing Airflow UI
 
 
 ## Steps to Deploy the PDS Nucleus Baseline System
