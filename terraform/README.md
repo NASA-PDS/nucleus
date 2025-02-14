@@ -57,10 +57,14 @@ system admin team of your AWS account)
 git clone https://github.com/NASA-PDS/nucleus.git
 ```
 
-2. Open a terminal and change current working directory to the `nucleus/terraform` directory.
+2. Open a terminal and change current working directory to the `nucleus/terraform` directory and execute `sudo su`.
 
 ```shell
 cd nucleus/terraform
+```
+
+```shell
+sudo su
 ```
 
 3. Set the following environment variables in terminal window using export command.
@@ -165,13 +169,13 @@ If a bucket to keep the Terraform remote state is not available, please create a
 terraform init
 ```
 
-6. [Optional] Check the Terraform plan to see the changes to be applied.
+7. [Optional] Check the Terraform plan to see the changes to be applied.
 
 ```shell
 terraform plan
 ```
 
-7. Deploy Nucleus baseline system using Terraform apply.
+8. Deploy Nucleus baseline system using Terraform apply.
 
 Note: The following command may fail due to AWS credential expiry. Try the following command multiple times with new AWS credentials.
 
@@ -179,9 +183,9 @@ Note: The following command may fail due to AWS credential expiry. Try the follo
 terraform apply
 ```
 
-8. Wait for `terraform apply` command to be completed. If it fails due to expiration of AWS credentials, please provide a new set of AWS credentials and execute `terraform apply` again.
+9. Wait for `terraform apply` command to be completed. If it fails due to expiration of AWS credentials, please provide a new set of AWS credentials and execute `terraform apply` again.
 
-9. Note the `pds_nucleus_airflow_ui_url` printed as an output at the end of the `terraform apply` command results. 
+10. Note the `pds_nucleus_airflow_ui_url` printed as an output at the end of the `terraform apply` command results. 
 
 Example:
 
@@ -191,16 +195,16 @@ Outputs:
 pds_nucleus_airflow_ui_url = "https://pds-nucleus-12345678.us-west-2.elb.amazonaws.com:4443/aws_mwaa/aws-console-sso"
 ```
 
-10. Login to the AWS Console with your AWS Account.
+11. Login to the AWS Console with your AWS Account.
 
-11. Make sure that the correct AWS Region is selected and search for "Managed Apache Airflow".
+12. Make sure that the correct AWS Region is selected and search for "Managed Apache Airflow".
 
-12. Visit the "Managed Apache Airflow" (Amazon MWAA) page and check the list of environments. 
+13. Visit the "Managed Apache Airflow" (Amazon MWAA) page and check the list of environments. 
 
-13. Find the relevant Amazon MWAA environment (Default name: PDS-Nucleus-Airflow-Env) and click on
+14. Find the relevant Amazon MWAA environment (Default name: PDS-Nucleus-Airflow-Env) and click on
     Open Airflow UI link to open the Airflow UI.
 
-14. The DAGs can be added to the Airflow by uploading Airflow DAG files to the DAG folder of S3 bucket
+15. The DAGs can be added to the Airflow by uploading Airflow DAG files to the DAG folder of S3 bucket
 configured as `mwaa_dag_s3_bucket_name` in the `terraform.tfvars` file.
 
 
