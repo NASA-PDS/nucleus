@@ -57,7 +57,7 @@ system admin team of your AWS account)
 git clone https://github.com/NASA-PDS/nucleus.git
 ```
 
-2. Open a terminal and change current working directory to the `nucleus/terraform` directory and execute `sudo su`.
+2. Open a terminal and change current working directory to the `nucleus/terraform` directory, execute `sudo su` create an alias for python.
 
 ```shell
 cd nucleus/terraform
@@ -65,6 +65,10 @@ cd nucleus/terraform
 
 ```shell
 sudo su
+```
+
+```shell
+alias python=python3
 ```
 
 3. Set the following environment variables in terminal window using export command.
