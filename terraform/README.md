@@ -35,7 +35,10 @@ referred as the "local machine" or "local environment".
 4. Terraform is installed in local environment (This was tested with Terraform v1.5.7. Any higher version should also work)
  - Instructions to install Terraform is available at https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli
 
-5. Python 3.12 or above is installed in local system.
+5. Python 3.11 or above is installed in local system. Please verify it with the follwing command.
+```
+python3 --version
+```
    
 6. A VPC and one or more subnets should be available on AWS (obtain the VPC ID and subnet IDs from AWS console or from the AWS
 system admin team of your AWS account)
@@ -61,14 +64,6 @@ git clone https://github.com/NASA-PDS/nucleus.git
 
 ```shell
 cd nucleus/terraform
-```
-
-```shell
-sudo su
-```
-
-```shell
-alias python=python3
 ```
 
 3. Set the following environment variables in terminal window using export command.
