@@ -40,7 +40,7 @@ referred as the "local machine" or "local environment".
 6. A VPC and one or more subnets should be available on AWS (obtain the VPC ID and subnet IDs from AWS console or from the AWS
 system admin team of your AWS account)
 
-7. Docker service is installed and running (Instructions to install Docker: https://docs.docker.com/engine/install/)
+7. Docker service is installed and running (Instructions to install Docker: [https://docs.docker.com/engine/install/](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-docker.html))
 
 8. PDS Registry (OpenSearch) is accessible from the AWS account which is used to deploy PDS Nucleus)
 
