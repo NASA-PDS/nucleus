@@ -1,8 +1,3 @@
-variable "permission_boundary_for_iam_roles" {
-  type      = string
-  sensitive = true
-}
-
 variable "vpc_id" {
   description = "VPC ID"
   type        = string
@@ -59,6 +54,42 @@ variable "aws_elb_account_id_for_the_region" {
 
 variable "airflow_env_name" {
   description = "MWAA Airflow Environment Name"
+  type = string
+  sensitive = true
+}
+
+variable "pds_nucleus_auth_alb_function_name" {
+  description = "PDS Nucleus Auth ALB Function name"
+  type        = string
+  sensitive   = true
+}
+
+variable "pds_nucleus_alb_auth_lambda_execution_role_arn" {
+  description = "PDS Nucleus ALB Auth Lambda Execution Role ARN"
+  type = string
+  sensitive = true
+}
+
+variable "pds_nucleus_admin_role_arn" {
+  description = "PDS Nucleus Airflow Admin Role ARN"
+  type = string
+  sensitive = true
+}
+
+variable "pds_nucleus_op_role_arn" {
+  description = "PDS Nucleus Airflow Op Role ARN"
+  type = string
+  sensitive = true
+}
+
+variable "pds_nucleus_user_role_arn" {
+  description = "PDS Nucleus Airflow User Role ARN"
+  type = string
+  sensitive = true
+}
+
+variable "pds_nucleus_viewer_role_arn" {
+  description = "PDS Nucleus Airflow Viewer Role ARN"
   type = string
   sensitive = true
 }

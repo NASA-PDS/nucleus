@@ -231,3 +231,10 @@ variable "aws_elb_account_id_for_the_region" {
   type        = string
   sensitive   = true
 }
+
+variable "pds_nucleus_auth_alb_function_name" {
+  description = "PDS Nucleus Auth ALB Function name"
+  default     = "pds_nucleus_alb_auth"
+  type        = string
+  sensitive   = true
+}

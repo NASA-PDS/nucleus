@@ -52,16 +52,6 @@ data "aws_iam_policy_document" "mwaa_inline_policy" {
   statement {
     effect = "Allow"
     actions = [
-      "iam:PassRole"
-    ]
-    resources = [
-      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/pds-*"
-    ]
-  }
-
-  statement {
-    effect = "Allow"
-    actions = [
       "kms:Decrypt",
       "kms:DescribeKey",
       "kms:GenerateDataKey*",
@@ -191,7 +181,9 @@ data "aws_iam_policy_document" "mwaa_inline_policy" {
       "iam:PassRole"
     ]
     resources = [
-      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/pds_nucleus_*"
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/pds_nucleus_ecs_task_role",
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/pds_nucleus_ecs_task_execution_role",
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/pds-eng-aoss-role"
     ]
   }
 
@@ -201,17 +193,7 @@ data "aws_iam_policy_document" "mwaa_inline_policy" {
       "lambda:InvokeFunction"
     ]
     resources = [
-      "arn:aws:lambda:${var.region}:${data.aws_caller_identity.current.account_id}:function:pds_nucleus_*"
-    ]
-  }
-
-  statement {
-    effect = "Allow"
-    actions = [
-      "lambda:InvokeFunction"
-    ]
-    resources = [
-      "arn:aws:lambda:${var.region}:${data.aws_caller_identity.current.account_id}:function:pds_nucleus_*"
+      "arn:aws:lambda:${var.region}:${data.aws_caller_identity.current.account_id}:function:pds_nucleus_product_processing_status_tracker"
     ]
   }
 }

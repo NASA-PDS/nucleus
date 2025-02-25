@@ -7,6 +7,14 @@ module "common" {
   mwaa_dag_s3_bucket_name = var.mwaa_dag_s3_bucket_name
 }
 
+module "iam" {
+  source = "./terraform-modules/iam"
+
+  permission_boundary_for_iam_roles  = var.permission_boundary_for_iam_roles
+  pds_nucleus_auth_alb_function_name = var.pds_nucleus_auth_alb_function_name
+  aws_secretmanager_key_arn          = var.aws_secretmanager_key_arn
+}
+
 # Terraform module to create primary archive for PDS Nucleus
 module "archive" {
   source                                       = "./terraform-modules/archive"
@@ -130,17 +138,23 @@ module "test-data" {
 module "cognito-auth" {
   source = "./terraform-modules/cognito-auth"
 
-  vpc_id                            = var.vpc_id
-  permission_boundary_for_iam_roles = var.permission_boundary_for_iam_roles
-  depends_on                        = [module.common]
-  airflow_env_name                  = var.airflow_env_name
-  auth_alb_listener_port            = var.auth_alb_listener_port
-  auth_alb_name                     = var.auth_alb_name
-  auth_alb_subnet_ids               = var.auth_alb_subnet_ids
-  auth_alb_listener_certificate_arn = var.auth_alb_listener_certificate_arn
-  cognito_user_pool_domain          = var.cognito_user_pool_domain
-  cognito_user_pool_id              = var.cognito_user_pool_id
-  aws_elb_account_id_for_the_region = var.aws_elb_account_id_for_the_region
+  vpc_id                                         = var.vpc_id
+  depends_on                                     = [module.common, module.iam]
+  airflow_env_name                               = var.airflow_env_name
+  auth_alb_listener_port                         = var.auth_alb_listener_port
+  auth_alb_name                                  = var.auth_alb_name
+  auth_alb_subnet_ids                            = var.auth_alb_subnet_ids
+  auth_alb_listener_certificate_arn              = var.auth_alb_listener_certificate_arn
+  cognito_user_pool_domain                       = var.cognito_user_pool_domain
+  cognito_user_pool_id                           = var.cognito_user_pool_id
+  aws_elb_account_id_for_the_region              = var.aws_elb_account_id_for_the_region
+  pds_nucleus_auth_alb_function_name             = var.pds_nucleus_auth_alb_function_name
+  pds_nucleus_alb_auth_lambda_execution_role_arn = module.iam.pds_nucleus_alb_auth_lambda_execution_role_arn
+  pds_nucleus_admin_role_arn                     = module.iam.pds_nucleus_admin_role_arn
+  pds_nucleus_op_role_arn                        = module.iam.pds_nucleus_op_role_arn
+  pds_nucleus_user_role_arn                      = module.iam.pds_nucleus_user_role_arn
+  pds_nucleus_viewer_role_arn                    = module.iam.pds_nucleus_viewer_role_arn
+
 }
 
 # Output the ALB URL for Airflow UI

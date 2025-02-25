@@ -103,63 +103,10 @@ resource "aws_lb_target_group" "mwaa_auth_alb_lambda_tg" {
   target_type                        = "lambda"
 }
 
-data "aws_iam_policy" "mcp_operator_policy" {
-  name = var.permission_boundary_for_iam_roles
-}
-
-data "aws_iam_policy_document" "assume_role_lambda" {
-  statement {
-    effect = "Allow"
-    principals {
-      type        = "Service"
-      identifiers = ["lambda.amazonaws.com", "scheduler.amazonaws.com"]
-    }
-    actions = ["sts:AssumeRole"]
-  }
-}
-
 
 data "aws_caller_identity" "current" {}
 
 data "aws_region" "current" {}
-
-data "aws_iam_policy_document" "alb_auth_lambda_execution_role_policy" {
-  statement {
-    effect = "Allow"
-    actions = [
-      "logs:CreateLogStream",
-      "logs:CreateLogGroup",
-      "logs:PutLogEvents"
-    ]
-    resources = [
-      "arn:aws:logs:*:${data.aws_caller_identity.current.account_id}:log-group:*:log-stream:*"
-    ]
-  }
-
-  statement {
-    effect = "Allow"
-    actions = [
-      "sqs:ReceiveMessage",
-      "sqs:DeleteMessage",
-      "sqs:GetQueueAttributes"
-    ]
-    resources = [
-      "arn:aws:logs:*:${data.aws_caller_identity.current.account_id}:log-group:*:log-stream:*"
-    ]
-  }
-}
-
-resource "aws_iam_role" "pds_nucleus_alb_auth_lambda_execution_role" {
-  name = "pds_nucleus_alb_auth_lambda_execution_role"
-
-  inline_policy {
-    name   = "alb_auth_lambda_execution_role_policy"
-    policy = data.aws_iam_policy_document.alb_auth_lambda_execution_role_policy.json
-  }
-  assume_role_policy   = data.aws_iam_policy_document.assume_role_lambda.json
-  permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
-}
-
 
 resource "null_resource" "install_dependencies" {
   provisioner "local-exec" {
@@ -185,10 +132,10 @@ data "archive_file" "pds_nucleus_auth_alb_function_zip_packages" {
 }
 
 resource "aws_lambda_function" "pds_nucleus_auth_alb_function" {
-  function_name    = "pds_nucleus_alb_auth"
+  function_name    = var.pds_nucleus_auth_alb_function_name
   filename         = data.archive_file.pds_nucleus_auth_alb_function_zip_packages.output_path
   source_code_hash = data.archive_file.pds_nucleus_auth_alb_function_zip_packages.output_base64sha256
-  role             = aws_iam_role.pds_nucleus_alb_auth_lambda_execution_role.arn
+  role             = var.pds_nucleus_alb_auth_lambda_execution_role_arn
   runtime          = "python3.12"
   handler          = "pds_nucleus_alb_auth.lambda_handler"
   timeout          = 10
@@ -207,7 +154,7 @@ resource "aws_lambda_function" "pds_nucleus_auth_alb_function" {
 
 # Create CloudWatch Log Group for pds_nucleus_s3_file_file_event_processor_function for each PDS Node
 resource "aws_cloudwatch_log_group" "pds_nucleus_auth_alb" {
-  name = "/aws/lambda/pds_nucleus_auth_alb"
+  name = "/aws/lambda/${var.pds_nucleus_auth_alb_function_name}"
   retention_in_days = 30
 }
 
@@ -292,79 +239,12 @@ resource "aws_cognito_user_pool_client" "cognito_user_pool_client_for_mwaa" {
   supported_identity_providers         = ["COGNITO"]
 }
 
-# Common assume role policy
-data "aws_iam_policy_document" "pds_nucleus_airflow_assume_role" {
-  statement {
-    effect = "Allow"
-    actions = [
-      "sts:AssumeRole"
-    ]
-    principals {
-      type = "AWS"
-      identifiers = ["arn:aws:sts::${data.aws_caller_identity.current.account_id}:assumed-role/${aws_iam_role.pds_nucleus_alb_auth_lambda_execution_role.name}/${aws_lambda_function.pds_nucleus_auth_alb_function.function_name}"]
-    }
-  }
-}
-
-
-# Airflow Admin Role
-
-data "aws_iam_policy_document" "pds_nucleus_airflow_admin_policy" {
-  statement {
-    effect = "Allow"
-    actions = [
-      "airflow:CreateWebLoginToken"
-    ]
-    resources = [
-      "arn:aws:airflow:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:role/pds-nucleus-airflow-env/Admin"
-    ]
-  }
-}
-
-resource "aws_iam_role" "pds_nucleus_admin_role" {
-  name = "pds_nucleus_airflow_admin_role"
-
-  inline_policy {
-    name   = "pds_nucleus_airflow_admin_policy"
-    policy = data.aws_iam_policy_document.pds_nucleus_airflow_admin_policy.json
-  }
-  assume_role_policy   = data.aws_iam_policy_document.pds_nucleus_airflow_assume_role.json
-  permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
-}
-
 resource "aws_cognito_user_group" "pds_nucleus_admin_cognito_user_group" {
   name         = "PDS_NUCLEUS_AIRFLOW_ADMIN"
   user_pool_id = data.aws_cognito_user_pool.cognito_user_pool.id
   description  = "PDS Nucleus Airflow Admin Cognito User Group"
   precedence   = 50
-  role_arn     = aws_iam_role.pds_nucleus_admin_role.arn
-}
-
-
-
-# Airflow Op Role
-
-data "aws_iam_policy_document" "pds_nucleus_airflow_op_policy" {
-  statement {
-    effect = "Allow"
-    actions = [
-      "airflow:CreateWebLoginToken"
-    ]
-    resources = [
-      "arn:aws:airflow:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:role/pds-nucleus-airflow-env/Op"
-    ]
-  }
-}
-
-resource "aws_iam_role" "pds_nucleus_op_role" {
-  name = "pds_nucleus_airflow_op_role"
-
-  inline_policy {
-    name   = "pds_nucleus_airflow_op_policy"
-    policy = data.aws_iam_policy_document.pds_nucleus_airflow_op_policy.json
-  }
-  assume_role_policy   = data.aws_iam_policy_document.pds_nucleus_airflow_assume_role.json
-  permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
+  role_arn     = var.pds_nucleus_admin_role_arn
 }
 
 resource "aws_cognito_user_group" "pds_nucleus_op_cognito_user_group" {
@@ -372,77 +252,28 @@ resource "aws_cognito_user_group" "pds_nucleus_op_cognito_user_group" {
   user_pool_id = data.aws_cognito_user_pool.cognito_user_pool.id
   description  = "PDS Nucleus Airflow Op Cognito User Group"
   precedence   = 55
-  role_arn     = aws_iam_role.pds_nucleus_op_role.arn
+  role_arn     = var.pds_nucleus_op_role_arn
 }
 
-
-# Airflow User Role
-
-data "aws_iam_policy_document" "pds_nucleus_airflow_user_policy" {
-  statement {
-    effect = "Allow"
-    actions = [
-      "airflow:CreateWebLoginToken"
-    ]
-    resources = [
-      "arn:aws:airflow:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:role/pds-nucleus-airflow-env/User"
-    ]
-  }
-}
-
-resource "aws_iam_role" "pds_nucleus_user_role" {
-  name = "pds_nucleus_airflow_user_role"
-
-  inline_policy {
-    name   = "pds_nucleus_airflow_user_policy"
-    policy = data.aws_iam_policy_document.pds_nucleus_airflow_user_policy.json
-  }
-  assume_role_policy   = data.aws_iam_policy_document.pds_nucleus_airflow_assume_role.json
-  permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
-}
 
 resource "aws_cognito_user_group" "pds_nucleus_user_cognito_user_group" {
   name         = "PDS_NUCLEUS_AIRFLOW_USER"
   user_pool_id = data.aws_cognito_user_pool.cognito_user_pool.id
   description  = "PDS Nucleus Airflow User Cognito User Group"
   precedence   = 60
-  role_arn     = aws_iam_role.pds_nucleus_user_role.arn
+  role_arn     = var.pds_nucleus_user_role_arn
 }
 
-
-
-# Airflow Viewer Role
-
-data "aws_iam_policy_document" "pds_nucleus_airflow_viewer_policy" {
-  statement {
-    effect = "Allow"
-    actions = [
-      "airflow:CreateWebLoginToken"
-    ]
-    resources = [
-      "arn:aws:airflow:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:role/pds-nucleus-airflow-env/Viewer"
-    ]
-  }
-}
-
-resource "aws_iam_role" "pds_nucleus_viewer_role" {
-  name = "pds_nucleus_airflow_viewer_role"
-
-  inline_policy {
-    name   = "pds_nucleus_airflow_viewer_policy"
-    policy = data.aws_iam_policy_document.pds_nucleus_airflow_viewer_policy.json
-  }
-  assume_role_policy   = data.aws_iam_policy_document.pds_nucleus_airflow_assume_role.json
-  permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
-}
 
 resource "aws_cognito_user_group" "pds_nucleus_viewer_cognito_user_group" {
   name         = "PDS_NUCLEUS_AIRFLOW_VIEWER"
   user_pool_id = data.aws_cognito_user_pool.cognito_user_pool.id
   description  = "PDS Nucleus Airflow Viewer Cognito User Group"
   precedence   = 65
-  role_arn     = aws_iam_role.pds_nucleus_viewer_role.arn
+  role_arn     = var.pds_nucleus_viewer_role_arn
 }
+
+
 
 output "pds_nucleus_airflow_ui_url" {
   value = "https://${aws_lb.pds_nucleus_auth_alb.dns_name}:${var.auth_alb_listener_port}/aws_mwaa/aws-console-sso"
