@@ -17,6 +17,14 @@ resource "aws_security_group" "nucleus_alb_security_group" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  # This port range is required for ALB work with Cognito Authentication properly and this was verified with Amazon
+  ingress {
+    from_port   = "1024"
+    to_port     = "65535"
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   egress {
     from_port        = 0
     to_port          = 0

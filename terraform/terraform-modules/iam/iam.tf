@@ -28,15 +28,6 @@ data "aws_iam_policy_document" "assume_role_lambda" {
 }
 
 data "aws_iam_policy_document" "alb_auth_lambda_execution_role_policy" {
-  statement {
-    effect = "Allow"
-    actions = [
-      "logs:CreateLogGroup"
-    ]
-    resources = [
-      "arn:aws:logs:*:${data.aws_caller_identity.current.account_id}:*"
-    ]
-  }
 
   statement {
     effect = "Allow"
@@ -45,17 +36,7 @@ data "aws_iam_policy_document" "alb_auth_lambda_execution_role_policy" {
       "logs:PutLogEvents"
     ]
     resources = [
-      "arn:aws:logs:*:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${var.pds_nucleus_auth_alb_function_name}:*"
-    ]
-  }
-
-  statement {
-    effect = "Allow"
-    actions = [
-      "kms:Decrypt"
-    ]
-    resources = [
-      var.aws_secretmanager_key_arn
+      "arn:aws:logs:*:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${var.pds_nucleus_auth_alb_function_name}:log-stream:*"
     ]
   }
 }
