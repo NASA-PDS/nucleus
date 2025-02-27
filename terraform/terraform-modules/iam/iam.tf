@@ -354,6 +354,7 @@ data "aws_iam_policy_document" "ecs_task_execution_role_inline_policy" {
 
 resource "aws_iam_role" "pds_nucleus_ecs_task_execution_role" {
   name = "pds_nucleus_ecs_task_execution_role"
+
   inline_policy {
     name   = "pds-nucleus-ecs-task-execution-role-inline-policy"
     policy = data.aws_iam_policy_document.ecs_task_execution_role_inline_policy.json
