@@ -1,10 +1,19 @@
 # Terraform module to create the common resources for PDS Nucleus
+
+module "security-groups" {
+  source = "./terraform-modules/security-groups"
+
+  auth_alb_listener_port = var.auth_alb_listener_port
+  vpc_id                 = var.vpc_id
+}
+
 module "common" {
   source = "./terraform-modules/common"
 
-  vpc_id                  = var.vpc_id
-  vpc_cidr                = var.vpc_cidr
-  mwaa_dag_s3_bucket_name = var.mwaa_dag_s3_bucket_name
+  vpc_id                    = var.vpc_id
+  vpc_cidr                  = var.vpc_cidr
+  mwaa_dag_s3_bucket_name   = var.mwaa_dag_s3_bucket_name
+  nucleus_security_group_id = module.security-groups.nucleus_security_group_id
 }
 
 module "iam" {
@@ -18,6 +27,7 @@ module "iam" {
 # Terraform module to create primary archive for PDS Nucleus
 module "archive" {
   source                                       = "./terraform-modules/archive"
+
   pds_node_names                               = var.pds_node_names
   depends_on                                   = [module.common, module.ecs_ecr]
   pds_nucleus_hot_archive_bucket_name_postfix  = var.pds_nucleus_hot_archive_bucket_name_postfix
@@ -30,6 +40,7 @@ module "archive" {
 # Terraform module to create secondary archive for PDS Nucleus
 module "archive-secondary" {
   source                                       = "./terraform-modules/archive-secondary"
+
   pds_node_names                               = var.pds_node_names
   depends_on                                   = [module.common, module.ecs_ecr]
   pds_nucleus_cold_archive_bucket_name_postfix = var.pds_nucleus_cold_archive_bucket_name_postfix
@@ -46,11 +57,12 @@ module "mwaa-env" {
   vpc_id                            = var.vpc_id
   vpc_cidr                          = var.vpc_cidr
   subnet_ids                        = var.subnet_ids
-  nucleus_security_group_id         = module.common.pds_nucleus_security_group_id
+  nucleus_security_group_id         = module.security-groups.nucleus_security_group_id
   airflow_dags_bucket_arn           = module.common.pds_nucleus_airflow_dags_bucket_arn
   permission_boundary_for_iam_roles = var.permission_boundary_for_iam_roles
   airflow_env_name                  = var.airflow_env_name
-  depends_on                        = [module.common]
+
+  depends_on                        = [module.security-groups]
 }
 
 # The following modules are specific to PDS Registry and are under development. These modules are currently
@@ -61,9 +73,9 @@ module "efs" {
   source = "./terraform-modules/efs"
 
   subnet_ids                = var.subnet_ids
-  nucleus_security_group_id = module.common.pds_nucleus_security_group_id
+  nucleus_security_group_id = module.security-groups.nucleus_security_group_id
 
-  depends_on = [module.common]
+  depends_on                = [module.security-groups]
 }
 
 module "ecs_ecr" {
@@ -101,7 +113,7 @@ module "product-copy-completion-checker" {
   database_port                                = var.database_port
   vpc_id                                       = var.vpc_id
   permission_boundary_for_iam_roles            = var.permission_boundary_for_iam_roles
-  nucleus_security_group_id                    = module.common.pds_nucleus_security_group_id
+  nucleus_security_group_id                    = module.security-groups.nucleus_security_group_id
   pds_nucleus_staging_bucket_name_postfix      = var.pds_nucleus_staging_bucket_name_postfix
   pds_nucleus_config_bucket_name               = var.pds_nucleus_config_bucket_name
   subnet_ids                                   = var.subnet_ids
@@ -119,14 +131,14 @@ module "product-copy-completion-checker" {
   airflow_env_name            = var.airflow_env_name
   region                      = var.region
 
-  depends_on = [module.common]
+  depends_on = [module.security-groups]
 }
 
 module "test-data" {
   source                             = "./terraform-modules/test-data"
   pds_nucleus_ecs_cluster_name       = var.pds_nucleus_ecs_cluster_name
   pds_nucleus_ecs_subnets            = var.subnet_ids
-  pds_nucleus_security_group_id      = module.common.pds_nucleus_security_group_id
+  pds_nucleus_security_group_id      = module.security-groups.nucleus_security_group_id
   mwaa_dag_s3_bucket_name            = var.mwaa_dag_s3_bucket_name
   pds_nucleus_default_airflow_dag_id = var.pds_nucleus_default_airflow_dag_id
   pds_node_names                     = var.pds_node_names
@@ -139,7 +151,7 @@ module "cognito-auth" {
   source = "./terraform-modules/cognito-auth"
 
   vpc_id                                         = var.vpc_id
-  depends_on                                     = [module.common, module.iam]
+  depends_on                                     = [module.common, module.iam, module.security-groups]
   airflow_env_name                               = var.airflow_env_name
   auth_alb_listener_port                         = var.auth_alb_listener_port
   auth_alb_name                                  = var.auth_alb_name
@@ -154,7 +166,7 @@ module "cognito-auth" {
   pds_nucleus_op_role_arn                        = module.iam.pds_nucleus_op_role_arn
   pds_nucleus_user_role_arn                      = module.iam.pds_nucleus_user_role_arn
   pds_nucleus_viewer_role_arn                    = module.iam.pds_nucleus_viewer_role_arn
-
+  nucleus_auth_alb_security_group_id             = module.security-groups.nucleus_alb_security_group_id
 }
 
 # Output the ALB URL for Airflow UI

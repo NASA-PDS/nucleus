@@ -5,34 +5,7 @@
 #  - Application load balancer single-sign-on for Amazon MWAA (https://github.com/aws-samples/alb-sso-mwaa)
 #  - Accessing a private Amazon MWAA environment using federated identities (https://d1.awsstatic.com/whitepapers/accessing-a-private-amazon-mwaa-environment-using-federated-identities.pdf )
 
-resource "aws_security_group" "nucleus_alb_security_group" {
-  name        = var.nucleus_auth_alb_security_group_name
-  description = "PDS Nucleus ALB security group"
-  vpc_id      = var.vpc_id
 
-  ingress {
-    from_port   = var.auth_alb_listener_port
-    to_port     = var.auth_alb_listener_port
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  # This port range is required for ALB work with Cognito Authentication properly and this was verified with Amazon
-  ingress {
-    from_port   = "1024"
-    to_port     = "65535"
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port        = 0
-    to_port          = 0
-    protocol         = "-1"
-    cidr_blocks      = ["0.0.0.0/0"]
-    ipv6_cidr_blocks = ["::/0"]
-  }
-}
 
 resource "aws_s3_bucket" "pds_nucleus_auth_alb_logs" {
   bucket = "pds-nucleus-auth-alb-logs"
@@ -95,7 +68,7 @@ resource "aws_lb" "pds_nucleus_auth_alb" {
   name               = var.auth_alb_name
   internal           = false
   load_balancer_type = "application"
-  security_groups    = [aws_security_group.nucleus_alb_security_group.id]
+  security_groups    = [var.nucleus_auth_alb_security_group_id]
   subnets            = var.auth_alb_subnet_ids
 
   access_logs {
