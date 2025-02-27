@@ -3,6 +3,11 @@ variable "permission_boundary_for_iam_roles" {
   sensitive = true
 }
 
+variable "permission_boundary_for_iam_roles_arn" {
+  type      = string
+  sensitive = true
+}
+
 variable "pds_nucleus_auth_alb_function_name" {
   type      = string
   sensitive = true
@@ -22,4 +27,9 @@ variable "airflow_env_name" {
 variable "rds_cluster_id" {
   type      = string
   sensitive = true
+}
+
+variable "region" {
+  description = "Region"
+  type        = string
 }

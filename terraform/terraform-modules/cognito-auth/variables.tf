@@ -92,3 +92,8 @@ variable "vpc_id" {
   type        = string
   sensitive   = true
 }
+
+variable "region" {
+  description = "Region"
+  type        = string
+}

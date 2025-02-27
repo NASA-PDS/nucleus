@@ -52,6 +52,12 @@ variable "permission_boundary_for_iam_roles" {
   sensitive   = true
 }
 
+variable "permission_boundary_for_iam_roles_arn" {
+  description = "ARN of Permission boundary to be used when creating IAM roles"
+  type        = string
+  sensitive   = true
+}
+
 variable "mwaa_dag_s3_bucket_name" {
   description = "The name of the S3 bucket containing MWAA DAG files"
   type        = string

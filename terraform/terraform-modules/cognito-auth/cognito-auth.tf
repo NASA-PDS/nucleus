@@ -169,7 +169,7 @@ resource "aws_lb_listener" "front_end" {
     type = "authenticate-cognito"
 
     authenticate_cognito {
-      user_pool_arn       = "arn:aws:cognito-idp:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:userpool/${data.aws_cognito_user_pool.cognito_user_pool.user_pool_id}"
+      user_pool_arn       = "arn:aws:cognito-idp:${var.region}:${data.aws_caller_identity.current.account_id}:userpool/${data.aws_cognito_user_pool.cognito_user_pool.user_pool_id}"
       user_pool_client_id = aws_cognito_user_pool_client.cognito_user_pool_client_for_mwaa.id
       user_pool_domain    = var.cognito_user_pool_domain
     }
@@ -190,7 +190,7 @@ resource "aws_lb_listener_rule" "aws_console_sso_rule" {
     type             = "authenticate-cognito"
     target_group_arn = aws_lb_target_group.mwaa_auth_alb_lambda_tg.arn
     authenticate_cognito {
-      user_pool_arn = "arn:aws:cognito-idp:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:userpool/${data.aws_cognito_user_pool.cognito_user_pool.user_pool_id}"
+      user_pool_arn = "arn:aws:cognito-idp:${var.region}:${data.aws_caller_identity.current.account_id}:userpool/${data.aws_cognito_user_pool.cognito_user_pool.user_pool_id}"
       user_pool_client_id = aws_cognito_user_pool_client.cognito_user_pool_client_for_mwaa.id
       user_pool_domain    = var.cognito_user_pool_domain
     }

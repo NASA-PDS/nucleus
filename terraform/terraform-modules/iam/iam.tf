@@ -6,7 +6,7 @@ data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
 
 data "aws_iam_policy" "mcp_operator_policy" {
-  name = var.permission_boundary_for_iam_roles
+  arn = var.permission_boundary_for_iam_roles_arn
 }
 
 ####################################################
@@ -42,7 +42,6 @@ data "aws_iam_policy_document" "alb_auth_lambda_execution_role_policy" {
 
 resource "aws_iam_role" "pds_nucleus_alb_auth_lambda_execution_role" {
   name = "pds_nucleus_alb_auth_lambda_execution_role"
-
   inline_policy {
     name   = "alb_auth_lambda_execution_role_policy"
     policy = data.aws_iam_policy_document.alb_auth_lambda_execution_role_policy.json
@@ -59,7 +58,7 @@ data "aws_iam_policy_document" "pds_nucleus_airflow_assume_role" {
       "sts:AssumeRole"
     ]
     principals {
-      type = "AWS"
+      type        = "AWS"
       identifiers = ["arn:aws:sts::${data.aws_caller_identity.current.account_id}:assumed-role/${aws_iam_role.pds_nucleus_alb_auth_lambda_execution_role.name}/${var.pds_nucleus_auth_alb_function_name}"]
     }
   }
@@ -75,14 +74,13 @@ data "aws_iam_policy_document" "pds_nucleus_airflow_admin_policy" {
       "airflow:CreateWebLoginToken"
     ]
     resources = [
-      "arn:aws:airflow:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:role/pds-nucleus-airflow-env/Admin"
+      "arn:aws:airflow:${var.region}:${data.aws_caller_identity.current.account_id}:role/pds-nucleus-airflow-env/Admin"
     ]
   }
 }
 
 resource "aws_iam_role" "pds_nucleus_admin_role" {
   name = "pds_nucleus_airflow_admin_role"
-
   inline_policy {
     name   = "pds_nucleus_airflow_admin_policy"
     policy = data.aws_iam_policy_document.pds_nucleus_airflow_admin_policy.json
@@ -101,14 +99,13 @@ data "aws_iam_policy_document" "pds_nucleus_airflow_op_policy" {
       "airflow:CreateWebLoginToken"
     ]
     resources = [
-      "arn:aws:airflow:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:role/pds-nucleus-airflow-env/Op"
+      "arn:aws:airflow:${var.region}:${data.aws_caller_identity.current.account_id}:role/pds-nucleus-airflow-env/Op"
     ]
   }
 }
 
 resource "aws_iam_role" "pds_nucleus_op_role" {
   name = "pds_nucleus_airflow_op_role"
-
   inline_policy {
     name   = "pds_nucleus_airflow_op_policy"
     policy = data.aws_iam_policy_document.pds_nucleus_airflow_op_policy.json
@@ -128,14 +125,13 @@ data "aws_iam_policy_document" "pds_nucleus_airflow_user_policy" {
       "airflow:CreateWebLoginToken"
     ]
     resources = [
-      "arn:aws:airflow:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:role/pds-nucleus-airflow-env/User"
+      "arn:aws:airflow:${var.region}:${data.aws_caller_identity.current.account_id}:role/pds-nucleus-airflow-env/User"
     ]
   }
 }
 
 resource "aws_iam_role" "pds_nucleus_user_role" {
   name = "pds_nucleus_airflow_user_role"
-
   inline_policy {
     name   = "pds_nucleus_airflow_user_policy"
     policy = data.aws_iam_policy_document.pds_nucleus_airflow_user_policy.json
@@ -154,7 +150,7 @@ data "aws_iam_policy_document" "pds_nucleus_airflow_viewer_policy" {
       "airflow:CreateWebLoginToken"
     ]
     resources = [
-      "arn:aws:airflow:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:role/pds-nucleus-airflow-env/Viewer"
+      "arn:aws:airflow:${var.region}:${data.aws_caller_identity.current.account_id}:role/pds-nucleus-airflow-env/Viewer"
     ]
   }
 }
@@ -334,7 +330,7 @@ data "aws_iam_policy_document" "ecs_task_execution_role_inline_policy" {
       "kms:Decrypt"
     ]
     resources = [
-      "arn:aws:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:pds/nucleus/opensearch/creds/*",
+      "arn:aws:secretsmanager:${var.region}:${data.aws_caller_identity.current.account_id}:secret:pds/nucleus/opensearch/creds/*",
       var.aws_secretmanager_key_arn
     ]
   }
@@ -346,7 +342,7 @@ data "aws_iam_policy_document" "ecs_task_execution_role_inline_policy" {
       "kms:Decrypt"
     ]
     resources = [
-      "arn:aws:secretsmanager:${data.aws_region.current.name}}:${data.aws_caller_identity.current.account_id}:secret:pds/nucleus/opensearch/creds/*",
+      "arn:aws:secretsmanager:${var.region}:${data.aws_caller_identity.current.account_id}:secret:pds/nucleus/opensearch/creds/*",
       var.aws_secretmanager_key_arn
     ]
   }
@@ -354,7 +350,6 @@ data "aws_iam_policy_document" "ecs_task_execution_role_inline_policy" {
 
 resource "aws_iam_role" "pds_nucleus_ecs_task_execution_role" {
   name = "pds_nucleus_ecs_task_execution_role"
-
   inline_policy {
     name   = "pds-nucleus-ecs-task-execution-role-inline-policy"
     policy = data.aws_iam_policy_document.ecs_task_execution_role_inline_policy.json
@@ -385,8 +380,8 @@ data "aws_iam_policy_document" "pds_nucleus_archive_replication_assume_role" {
 }
 
 resource "aws_iam_role" "pds_nucleus_archive_replication_role" {
-  name               = "pds-nucleus-archive-replication-role"
-  assume_role_policy = data.aws_iam_policy_document.pds_nucleus_archive_replication_assume_role.json
+  name                 = "pds-nucleus-archive-replication-role"
+  assume_role_policy   = data.aws_iam_policy_document.pds_nucleus_archive_replication_assume_role.json
   permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
 }
 
@@ -504,7 +499,7 @@ data "aws_iam_policy_document" "mwaa_inline_policy" {
     condition {
       test     = "StringLike"
       variable = "kms:ViaService"
-      values   = ["sqs.${data.aws_region.current.name}.amazonaws.com"]
+      values   = ["sqs.${var.region}.amazonaws.com"]
     }
   }
 
@@ -554,7 +549,7 @@ data "aws_iam_policy_document" "mwaa_inline_policy" {
       "sqs:SendMessage"
     ]
     resources = [
-      "arn:aws:sqs:${data.aws_region.current.name}:*:airflow-celery-*"
+      "arn:aws:sqs:${var.region}:*:airflow-celery-*"
     ]
   }
 
@@ -594,7 +589,7 @@ data "aws_iam_policy_document" "mwaa_inline_policy" {
       "logs:GetQueryResults"
     ]
     resources = [
-      "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:airflow-${var.airflow_env_name}-*"
+      "arn:aws:logs:${var.region}:${data.aws_caller_identity.current.account_id}:log-group:airflow-${var.airflow_env_name}-*"
     ]
   }
 
@@ -636,7 +631,7 @@ data "aws_iam_policy_document" "mwaa_inline_policy" {
       "lambda:InvokeFunction"
     ]
     resources = [
-      "arn:aws:lambda:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:function:pds_nucleus_product_processing_status_tracker"
+      "arn:aws:lambda:${var.region}:${data.aws_caller_identity.current.account_id}:function:pds_nucleus_product_processing_status_tracker"
     ]
   }
 }

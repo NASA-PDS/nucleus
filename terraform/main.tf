@@ -19,11 +19,13 @@ module "common" {
 module "iam" {
   source = "./terraform-modules/iam"
 
-  permission_boundary_for_iam_roles  = var.permission_boundary_for_iam_roles
-  pds_nucleus_auth_alb_function_name = var.pds_nucleus_auth_alb_function_name
-  aws_secretmanager_key_arn          = var.aws_secretmanager_key_arn
-  airflow_env_name                   = var.airflow_env_name
-  rds_cluster_id                     = var.rds_cluster_id
+  permission_boundary_for_iam_roles     = var.permission_boundary_for_iam_roles
+  pds_nucleus_auth_alb_function_name    = var.pds_nucleus_auth_alb_function_name
+  aws_secretmanager_key_arn             = var.aws_secretmanager_key_arn
+  airflow_env_name                      = var.airflow_env_name
+  rds_cluster_id                        = var.rds_cluster_id
+  permission_boundary_for_iam_roles_arn = var.permission_boundary_for_iam_roles_arn
+  region                                = var.region
 }
 
 # Terraform module to create primary archive for PDS Nucleus
@@ -167,6 +169,7 @@ module "cognito-auth" {
 
   vpc_id                                         = var.vpc_id
   depends_on                                     = [module.common, module.iam, module.security-groups]
+  region                                         = var.region
   airflow_env_name                               = var.airflow_env_name
   auth_alb_listener_port                         = var.auth_alb_listener_port
   auth_alb_name                                  = var.auth_alb_name
