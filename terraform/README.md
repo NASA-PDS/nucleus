@@ -82,7 +82,7 @@ Note:  Examples of `terraform.tfvars` files are available at `terraform/variable
     - vpc_id     : VPC ID of your AWS VPC
     - subnet_ids : List of Private Subnet IDs to be used for the MWAA
     - vpc_cidr   : VPC CIDR for MWAA (E.g.: "10.1.0.0/16")
-    - permission_boundary_for_iam_roles : The permission boundary for IAM roles can be obtained from the MCP System Admins or PDS Engineering Node team
+    - permission_boundary_for_iam_roles_arn : The ARN of the permission boundary for IAM roles can be obtained from the MCP System Admins or PDS Engineering Node team
     - database_availability_zones : RDS database availability zones (E.g.: ["us-west-2a"])
     - aws_secretmanager_key_arn : The ARN of aws/secretmanager key obtained from KMS -> AWS managed keys (E.g.: "arn:aws:kms:us-west-2:12345678:key/12345-1234-1234-1234-12345abcd")
 
@@ -117,14 +117,14 @@ Note:  Examples of `terraform.tfvars` files are available at `terraform/variable
 ```
 # Example terraform.tfvars
 
-env                               = "mcp-test"
-region                            = "us-west-2"
-vpc_id                            = "vpc-12345678"
-subnet_ids                        = ["subnet-123456789", "subnet-987654321"]
-vpc_cidr                          = "10.2.0.0/16"
-permission_boundary_for_iam_roles = "permission_boundary_role_name"
-database_availability_zones       = ["us-west-2a"]
-aws_secretmanager_key_arn         = "arn:aws:kms:us-west-2:12345678:key/12345-1234-1234-1234-12345abcd"
+env                                   = "mcp-test"
+region                                = "us-west-2"
+vpc_id                                = "vpc-12345678"
+subnet_ids                            = ["subnet-123456789", "subnet-987654321"]
+vpc_cidr                              = "10.2.0.0/16"
+permission_boundary_for_iam_roles_arn = "arn:aws:iam::441083951559:policy/mcp-tenantOperator-APIG"
+database_availability_zones           = ["us-west-2a"]
+aws_secretmanager_key_arn             = "arn:aws:kms:us-west-2:12345678:key/12345-1234-1234-1234-12345abcd"
 
 
 # Set node specific values the following lists in correct order. For the list of node names
