@@ -83,116 +83,6 @@ resource "aws_secretsmanager_secret_version" "rds_credentials" {
 EOF
 }
 
-data "aws_iam_policy_document" "assume_role_airflow" {
-  statement {
-    effect = "Allow"
-    principals {
-      type        = "Service"
-      identifiers = ["airflow-env.amazonaws.com", "airflow.amazonaws.com"]
-    }
-    actions = ["sts:AssumeRole"]
-  }
-}
-
-data "aws_iam_policy" "mcp_operator_policy" {
-  name = var.permission_boundary_for_iam_roles
-}
-
-data "aws_iam_policy_document" "assume_role_lambda" {
-  statement {
-    effect = "Allow"
-    principals {
-      type        = "Service"
-      identifiers = ["lambda.amazonaws.com", "scheduler.amazonaws.com"]
-    }
-    actions = ["sts:AssumeRole"]
-  }
-}
-
-data "aws_caller_identity" "current" {}
-
-data "aws_iam_policy_document" "lambda_inline_policy" {
-  statement {
-    effect = "Allow"
-    actions = [
-      "logs:CreateLogStream",
-      "logs:CreateLogGroup",
-      "logs:PutLogEvents"
-    ]
-    resources = [
-      "arn:aws:logs:*:${data.aws_caller_identity.current.account_id}:log-group:*:log-stream:*"
-    ]
-  }
-
-  statement {
-    effect = "Allow"
-    actions = [
-      "rds-data:ExecuteStatement"
-    ]
-    resources = [
-      "arn:aws:rds:*:${data.aws_caller_identity.current.account_id}:cluster:${var.rds_cluster_id}"
-    ]
-  }
-
-  statement {
-    effect = "Allow"
-    actions = [
-      "secretsmanager:GetSecretValue"
-    ]
-    resources = [
-      "arn:aws:secretsmanager:*:${data.aws_caller_identity.current.account_id}:secret:pds/nucleus/rds/*"
-    ]
-  }
-
-  statement {
-    effect = "Allow"
-    actions = [
-      "s3:GetBucket*",
-      "s3:GetObject*",
-      "s3:PutObject*",
-      "s3:List*"
-    ]
-    resources = [
-      "arn:aws:s3:::pds-nucleus*",
-      "arn:aws:s3:::pds-nucleus*/*",
-      "arn:aws:s3:::pds-*-staging*",
-      "arn:aws:s3:::pds-*-staging*/*"
-    ]
-  }
-
-  statement {
-    effect = "Allow"
-    actions = [
-      "airflow:CreateCliToken"
-    ]
-    resources = [
-      "arn:aws:airflow:*:${data.aws_caller_identity.current.account_id}:environment/pds*"
-    ]
-  }
-
-  statement {
-    effect = "Allow"
-    actions = [
-      "sqs:ReceiveMessage",
-      "sqs:DeleteMessage",
-      "sqs:GetQueueAttributes"
-    ]
-    resources = [
-      "arn:aws:sqs:*:${data.aws_caller_identity.current.account_id}:pds-*"
-    ]
-  }
-}
-
-resource "aws_iam_role" "pds_nucleus_lambda_execution_role" {
-  name = "pds_nucleus_lambda_execution_role"
-  inline_policy {
-    name   = "pds-nucleus-lambda-execution-inline-policy"
-    policy = data.aws_iam_policy_document.lambda_inline_policy.json
-  }
-  assume_role_policy   = data.aws_iam_policy_document.assume_role_lambda.json
-  permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
-}
-
 data "archive_file" "pds_nucleus_s3_file_file_event_processor_function_zip" {
   type        = "zip"
   source_file = "${path.module}/lambda/pds-nucleus-s3-file-event-processor.py"
@@ -216,7 +106,7 @@ resource "aws_lambda_function" "pds_nucleus_init_function" {
   function_name    = "pds-nucleus-init"
   filename         = "${path.module}/lambda/pds_nucleus_init.zip"
   source_code_hash = data.archive_file.pds_nucleus_init_zip.output_base64sha256
-  role             = aws_iam_role.pds_nucleus_lambda_execution_role.arn
+  role             = var.pds_nucleus_lambda_execution_role_arn
   runtime          = "python3.9"
   handler          = "pds-nucleus-init.lambda_handler"
   timeout          = 10
@@ -271,7 +161,7 @@ resource "aws_lambda_function" "pds_nucleus_s3_file_file_event_processor_functio
   function_name    = "pds_nucleus_s3_file_event_processor-${var.pds_node_names[count.index]}"
   filename         = "${path.module}/lambda/pds-nucleus-s3-file-event-processor.zip"
   source_code_hash = data.archive_file.pds_nucleus_s3_file_file_event_processor_function_zip.output_base64sha256
-  role             = aws_iam_role.pds_nucleus_lambda_execution_role.arn
+  role             = var.pds_nucleus_lambda_execution_role_arn
   runtime          = "python3.9"
   handler          = "pds-nucleus-s3-file-event-processor.lambda_handler"
   timeout          = 10
@@ -302,8 +192,8 @@ resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function"
   function_name    = "pds-nucleus-product-completion-checker-${var.pds_node_names[count.index]}"
   filename         = "${path.module}/lambda/pds_nucleus_product_completion_checker.zip"
   source_code_hash = data.archive_file.pds_nucleus_product_completion_checker_zip.output_base64sha256
-  role             = aws_iam_role.pds_nucleus_lambda_execution_role.arn
-  runtime          = "python3.9"
+  role             = var.pds_nucleus_lambda_execution_role_arn
+  runtime          = "python3.12"
   handler          = "pds-nucleus-product-completion-checker.lambda_handler"
   timeout          = 10
   depends_on       = [data.archive_file.pds_nucleus_product_completion_checker_zip]
@@ -443,8 +333,8 @@ resource "aws_lambda_function" "pds_nucleus_product_processing_status_tracker_fu
   function_name    = "pds_nucleus_product_processing_status_tracker"
   filename         = "${path.module}/lambda/pds-nucleus-product-processing-status-tracker.zip"
   source_code_hash = data.archive_file.pds_nucleus_product_processing_status_tracker_function_zip.output_base64sha256
-  role             = aws_iam_role.pds_nucleus_lambda_execution_role.arn
-  runtime          = "python3.9"
+  role             = var.pds_nucleus_lambda_execution_role_arn
+  runtime          = "python3.12"
   handler          = "pds-nucleus-product-processing-status-tracker.lambda_handler"
   timeout          = 10
   depends_on       = [data.archive_file.pds_nucleus_product_processing_status_tracker_function_zip]

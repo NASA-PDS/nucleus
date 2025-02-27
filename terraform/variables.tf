@@ -238,3 +238,15 @@ variable "pds_nucleus_auth_alb_function_name" {
   type        = string
   sensitive   = true
 }
+
+variable "rds_cluster_id" {
+  default   = "pdsnucleus"
+  type      = string
+  sensitive = true
+}
+
+variable "database_name" {
+  default   = "pds_nucleus"
+  type      = string
+  sensitive = true
+}

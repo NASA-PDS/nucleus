@@ -28,189 +28,6 @@ resource "local_file" "deploy_ecr_images_script_file" {
   depends_on = [data.template_file.deploy_ecr_images_script_template]
 }
 
-#-------------------------------------
-# ECS Task Role
-#-------------------------------------
-
-# IAM Policy Document for Inline Policy
-data "aws_iam_policy_document" "ecs_task_role_inline_policy" {
-  statement {
-    effect = "Allow"
-    actions = [
-      "ecr:GetDownloadUrlForLayer",
-      "ecr:BatchGetImage",
-      "ecr:BatchCheckLayerAvailability"
-    ]
-    resources = [
-      "arn:aws:ecr:*:${data.aws_caller_identity.current.account_id}:repository/pds*"
-    ]
-  }
-
-  statement {
-    effect = "Allow"
-    actions = [
-      "elasticfilesystem:DescribeMountTargets",
-      "elasticfilesystem:ClientMount",
-      "elasticfilesystem:ClientWrite",
-      "elasticfilesystem:ClientRootAccess"
-    ]
-    resources = [
-      "arn:aws:elasticfilesystem:*:${data.aws_caller_identity.current.account_id}:access-point/*",
-      "arn:aws:elasticfilesystem:*:${data.aws_caller_identity.current.account_id}:file-system/pds-nucleus*"
-    ]
-  }
-
-  statement {
-    effect = "Allow"
-    actions = [
-      "logs:CreateLogStream",
-      "logs:CreateLogGroup",
-      "logs:PutLogEvents"
-    ]
-    resources = [
-      "arn:aws:logs:*:${data.aws_caller_identity.current.account_id}:log-group:*:log-stream:*"
-    ]
-  }
-
-  statement {
-    effect = "Allow"
-    actions = [
-      "ecr:GetAuthorizationToken"
-    ]
-    resources = [
-      "arn:aws:ecr:*:${data.aws_caller_identity.current.account_id}:repository/pds*"
-    ]
-  }
-
-  statement {
-    effect = "Allow"
-    actions = [
-      "s3:GetBucket*",
-      "s3:GetObject*",
-      "s3:List*",
-      "s3:PutObject"
-    ]
-    resources = [
-      "arn:aws:s3:::pds-nucleus*",
-      "arn:aws:s3:::pds-nucleus*/*",
-      "arn:aws:s3:::pds-*-staging*",
-      "arn:aws:s3:::pds-*-staging*/*",
-      "arn:aws:s3:::pds-*-archive*",
-      "arn:aws:s3:::pds-*-archive*/*"
-    ]
-  }
-}
-
-
-# TODO: Restrict to PDS accounts in future
-
-# IAM Policy Document for Assume Role
-data "aws_iam_policy_document" "ecs_task_role_assume_role" {
-  statement {
-    effect = "Allow"
-    principals {
-      type        = "Service"
-      identifiers = ["ecs-tasks.amazonaws.com"]
-    }
-    actions = ["sts:AssumeRole"]
-  }
-}
-
-resource "aws_iam_role" "pds_nucleus_ecs_task_role" {
-  name = "pds_nucleus_ecs_task_role"
-  inline_policy {
-    name   = "pds-nucleus-ecs-task-role-inline-policy"
-    policy = data.aws_iam_policy_document.ecs_task_role_inline_policy.json
-  }
-  assume_role_policy   = data.aws_iam_policy_document.ecs_task_role_assume_role.json
-  permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
-}
-
-
-#-------------------------------------
-# ECS Task Execution Role
-#-------------------------------------
-
-# IAM Policy Document for Inline Policy
-data "aws_iam_policy_document" "ecs_task_execution_role_inline_policy" {
-  statement {
-    effect = "Allow"
-    actions = [
-      "ecr:GetDownloadUrlForLayer",
-      "ecr:BatchGetImage",
-      "ecr:BatchCheckLayerAvailability"
-    ]
-    resources = [
-      "arn:aws:ecr:*:${data.aws_caller_identity.current.account_id}:repository/pds*"
-    ]
-  }
-
-  statement {
-    effect = "Allow"
-    actions = [
-      "ecr:GetAuthorizationToken"
-    ]
-    resources = [
-      "*"
-    ]
-  }
-
-  statement {
-    effect = "Allow"
-    actions = [
-      "logs:CreateLogStream",
-      "logs:PutLogEvents",
-      "logs:CreateLogGroup"
-    ]
-    resources = [
-      "arn:aws:logs:*:${data.aws_caller_identity.current.account_id}:log-group:*:log-stream:*"
-    ]
-  }
-
-  statement {
-    effect = "Allow"
-    actions = [
-      "ecs:stopTask"
-    ]
-    resources = [
-      "arn:aws:ecs:*:${data.aws_caller_identity.current.account_id}:task/pds-nucleus-ecs/*"
-    ]
-  }
-
-  statement {
-    effect = "Allow"
-    actions = [
-      "secretsmanager:GetSecretValue",
-      "kms:Decrypt"
-    ]
-    resources = [
-      "arn:aws:secretsmanager:${var.region}:${data.aws_caller_identity.current.account_id}:secret:pds/nucleus/opensearch/creds/*",
-      var.aws_secretmanager_key_arn
-    ]
-  }
-
-  statement {
-    effect = "Allow"
-    actions = [
-      "secretsmanager:GetSecretValue",
-      "kms:Decrypt"
-    ]
-    resources = [
-      "arn:aws:secretsmanager:${var.region}:${data.aws_caller_identity.current.account_id}:secret:pds/nucleus/opensearch/creds/*",
-      var.aws_secretmanager_key_arn
-    ]
-  }
-}
-
-resource "aws_iam_role" "pds_nucleus_ecs_task_execution_role" {
-  name = "pds_nucleus_ecs_task_execution_role"
-  inline_policy {
-    name   = "pds-nucleus-ecs-task-execution-role-inline-policy"
-    policy = data.aws_iam_policy_document.ecs_task_execution_role_inline_policy.json
-  }
-  assume_role_policy   = data.aws_iam_policy_document.ecs_task_role_assume_role.json
-  permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
-}
 
 #------------------------------------
 # ECR Repositories
@@ -317,6 +134,7 @@ resource "aws_ecs_task_definition" "pds-registry-loader-harvest" {
   network_mode             = "awsvpc"
   cpu                      = 4096
   memory                   = 8192
+
   runtime_platform {
     operating_system_family = "LINUX"
   }
@@ -338,7 +156,7 @@ resource "aws_ecs_task_definition" "pds-registry-loader-harvest" {
 
   container_definitions = data.template_file.pds-registry-loader-harvest-containers-json-template[count.index].rendered
   task_role_arn         = var.pds_registry_loader_harvest_task_role_arn
-  execution_role_arn    = aws_iam_role.pds_nucleus_ecs_task_execution_role.arn
+  execution_role_arn    = var.pds_nucleus_ecs_task_execution_role_arn
 
   depends_on = [data.template_file.pds-validate-containers-json-template]
 
@@ -371,6 +189,7 @@ resource "aws_ecs_task_definition" "pds-validate-task-definition" {
   network_mode             = "awsvpc"
   cpu                      = 4096
   memory                   = 8192
+
   runtime_platform {
     operating_system_family = "LINUX"
   }
@@ -390,8 +209,8 @@ resource "aws_ecs_task_definition" "pds-validate-task-definition" {
   }
 
   container_definitions = data.template_file.pds-validate-containers-json-template.rendered
-  task_role_arn         = aws_iam_role.pds_nucleus_ecs_task_role.arn
-  execution_role_arn    = aws_iam_role.pds_nucleus_ecs_task_execution_role.arn
+  task_role_arn         = pds_nucleus_ecs_task_role_arn
+  execution_role_arn    = var.pds_nucleus_ecs_task_execution_role_arn
 
   depends_on = [data.template_file.pds-validate-containers-json-template]
 }
@@ -444,6 +263,7 @@ resource "aws_ecs_task_definition" "pds-nucleus-config-init-task-definition" {
   network_mode             = "awsvpc"
   cpu                      = 4096
   memory                   = 8192
+
   runtime_platform {
     operating_system_family = "LINUX"
   }
@@ -463,8 +283,8 @@ resource "aws_ecs_task_definition" "pds-nucleus-config-init-task-definition" {
   }
 
   container_definitions = data.template_file.pds-nucleus-config-init-containers-json-template.rendered
-  task_role_arn         = aws_iam_role.pds_nucleus_ecs_task_role.arn
-  execution_role_arn    = aws_iam_role.pds_nucleus_ecs_task_execution_role.arn
+  task_role_arn         = var.pds_nucleus_ecs_task_role_arn
+  execution_role_arn    = var.pds_nucleus_ecs_task_execution_role_arn
 
   depends_on = [data.template_file.pds-nucleus-config-init-containers-json-template]
 }
@@ -491,6 +311,7 @@ resource "aws_ecs_task_definition" "pds-nucleus-s3-to-efs-copy-task-definition" 
   network_mode             = "awsvpc"
   cpu                      = 4096
   memory                   = 8192
+
   runtime_platform {
     operating_system_family = "LINUX"
   }
@@ -510,8 +331,8 @@ resource "aws_ecs_task_definition" "pds-nucleus-s3-to-efs-copy-task-definition" 
   }
 
   container_definitions = data.template_file.pds-nucleus-s3-to-efs-copy-containers-json-template.rendered
-  task_role_arn         = aws_iam_role.pds_nucleus_ecs_task_role.arn
-  execution_role_arn    = aws_iam_role.pds_nucleus_ecs_task_execution_role.arn
+  task_role_arn         = var.pds_nucleus_ecs_task_role_arn
+  execution_role_arn    = var.pds_nucleus_ecs_task_execution_role_arn
 
   depends_on = [data.template_file.pds-nucleus-s3-to-efs-copy-containers-json-template]
 }

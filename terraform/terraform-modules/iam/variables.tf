@@ -13,3 +13,13 @@ variable "aws_secretmanager_key_arn" {
   type        = string
   sensitive   = true
 }
+
+variable "airflow_env_name" {
+  description = "PDS Nucleus Airflow Env Name"
+  type        = string
+}
+
+variable "rds_cluster_id" {
+  type      = string
+  sensitive = true
+}

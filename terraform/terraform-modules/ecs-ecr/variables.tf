@@ -104,3 +104,15 @@ variable "aws_secretmanager_key_arn" {
   description = "The ARN of aws/secretsmanager key"
   sensitive   = true
 }
+
+variable "pds_nucleus_ecs_task_role_arn" {
+  type        = string
+  description = "PDS Nucleus ECS task role ARN"
+  sensitive   = true
+}
+
+variable "pds_nucleus_ecs_task_execution_role_arn" {
+  type        = string
+  description = "PDS Nucleus ECS task execution role ARN"
+  sensitive   = true
+}

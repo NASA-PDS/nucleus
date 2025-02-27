@@ -1,6 +1,5 @@
 variable "airflow_env_name" {
   description = "PDS Nucleus Airflow Env Name"
-  default     = "pds-nucleus-airflow-env"
   type        = string
 }
 
@@ -64,6 +63,12 @@ variable "subnet_ids" {
 
 variable "permission_boundary_for_iam_roles" {
   description = "Permission boundary for IAM roles"
+  type      = string
+  sensitive = true
+}
+
+variable "pds_nucleus_mwaa_execution_role_arn" {
+  description = "PDS Nucleus MWAA execution roleARN"
   type      = string
   sensitive = true
 }

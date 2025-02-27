@@ -4,13 +4,11 @@ variable "permission_boundary_for_iam_roles" {
 }
 
 variable "rds_cluster_id" {
-  default   = "pdsnucleus"
   type      = string
   sensitive = true
 }
 
 variable "database_name" {
-  default   = "pds_nucleus"
   type      = string
   sensitive = true
 }
@@ -121,8 +119,8 @@ variable "pds_nucleus_cold_archive_bucket_name_postfix" {
 
 variable "airflow_env_name" {
   description = "PDS Nucleus Airflow Env Name"
-  default     = "pds-nucleus-airflow-env"
   type        = string
+  sensitive   = true
 }
 
 variable "product_batch_size" {
@@ -134,4 +132,10 @@ variable "product_batch_size" {
 variable "region" {
   description = "AWS Region"
   type        = string
+}
+
+variable "pds_nucleus_lambda_execution_role_arn" {
+  description = "PDS Nucleus lambda execution role ARN"
+  type        = string
+  sensitive   = true
 }
