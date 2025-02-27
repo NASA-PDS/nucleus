@@ -209,7 +209,7 @@ resource "aws_ecs_task_definition" "pds-validate-task-definition" {
   }
 
   container_definitions = data.template_file.pds-validate-containers-json-template.rendered
-  task_role_arn         = pds_nucleus_ecs_task_role_arn
+  task_role_arn         = var.pds_nucleus_ecs_task_role_arn
   execution_role_arn    = var.pds_nucleus_ecs_task_execution_role_arn
 
   depends_on = [data.template_file.pds-validate-containers-json-template]

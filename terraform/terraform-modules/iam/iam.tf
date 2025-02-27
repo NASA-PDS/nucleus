@@ -334,7 +334,7 @@ data "aws_iam_policy_document" "ecs_task_execution_role_inline_policy" {
       "kms:Decrypt"
     ]
     resources = [
-      "arn:aws:secretsmanager:${data.aws_region}:${data.aws_caller_identity.current.account_id}:secret:pds/nucleus/opensearch/creds/*",
+      "arn:aws:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:pds/nucleus/opensearch/creds/*",
       var.aws_secretmanager_key_arn
     ]
   }
@@ -346,7 +346,7 @@ data "aws_iam_policy_document" "ecs_task_execution_role_inline_policy" {
       "kms:Decrypt"
     ]
     resources = [
-      "arn:aws:secretsmanager:${data.aws_region}:${data.aws_caller_identity.current.account_id}:secret:pds/nucleus/opensearch/creds/*",
+      "arn:aws:secretsmanager:${data.aws_region.current.name}}:${data.aws_caller_identity.current.account_id}:secret:pds/nucleus/opensearch/creds/*",
       var.aws_secretmanager_key_arn
     ]
   }
@@ -456,8 +456,6 @@ data "aws_iam_policy_document" "assume_role" {
   }
 }
 
-data "aws_caller_identity" "current" {}
-
 # IAM Policy Document for Inline Policy
 data "aws_iam_policy_document" "mwaa_inline_policy" {
   statement {
@@ -505,7 +503,7 @@ data "aws_iam_policy_document" "mwaa_inline_policy" {
     condition {
       test     = "StringLike"
       variable = "kms:ViaService"
-      values   = ["sqs.${data.aws_region}.amazonaws.com"]
+      values   = ["sqs.${data.aws_region.current.name}.amazonaws.com"]
     }
   }
 
@@ -555,7 +553,7 @@ data "aws_iam_policy_document" "mwaa_inline_policy" {
       "sqs:SendMessage"
     ]
     resources = [
-      "arn:aws:sqs:${data.aws_region}:*:airflow-celery-*"
+      "arn:aws:sqs:${data.aws_region.current.name}:*:airflow-celery-*"
     ]
   }
 
@@ -595,7 +593,7 @@ data "aws_iam_policy_document" "mwaa_inline_policy" {
       "logs:GetQueryResults"
     ]
     resources = [
-      "arn:aws:logs:${data.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:airflow-${var.airflow_env_name}-*"
+      "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:airflow-${var.airflow_env_name}-*"
     ]
   }
 
@@ -637,7 +635,7 @@ data "aws_iam_policy_document" "mwaa_inline_policy" {
       "lambda:InvokeFunction"
     ]
     resources = [
-      "arn:aws:lambda:${data.aws_region}:${data.aws_caller_identity.current.account_id}:function:pds_nucleus_product_processing_status_tracker"
+      "arn:aws:lambda:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:function:pds_nucleus_product_processing_status_tracker"
     ]
   }
 }
@@ -669,19 +667,6 @@ data "aws_iam_policy_document" "assume_role_airflow" {
     actions = ["sts:AssumeRole"]
   }
 }
-
-data "aws_iam_policy_document" "assume_role_lambda" {
-  statement {
-    effect = "Allow"
-    principals {
-      type        = "Service"
-      identifiers = ["lambda.amazonaws.com", "scheduler.amazonaws.com"]
-    }
-    actions = ["sts:AssumeRole"]
-  }
-}
-
-data "aws_caller_identity" "current" {}
 
 data "aws_iam_policy_document" "lambda_inline_policy" {
   statement {
