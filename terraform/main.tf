@@ -26,6 +26,7 @@ module "iam" {
   rds_cluster_id                        = var.rds_cluster_id
   permission_boundary_for_iam_roles_arn = var.permission_boundary_for_iam_roles_arn
   region                                = var.region
+  mwaa_dag_s3_bucket_name               = var.mwaa_dag_s3_bucket_name
 }
 
 # Terraform module to create primary archive for PDS Nucleus
@@ -40,7 +41,7 @@ module "archive" {
   pds_nucleus_cold_archive_storage_class       = var.pds_nucleus_cold_archive_storage_class
   pds_nucleus_archive_replication_role_arn     = module.iam.pds_nucleus_archive_replication_role_arn
 
-  depends_on                                   = [module.common, module.ecs_ecr]
+  depends_on                                   = [module.common, module.ecs_ecr, module.iam]
 }
 
 # Terraform module to create secondary archive for PDS Nucleus

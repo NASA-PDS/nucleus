@@ -297,7 +297,7 @@ data "aws_iam_policy_document" "ecs_task_execution_role_inline_policy" {
       "ecr:GetAuthorizationToken"
     ]
     resources = [
-      "*"
+      "*" // It is required to set this * to make this work
     ]
   }
 
@@ -471,7 +471,7 @@ data "aws_iam_policy_document" "mwaa_inline_policy" {
       "cloudwatch:PutMetricData"
     ]
     resources = [
-      "*"
+      "*" // This is required for MWAA (https://docs.aws.amazon.com/mwaa/latest/userguide/mwaa-create-role.html)
     ]
   }
 
@@ -521,7 +521,7 @@ data "aws_iam_policy_document" "mwaa_inline_policy" {
       "logs:DescribeLogGroups"
     ]
     resources = [
-      "*"
+      "*" // This is required for MWAA (https://docs.aws.amazon.com/mwaa/latest/userguide/mwaa-create-role.html)
     ]
   }
 
@@ -559,7 +559,8 @@ data "aws_iam_policy_document" "mwaa_inline_policy" {
       "s3:ListAllMyBuckets"
     ]
     resources = [
-      "*"
+      "arn:aws:s3:::${var.mwaa_dag_s3_bucket_name}",
+      "arn:aws:s3:::${var.mwaa_dag_s3_bucket_name}/*"
     ]
   }
 
@@ -590,26 +591,6 @@ data "aws_iam_policy_document" "mwaa_inline_policy" {
     ]
     resources = [
       "arn:aws:logs:${var.region}:${data.aws_caller_identity.current.account_id}:log-group:airflow-${var.airflow_env_name}-*"
-    ]
-  }
-
-  statement {
-    effect = "Allow"
-    actions = [
-      "logs:DescribeLogGroups"
-    ]
-    resources = [
-      "*"
-    ]
-  }
-
-  statement {
-    effect = "Allow"
-    actions = [
-      "cloudwatch:PutMetricData"
-    ]
-    resources = [
-      "*"
     ]
   }
 
