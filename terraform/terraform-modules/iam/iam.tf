@@ -221,16 +221,6 @@ data "aws_iam_policy_document" "ecs_task_role_inline_policy" {
   statement {
     effect = "Allow"
     actions = [
-      "ecr:GetAuthorizationToken"
-    ]
-    resources = [
-      "arn:aws:ecr:*:${data.aws_caller_identity.current.account_id}:repository/pds*"
-    ]
-  }
-
-  statement {
-    effect = "Allow"
-    actions = [
       "s3:GetBucket*",
       "s3:GetObject*",
       "s3:List*",
@@ -247,9 +237,6 @@ data "aws_iam_policy_document" "ecs_task_role_inline_policy" {
   }
 }
 
-
-# TODO: Restrict to PDS accounts in future
-
 # IAM Policy Document for Assume Role
 data "aws_iam_policy_document" "ecs_task_role_assume_role" {
   statement {
@@ -259,6 +246,18 @@ data "aws_iam_policy_document" "ecs_task_role_assume_role" {
       identifiers = ["ecs-tasks.amazonaws.com"]
     }
     actions = ["sts:AssumeRole"]
+
+    condition {
+      test     = "ArnLike"
+      variable = "aws:SourceArn"
+      values   = ["arn:aws:ecs:${var.region}:${data.aws_caller_identity.current.account_id}:*"]
+    }
+
+    condition {
+      test     = "StringLike"
+      variable = "aws:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
   }
 }
 
