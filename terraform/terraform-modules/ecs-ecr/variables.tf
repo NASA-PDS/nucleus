@@ -87,6 +87,13 @@ variable "pds_nucleus_s3_to_efs_copy_cloudwatch_logs_group" {
   sensitive   = true
 }
 
+variable "pds_nucleus_s3_backlog_processor_cloudwatch_logs_group" {
+  type        = string
+  description = "PDS Nucleus S3 Backlog Processor CopyCloudWatch Logs Group"
+  default     = "/pds/ecs/pds-nucleus-s3-backlog-processor"
+  sensitive   = true
+}
+
 variable "permission_boundary_for_iam_roles" {
   type        = string
   description = "Permission boundary to be used to create IAM roles"

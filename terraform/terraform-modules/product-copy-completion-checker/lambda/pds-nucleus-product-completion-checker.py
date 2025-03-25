@@ -83,13 +83,15 @@ def process_completed_products():
                 NOT IN (SELECT s3_url_of_product_label  from product_data_file_mapping
                 where s3_url_of_data_file
                 NOT IN (SELECT s3_url_of_data_file from data_file)) and s3_url_of_product_label
-                IN (SELECT s3_url_of_product_label  from product_data_file_mapping) limit 100;
+                IN (SELECT s3_url_of_product_label  from product_data_file_mapping) limit :product_batch_size_param;
             """
 
-    pds_node_param = {'name': 'pds_node_param',
-                                         'value': {'stringValue': pds_node_name}}
+    pds_node_param = {'name': 'pds_node_param', 'value': {'stringValue': pds_node_name}}
+    product_batch_size_param = {'name': 'product_batch_size_param', 'value': {'stringValue': product_batch_size}}
 
-    param_set = [pds_node_param]
+    param_set = [pds_node_param, product_batch_size_param]
+
+    logger.debug(f"Product completion check SQL: {sql}")
 
     response = rds_data.execute_statement(
         resourceArn=db_clust_arn,
@@ -97,30 +99,19 @@ def process_completed_products():
         database='pds_nucleus',
         sql=sql,
         parameters=param_set)
-    logger.debug(f"Number of completed product labels : {str(response['records'])}")
+    logger.debug(f"Completed products : {str(response['records'])}")
     logger.debug(f"Number of completed product labels : {str(len(response['records']))}")
 
-    n = product_batch_size
-    count = 0
     list_of_product_labels_to_process = []
 
     for record in response['records']:
-
-        count = count + 1
-
         for data_dict in record:
             for data_type, s3_url_of_product_label in data_dict.items():
                 update_product_completion_status_in_database(s3_url_of_product_label, 'COMPLETE')
                 list_of_product_labels_to_process.append(s3_url_of_product_label)
 
-        if count == n:
-            submit_data_to_nucleus(list_of_product_labels_to_process)
-            count = 0
-            list_of_product_labels_to_process = []
-
     submit_data_to_nucleus(list_of_product_labels_to_process)
-    count = 0
-    list_of_product_labels_to_process = []
+
 
 def update_product_completion_status_in_database(s3_url_of_product_label, completion_status):
     """ Updates the product processing status of the given s3_url_of_product_label """
@@ -263,8 +254,11 @@ def get_list_of_data_files(s3_url_of_product_label):
     list_of_data_files = []
 
     sql =   """
-                SELECT DISTINCT s3_url_of_data_file from product_data_file_mapping
-                WHERE s3_url_of_product_label =  :s3_url_of_product_label_param
+                SELECT DISTINCT df.original_s3_url_of_data_file_name 
+                FROM product_data_file_mapping pdfm
+                INNER JOIN data_file df
+                ON df.s3_url_of_data_file = pdfm.s3_url_of_data_file
+                WHERE pdfm.s3_url_of_product_label =  :s3_url_of_product_label_param
             """
 
     s3_url_of_product_label_param = {'name': 's3_url_of_product_label_param',
@@ -281,13 +275,8 @@ def get_list_of_data_files(s3_url_of_product_label):
 
     for record in response['records']:
         for data_dict in record:
-            for data_type, s3_url_of_data_file in data_dict.items():
-
-                # Rename .fits to .fits.fz
-                if s3_url_of_data_file.endswith('.fits'):
-                    s3_url_of_data_file = s3_url_of_data_file + ".fz"
-
-                list_of_data_files.append(s3_url_of_data_file)
+            for data_type, original_s3_url_of_data_file_name in data_dict.items():
+                list_of_data_files.append(original_s3_url_of_data_file_name)
 
     print(str(list_of_data_files))
 
@@ -333,14 +322,14 @@ def trigger_nucleus_workflow(random_batch_number, list_of_product_labels_to_proc
 
 
     conf = "{\"" + \
-            s3_config_dir_key + "\":\"" + s3_config_dir_value + "\",\"" + \
-            list_of_product_labels_to_process_key + "\":\"" + list_of_product_labels_to_process_value + "\",\"" + \
-            pds_node_name_key + "\":\"" + pds_cold_archive_bucket_name_value + "\",\"" + \
-            batch_number_key + "\":\"" + batch_number_value + "\",\"" + \
-            pds_hot_archive_bucket_name_key + "\":\"" + pds_hot_archive_bucket_name_value + "\",\"" + \
-            pds_cold_archive_bucket_name_key + "\":\"" + pds_cold_archive_bucket_name_value + "\",\"" + \
-            pds_staging_bucket_name_key + "\":\"" + pds_staging_bucket_name_value + "\",\"" + \
-            efs_config_dir_key + "\":\"" + efs_config_dir_value + "\"}"
+           s3_config_dir_key + "\":\"" + s3_config_dir_value + "\",\"" + \
+           list_of_product_labels_to_process_key + "\":\"" + list_of_product_labels_to_process_value + "\",\"" + \
+           pds_node_name_key + "\":\"" + pds_node_name_value + "\",\"" + \
+           batch_number_key + "\":\"" + batch_number_value + "\",\"" + \
+           pds_hot_archive_bucket_name_key + "\":\"" + pds_hot_archive_bucket_name_value + "\",\"" + \
+           pds_cold_archive_bucket_name_key + "\":\"" + pds_cold_archive_bucket_name_value + "\",\"" + \
+           pds_staging_bucket_name_key + "\":\"" + pds_staging_bucket_name_value + "\",\"" + \
+           efs_config_dir_key + "\":\"" + efs_config_dir_value + "\"}"
 
     logger.info(f"Triggering Nucleus workflow {dag_name} with parameters : {conf}")
 

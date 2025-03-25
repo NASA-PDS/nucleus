@@ -164,7 +164,7 @@ resource "aws_lambda_function" "pds_nucleus_s3_file_file_event_processor_functio
   role             = var.pds_nucleus_lambda_execution_role_arn
   runtime          = "python3.9"
   handler          = "pds-nucleus-s3-file-event-processor.lambda_handler"
-  timeout          = 10
+  timeout          = 300
   depends_on       = [data.archive_file.pds_nucleus_s3_file_file_event_processor_function_zip]
 
   environment {
@@ -195,7 +195,7 @@ resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function"
   role             = var.pds_nucleus_lambda_execution_role_arn
   runtime          = "python3.12"
   handler          = "pds-nucleus-product-completion-checker.lambda_handler"
-  timeout          = 10
+  timeout          = 300
   depends_on       = [data.archive_file.pds_nucleus_product_completion_checker_zip]
 
   environment {

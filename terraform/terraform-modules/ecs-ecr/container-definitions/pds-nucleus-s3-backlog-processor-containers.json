@@ -1,0 +1,33 @@
+[
+  {
+    "name": "pds-nucleus-s3-backlog-processor-task",
+    "image": "${pds_nucleus_s3_backlog_processor_ecr_image_path}",
+    "cpu": 0,
+    "portMappings": [],
+    "essential": true,
+    "environment": [
+      {
+        "name": "S3_BUCKET_NAME",
+        "value": "pds-sbn-staging-dev"
+      },
+      {
+        "name": "S3_BUCKET_PREFIX",
+        "value": ""
+      },
+      {
+        "name": "AWS_REGION",
+        "value": "us-west-2"
+      }
+    ],
+    "mountPoints": [],
+    "volumesFrom": [],
+    "logConfiguration": {
+      "logDriver": "awslogs",
+      "options": {
+        "awslogs-group": "${pds_nucleus_s3_backlog_processor_cloudwatch_logs_group}",
+        "awslogs-region": "${pds_nucleus_s3_backlog_processor_cloudwatch_logs_region}",
+        "awslogs-stream-prefix": "ecs"
+      }
+    }
+  }
+]

@@ -73,6 +73,16 @@ resource "aws_ecr_repository" "pds_validate" {
   }
 }
 
+resource "aws_ecr_repository" "pds_nucleus_s3_backlog_processor" {
+  name                 = "pds-nucleus-s3-backlog-processor"
+  image_tag_mutability = "MUTABLE"
+  force_delete         = true
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+}
+
 
 
 #-------------------------------------
@@ -337,6 +347,49 @@ resource "aws_ecs_task_definition" "pds-nucleus-s3-to-efs-copy-task-definition" 
   depends_on = [data.template_file.pds-nucleus-s3-to-efs-copy-containers-json-template]
 }
 
+
+#---------------------------------------------
+# PDS Nucleus S3 Backlog Processor ECS Task Definition
+#---------------------------------------------
+
+# CloudWatch Log Group for PDS Nucleus S3 Backlog Processor ECS Task
+resource "aws_cloudwatch_log_group" "pds-nucleus-s3-backlog-processor-log-group" {
+  name = var.pds_nucleus_s3_backlog_processor_cloudwatch_logs_group
+}
+
+# Replace PDS Nucleus S3 Backlog Processor Image Path in pds-nucleus-s3-backlog-processor-containers.json
+data "template_file" "pds-nucleus-s3-backlog-processor-containers-json-template" {
+  template = file("terraform-modules/ecs-ecr/container-definitions/pds-nucleus-s3-backlog-processor-containers.json")
+  vars = {
+    pds_nucleus_s3_backlog_processor_ecr_image_path         = aws_ecr_repository.pds_nucleus_s3_backlog_processor.repository_url
+    pds_nucleus_s3_backlog_processor_cloudwatch_logs_group  = var.pds_nucleus_s3_backlog_processor_cloudwatch_logs_group
+    pds_nucleus_s3_backlog_processor_cloudwatch_logs_region = var.region
+  }
+}
+
+# PDS Nucleus S3 to EFS Copy Task Definition
+resource "aws_ecs_task_definition" "pds-nucleus-s3-backlog-processor-task-definition" {
+  family                   = "pds-nucleus-ss3-backlog-processor-task-definition"
+  requires_compatibilities = ["EC2", "FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = 4096
+  memory                   = 8192
+
+  runtime_platform {
+    operating_system_family = "LINUX"
+  }
+
+  container_definitions = data.template_file.pds-nucleus-s3-backlog-processor-containers-json-template.rendered
+  task_role_arn         = var.pds_nucleus_ecs_task_role_arn
+  execution_role_arn    = var.pds_nucleus_ecs_task_execution_role_arn
+
+  depends_on = [data.template_file.pds-nucleus-s3-backlog-processor-containers-json-template]
+}
+
+
+
+
+# Deploy ECR images
 resource "null_resource" "deploy_ecr_images" {
   provisioner "local-exec" {
     command = "./terraform-modules/ecs-ecr/docker/deploy-ecr-images.sh"

@@ -235,6 +235,16 @@ data "aws_iam_policy_document" "ecs_task_role_inline_policy" {
       "arn:aws:s3:::pds-*-archive*/*"
     ]
   }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "sqs:sendmessage"
+    ]
+    resources = [
+      "arn:aws:sqs:${var.region}:${data.aws_caller_identity.current.account_id}:pds-nucleus-*"
+    ]
+  }
 }
 
 # IAM Policy Document for Assume Role
