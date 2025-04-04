@@ -364,7 +364,7 @@ data "template_file" "pds-nucleus-s3-backlog-processor-containers-json-template"
   vars = {
     pds_nucleus_s3_backlog_processor_ecr_image_path         = aws_ecr_repository.pds_nucleus_s3_backlog_processor.repository_url
     pds_nucleus_s3_backlog_processor_cloudwatch_logs_group  = var.pds_nucleus_s3_backlog_processor_cloudwatch_logs_group
-    aws_region = var.region
+    pds_nucleus_s3_backlog_processor_cloudwatch_logs_region = var.region
   }
 }
 
