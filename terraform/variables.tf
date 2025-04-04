@@ -104,6 +104,12 @@ variable "pds_nucleus_default_airflow_dag_id" {
   sensitive   = true
 }
 
+variable "pds_nucleus_s3_backlog_processor_dag_id" {
+  description = "PDS Nucleus S3 Backlog Processor DAG ID"
+  type        = string
+  sensitive   = true
+}
+
 variable "pds_node_names" {
   description = "List of PDS Node Names"
   type        = list(string)

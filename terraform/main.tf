@@ -151,16 +151,17 @@ module "product-copy-completion-checker" {
 }
 
 module "test-data" {
-  source                             = "./terraform-modules/test-data"
+  source                                 = "./terraform-modules/test-data"
 
-  pds_nucleus_ecs_cluster_name       = var.pds_nucleus_ecs_cluster_name
-  pds_nucleus_ecs_subnets            = var.subnet_ids
-  pds_nucleus_security_group_id      = module.security-groups.nucleus_security_group_id
-  mwaa_dag_s3_bucket_name            = var.mwaa_dag_s3_bucket_name
-  pds_nucleus_default_airflow_dag_id = var.pds_nucleus_default_airflow_dag_id
-  pds_node_names                     = var.pds_node_names
+  pds_nucleus_ecs_cluster_name            = var.pds_nucleus_ecs_cluster_name
+  pds_nucleus_ecs_subnets                 = var.subnet_ids
+  pds_nucleus_security_group_id           = module.security-groups.nucleus_security_group_id
+  mwaa_dag_s3_bucket_name                 = var.mwaa_dag_s3_bucket_name
+  pds_nucleus_default_airflow_dag_id      = var.pds_nucleus_default_airflow_dag_id
+  pds_nucleus_s3_backlog_processor_dag_id = var.pds_nucleus_s3_backlog_processor_dag_id
+  pds_node_names                          = var.pds_node_names
 
-  depends_on                         = [module.common, module.ecs_ecr]
+  depends_on                               = [module.common, module.ecs_ecr]
 }
 
 

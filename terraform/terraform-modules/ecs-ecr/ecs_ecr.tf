@@ -359,17 +359,19 @@ resource "aws_cloudwatch_log_group" "pds-nucleus-s3-backlog-processor-log-group"
 
 # Replace PDS Nucleus S3 Backlog Processor Image Path in pds-nucleus-s3-backlog-processor-containers.json
 data "template_file" "pds-nucleus-s3-backlog-processor-containers-json-template" {
+  count  = length(var.pds_node_names)
   template = file("terraform-modules/ecs-ecr/container-definitions/pds-nucleus-s3-backlog-processor-containers.json")
   vars = {
     pds_nucleus_s3_backlog_processor_ecr_image_path         = aws_ecr_repository.pds_nucleus_s3_backlog_processor.repository_url
     pds_nucleus_s3_backlog_processor_cloudwatch_logs_group  = var.pds_nucleus_s3_backlog_processor_cloudwatch_logs_group
-    pds_nucleus_s3_backlog_processor_cloudwatch_logs_region = var.region
+    aws_region = var.region
   }
 }
 
 # PDS Nucleus S3 to EFS Copy Task Definition
 resource "aws_ecs_task_definition" "pds-nucleus-s3-backlog-processor-task-definition" {
-  family                   = "pds-nucleus-ss3-backlog-processor-task-definition"
+  count                    = length(var.pds_node_names)
+  family                   = "pds-nucleus-s3-backlog-processor-task-definition-${var.pds_node_names[count.index]}"
   requires_compatibilities = ["EC2", "FARGATE"]
   network_mode             = "awsvpc"
   cpu                      = 4096
@@ -379,7 +381,7 @@ resource "aws_ecs_task_definition" "pds-nucleus-s3-backlog-processor-task-defini
     operating_system_family = "LINUX"
   }
 
-  container_definitions = data.template_file.pds-nucleus-s3-backlog-processor-containers-json-template.rendered
+  container_definitions = data.template_file.pds-nucleus-s3-backlog-processor-containers-json-template[count.index].rendered
   task_role_arn         = var.pds_nucleus_ecs_task_role_arn
   execution_role_arn    = var.pds_nucleus_ecs_task_execution_role_arn
 

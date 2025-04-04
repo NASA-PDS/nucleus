@@ -8,15 +8,19 @@
     "environment": [
       {
         "name": "S3_BUCKET_NAME",
-        "value": "pds-sbn-staging-dev"
+        "value": ""
       },
       {
         "name": "S3_BUCKET_PREFIX",
         "value": ""
       },
       {
+        "name": "SQS_QUEUE_URL",
+        "value": ""
+      },
+      {
         "name": "AWS_REGION",
-        "value": "us-west-2"
+        "value": ""
       }
     ],
     "mountPoints": [],

@@ -26,7 +26,8 @@ pds_nucleus_hot_archive_bucket_name_postfix  = "archive-hot-mcp-dev"
 pds_nucleus_cold_archive_bucket_name_postfix = "archive-cold-mcp-dev"
 pds_nucleus_config_bucket_name               = "pds-nucleus-config-mcp-dev"
 
-pds_nucleus_default_airflow_dag_id = "pds-basic-registry-load-use-case"
+pds_nucleus_default_airflow_dag_id      = "pds-basic-registry-load-use-case"
+pds_nucleus_s3_backlog_processor_dag_id = "pds-nucleus-s3-backlog-processor"
 
 pds_registry_loader_harvest_task_role_arn = "arn:aws:iam::12345678:role/pds-registry-loader-harvest-role"
 
