@@ -31,8 +31,14 @@ dag = DAG(
         start_date=days_ago(1),
         default_args={
         "retries": 3,
-        "retry_delay": timedelta(seconds=2)
-    },
+        "retry_delay": timedelta(seconds=2),
+        },
+        params={
+            "s3_bucket_name": "<enter bucket name>",
+            "s3_bucket_prefix": "<prefix (S3 path to start listing the objects from>",
+            "sqs_queue_url": "<SQS queue which is used to save files names in the database>",
+            "aws_region": "<aws_region>"
+        },
 )
 
 # Print start time
@@ -58,7 +64,7 @@ process_s3_backlog = EcsRunTaskOperator(
     overrides={
             "containerOverrides": [
                 {
-                    "name": "pds-nucleus-s3-backlog-processor-${pds_node_name}",
+                    "name": "pds-nucleus-s3-backlog-processor-task",
                     "environment": [
                         {
                             "name": "S3_BUCKET_NAME",
