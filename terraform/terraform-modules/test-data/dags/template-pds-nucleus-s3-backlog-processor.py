@@ -11,6 +11,7 @@ from airflow.providers.amazon.aws.operators.ecs import EcsRunTaskOperator
 from airflow.utils.dates import days_ago
 from airflow.utils.trigger_rule import TriggerRule
 from datetime import timedelta
+from airflow.models.param import Param
 
 # ECS configurations
 ECS_CLUSTER_NAME = "${pds_nucleus_ecs_cluster_name}"
@@ -34,10 +35,10 @@ dag = DAG(
         "retry_delay": timedelta(seconds=2),
         },
         params={
-            "s3_bucket_name": "<enter bucket name>",
-            "s3_bucket_prefix": "<prefix (S3 path to start listing the objects from>",
-            "sqs_queue_url": "<SQS queue which is used to save files names in the database>",
-            "aws_region": "<aws_region>"
+            "s3_bucket_name": Param("<S3 bucket name>", type="string"),
+            "s3_bucket_prefix": Param("<prefix (S3 path to start listing the objects from>", type=["null", "string"]),
+            "sqs_queue_url": Param("<SQS queue which is used to save files names in the database>", type="string"),
+            "aws_region": Param("<aws_region>", type="string"),
         },
 )
 
@@ -68,19 +69,19 @@ process_s3_backlog = EcsRunTaskOperator(
                     "environment": [
                         {
                             "name": "S3_BUCKET_NAME",
-                            "value": "{{ dag_run.conf['s3_bucket_name'] }}"
+                            "value": "{{ params['s3_bucket_name'] }}"
                         },
                         {
                             "name": "S3_BUCKET_PREFIX",
-                            "value": "{{ dag_run.conf['s3_bucket_prefix'] }}"
+                            "value": "{{ params['s3_bucket_prefix'] }}"
                         },
                         {
                             "name": "SQS_QUEUE_URL",
-                            "value": "{{ dag_run.conf['sqs_queue_url'] }}"
+                            "value": "{{ params['sqs_queue_url'] }}"
                         },
                         {
                             "name": "AWS_REGION",
-                            "value": "{{ dag_run.conf['aws_region'] }}"
+                            "value": "{{ params['aws_region'] }}"
                         }
                     ],
                 },
