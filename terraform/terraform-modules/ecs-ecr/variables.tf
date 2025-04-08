@@ -82,14 +82,14 @@ variable "pds_nucleus_config_init_cloudwatch_logs_region" {
 
 variable "pds_nucleus_s3_to_efs_copy_cloudwatch_logs_group" {
   type        = string
-  description = "PDS Nucleus S3 to EFS CopyCloudWatch Logs Group"
+  description = "PDS Nucleus S3 to EFS Copy CloudWatch Logs Group"
   default     = "/pds/ecs/pds-nucleus-s3-to-efs-copy"
   sensitive   = true
 }
 
 variable "pds_nucleus_s3_backlog_processor_cloudwatch_logs_group" {
   type        = string
-  description = "PDS Nucleus S3 Backlog Processor CopyCloudWatch Logs Group"
+  description = "PDS Nucleus S3 Backlog Processor CloudWatch Logs Group"
   default     = "/pds/ecs/pds-nucleus-s3-backlog-processor"
   sensitive   = true
 }

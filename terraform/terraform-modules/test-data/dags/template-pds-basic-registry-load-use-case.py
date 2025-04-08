@@ -172,7 +172,7 @@ harvest = EcsRunTaskOperator(
                 },
             ],
     },
-    awslogs_group="/pds/ecs/harvest",
+    awslogs_group="/pds/ecs/harvest-${pds_node_name}",
     awslogs_stream_prefix="ecs/pds-registry-loader-harvest-${pds_node_name}",
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,

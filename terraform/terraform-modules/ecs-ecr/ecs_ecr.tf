@@ -91,7 +91,8 @@ resource "aws_ecr_repository" "pds_nucleus_s3_backlog_processor" {
 
 # CloudWatch Log Group for PDS Registry Loader Harvest ECS Task
 resource "aws_cloudwatch_log_group" "pds-registry-loader-harvest-log-group" {
-  name = var.pds_registry_loader_harvest_cloudwatch_logs_group
+  count = length(var.pds_node_names)
+  name  = "${var.pds_registry_loader_harvest_cloudwatch_logs_group}-${var.pds_node_names[count.index]}"
 }
 
 # Create secrets to keep usernames for each PDS Node
@@ -129,7 +130,7 @@ data "template_file" "pds-registry-loader-harvest-containers-json-template" {
   vars = {
     pds_registry_loader_harvest_ecs_task_name          = "pds-registry-loader-harvest-${var.pds_node_names[count.index]}"
     pds_registry_loader_harvest_ecr_image_path         = aws_ecr_repository.pds_registry_loader_harvest.repository_url
-    pds_registry_loader_harvest_cloudwatch_logs_group  = var.pds_registry_loader_harvest_cloudwatch_logs_group
+    pds_registry_loader_harvest_cloudwatch_logs_group  = "${var.pds_registry_loader_harvest_cloudwatch_logs_group}-${var.pds_node_names[count.index]}"
     pds_registry_loader_harvest_cloudwatch_logs_region = var.pds_registry_loader_harvest_cloudwatch_logs_region
     opensearch_user_secretmanager_arn                  = aws_secretsmanager_secret_version.opensearch_user_version[count.index].arn
     opensearch_password_secretmanager_arn              = aws_secretsmanager_secret_version.opensearch_password_version[count.index].arn
@@ -354,7 +355,8 @@ resource "aws_ecs_task_definition" "pds-nucleus-s3-to-efs-copy-task-definition" 
 
 # CloudWatch Log Group for PDS Nucleus S3 Backlog Processor ECS Task
 resource "aws_cloudwatch_log_group" "pds-nucleus-s3-backlog-processor-log-group" {
-  name = var.pds_nucleus_s3_backlog_processor_cloudwatch_logs_group
+  count                   = length(var.pds_node_names)
+  name = "${var.pds_nucleus_s3_backlog_processor_cloudwatch_logs_group}-${var.pds_node_names[count.index]}"
 }
 
 # Replace PDS Nucleus S3 Backlog Processor Image Path in pds-nucleus-s3-backlog-processor-containers.json
@@ -363,7 +365,7 @@ data "template_file" "pds-nucleus-s3-backlog-processor-containers-json-template"
   template = file("terraform-modules/ecs-ecr/container-definitions/pds-nucleus-s3-backlog-processor-containers.json")
   vars = {
     pds_nucleus_s3_backlog_processor_ecr_image_path         = aws_ecr_repository.pds_nucleus_s3_backlog_processor.repository_url
-    pds_nucleus_s3_backlog_processor_cloudwatch_logs_group  = var.pds_nucleus_s3_backlog_processor_cloudwatch_logs_group
+    pds_nucleus_s3_backlog_processor_cloudwatch_logs_group  = "${var.pds_nucleus_s3_backlog_processor_cloudwatch_logs_group}-${var.pds_node_names[count.index]}"
     pds_nucleus_s3_backlog_processor_cloudwatch_logs_region = var.region
   }
 }
