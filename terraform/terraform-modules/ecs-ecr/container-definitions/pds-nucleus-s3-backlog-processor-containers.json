@@ -1,6 +1,6 @@
 [
   {
-    "name": "pds-nucleus-s3-backlog-processor-task",
+    "name": "pds-nucleus-s3-backlog-processor",
     "image": "${pds_nucleus_s3_backlog_processor_ecr_image_path}",
     "cpu": 0,
     "portMappings": [],

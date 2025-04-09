@@ -4,21 +4,9 @@ variable "region" {
   default     = "us-west-2"
 }
 
-variable "efs_file_system_id" {
-  type        = string
-  description = "EFS File System ID"
-  sensitive   = true
-}
-
 variable "pds_nucleus_ecs_cluster_name" {
   type        = string
   description = "The name of the PDS Nucleus ECS cluster"
-  sensitive   = true
-}
-
-variable "pds_data_access_point_id" {
-  type        = string
-  description = "PDS Data Access Point ID"
   sensitive   = true
 }
 
@@ -103,7 +91,6 @@ variable "permission_boundary_for_iam_roles" {
 variable "pds_node_names" {
   type        = list(string)
   description = "List of PDS Node Names"
-  sensitive   = true
 }
 
 variable "aws_secretmanager_key_arn" {
@@ -121,5 +108,17 @@ variable "pds_nucleus_ecs_task_role_arn" {
 variable "pds_nucleus_ecs_task_execution_role_arn" {
   type        = string
   description = "PDS Nucleus ECS task execution role ARN"
+  sensitive   = true
+}
+
+variable "subnet_ids" {
+  description = "Subnet IDs"
+  type        = list(string)
+  sensitive   = true
+}
+
+variable "nucleus_security_group_id" {
+  description = "PDS Nucleus Security Group ID"
+  type        = string
   sensitive   = true
 }

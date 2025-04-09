@@ -1,6 +1,6 @@
 [
   {
-    "name": "pds-validate-task",
+    "name": "pds-validate",
     "image": "${pds_validate_ecr_image_path}",
     "cpu": 0,
     "portMappings": [],

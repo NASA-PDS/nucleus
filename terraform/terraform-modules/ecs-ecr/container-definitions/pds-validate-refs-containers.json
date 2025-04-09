@@ -1,6 +1,6 @@
 [
   {
-    "name": "pds-validate-ref-task",
+    "name": "pds-validate-ref",
     "image": "${pds_validate_ref_ecr_image_path}",
     "cpu": 0,
     "portMappings": [],

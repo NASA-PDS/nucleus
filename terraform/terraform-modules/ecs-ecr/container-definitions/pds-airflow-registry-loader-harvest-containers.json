@@ -1,6 +1,6 @@
 [
   {
-    "name": "${pds_registry_loader_harvest_ecs_task_name}",
+    "name": "pds-registry-loader-harvest",
     "image": "${pds_registry_loader_harvest_ecr_image_path}",
     "cpu": 0,
     "portMappings": [],

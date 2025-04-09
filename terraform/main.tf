@@ -80,20 +80,12 @@ module "mwaa-env" {
 
 module "efs" {
   source = "./terraform-modules/efs"
-
-  subnet_ids                = var.subnet_ids
-  nucleus_security_group_id = module.security-groups.nucleus_security_group_id
-
-  depends_on                = [module.security-groups]
 }
 
 module "ecs_ecr" {
   source = "./terraform-modules/ecs-ecr"
 
   pds_nucleus_ecs_cluster_name = var.pds_nucleus_ecs_cluster_name
-
-  efs_file_system_id       = module.efs.efs_file_system_id
-  pds_data_access_point_id = module.efs.efs_access_point_id_pds-data
 
   pds_registry_loader_harvest_cloudwatch_logs_group  = var.pds_registry_loader_harvest_cloudwatch_logs_group
   pds_registry_loader_harvest_cloudwatch_logs_region = var.region
@@ -117,7 +109,12 @@ module "ecs_ecr" {
   pds_nucleus_ecs_task_execution_role_arn = module.iam.pds_nucleus_ecs_task_execution_role_arn
   pds_nucleus_ecs_task_role_arn           = module.iam.pds_nucleus_ecs_task_role_arn
 
+  subnet_ids = var.subnet_ids
+
+  nucleus_security_group_id = module.security-groups.nucleus_security_group_id
+
   depends_on = [module.common, module.efs, module.iam]
+
 }
 
 module "product-copy-completion-checker" {
