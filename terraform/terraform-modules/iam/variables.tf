@@ -39,3 +39,14 @@ variable "mwaa_dag_s3_bucket_name" {
   type        = string
   sensitive   = true
 }
+
+variable "pds_node_names" {
+  type        = list(string)
+  description = "List of PDS Node Names"
+}
+
+variable "pds_nucleus_opensearch_collection_arns" {
+  type        = list(string)
+  description = "List of PDS OpenSearch Collection ARN"
+  sensitive   = true
+}

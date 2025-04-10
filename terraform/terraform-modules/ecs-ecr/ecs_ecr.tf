@@ -44,30 +44,21 @@ resource "aws_efs_file_system" "nucleus_efs" {
   }
 }
 
-resource "aws_efs_mount_target" "pds_nucleus_efs_mount_target" {
+resource "aws_efs_mount_target" "pds_nucleus_efs_mount_target_0" {
   count = length(var.pds_node_names)
 
   file_system_id  = aws_efs_file_system.nucleus_efs[count.index].id
   subnet_id       = var.subnet_ids[0]
   security_groups = [var.nucleus_security_group_id]
-
 }
 
-resource "aws_efs_access_point" "root" {
-
+resource "aws_efs_mount_target" "pds_nucleus_efs_mount_target_1" {
   count = length(var.pds_node_names)
 
-  file_system_id = aws_efs_file_system.nucleus_efs[count.index].id
-
-  root_directory {
-    path = "/"
-  }
-
-  tags = {
-    Name = "root access point"
-  }
+  file_system_id  = aws_efs_file_system.nucleus_efs[count.index].id
+  subnet_id       = var.subnet_ids[1]
+  security_groups = [var.nucleus_security_group_id]
 }
-
 
 resource "aws_efs_access_point" "pds-data" {
 
@@ -218,7 +209,6 @@ resource "aws_ecs_task_definition" "pds-registry-loader-harvest" {
 
     efs_volume_configuration {
       file_system_id     = aws_efs_file_system.nucleus_efs[count.index].id
-      root_directory     = "/"
       transit_encryption = "ENABLED"
       authorization_config {
         access_point_id = aws_efs_access_point.pds-data[count.index].id
@@ -229,7 +219,7 @@ resource "aws_ecs_task_definition" "pds-registry-loader-harvest" {
 
 
   container_definitions = data.template_file.pds-registry-loader-harvest-containers-json-template[count.index].rendered
-  task_role_arn         = var.pds_registry_loader_harvest_task_role_arn
+  task_role_arn         = var.pds_nucleus_harvest_ecs_task_role_arns[count.index]
   execution_role_arn    = var.pds_nucleus_ecs_task_execution_role_arn
 
   depends_on = [data.template_file.pds-validate-containers-json-template]
@@ -276,7 +266,6 @@ resource "aws_ecs_task_definition" "pds-validate-task-definition" {
 
     efs_volume_configuration {
       file_system_id     = aws_efs_file_system.nucleus_efs[count.index].id
-      root_directory     = "/"
       transit_encryption = "ENABLED"
       authorization_config {
         access_point_id = aws_efs_access_point.pds-data[count.index].id
@@ -286,7 +275,7 @@ resource "aws_ecs_task_definition" "pds-validate-task-definition" {
   }
 
   container_definitions = data.template_file.pds-validate-containers-json-template[count.index].rendered
-  task_role_arn         = var.pds_nucleus_ecs_task_role_arn
+  task_role_arn         = var.pds_nucleus_ecs_task_role_arns[count.index]
   execution_role_arn    = var.pds_nucleus_ecs_task_execution_role_arn
 
   depends_on = [data.template_file.pds-validate-containers-json-template]
@@ -357,7 +346,6 @@ resource "aws_ecs_task_definition" "pds-nucleus-config-init-task-definition" {
 
     efs_volume_configuration {
       file_system_id     = aws_efs_file_system.nucleus_efs[count.index].id
-      root_directory     = "/"
       transit_encryption = "ENABLED"
       authorization_config {
         access_point_id = aws_efs_access_point.pds-data[count.index].id
@@ -367,7 +355,7 @@ resource "aws_ecs_task_definition" "pds-nucleus-config-init-task-definition" {
   }
 
   container_definitions = data.template_file.pds-nucleus-config-init-containers-json-template[count.index].rendered
-  task_role_arn         = var.pds_nucleus_ecs_task_role_arn
+  task_role_arn         = var.pds_nucleus_ecs_task_role_arns[count.index]
   execution_role_arn    = var.pds_nucleus_ecs_task_execution_role_arn
 
   depends_on = [data.template_file.pds-nucleus-config-init-containers-json-template]
@@ -407,7 +395,6 @@ resource "aws_ecs_task_definition" "pds-nucleus-s3-to-efs-copy-task-definition" 
 
     efs_volume_configuration {
       file_system_id     = aws_efs_file_system.nucleus_efs[count.index].id
-      root_directory     = "/"
       transit_encryption = "ENABLED"
       authorization_config {
         access_point_id = aws_efs_access_point.pds-data[count.index].id
@@ -417,7 +404,7 @@ resource "aws_ecs_task_definition" "pds-nucleus-s3-to-efs-copy-task-definition" 
   }
 
   container_definitions = data.template_file.pds-nucleus-s3-to-efs-copy-containers-json-template[count.index].rendered
-  task_role_arn         = var.pds_nucleus_ecs_task_role_arn
+  task_role_arn         = var.pds_nucleus_ecs_task_role_arns[count.index]
   execution_role_arn    = var.pds_nucleus_ecs_task_execution_role_arn
 
   depends_on = [data.template_file.pds-nucleus-s3-to-efs-copy-containers-json-template]
@@ -459,7 +446,7 @@ resource "aws_ecs_task_definition" "pds-nucleus-s3-backlog-processor-task-defini
   }
 
   container_definitions = data.template_file.pds-nucleus-s3-backlog-processor-containers-json-template[count.index].rendered
-  task_role_arn         = var.pds_nucleus_ecs_task_role_arn
+  task_role_arn         = var.pds_nucleus_ecs_task_role_arns[count.index]
   execution_role_arn    = var.pds_nucleus_ecs_task_execution_role_arn
 
   depends_on = [data.template_file.pds-nucleus-s3-backlog-processor-containers-json-template]

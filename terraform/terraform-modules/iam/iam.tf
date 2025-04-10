@@ -180,6 +180,9 @@ resource "aws_iam_role" "pds_nucleus_viewer_role" {
 
 # IAM Policy Document for Inline Policy
 data "aws_iam_policy_document" "ecs_task_role_inline_policy" {
+
+  count = length(var.pds_node_names)
+
   statement {
     effect = "Allow"
     actions = [
@@ -202,7 +205,7 @@ data "aws_iam_policy_document" "ecs_task_role_inline_policy" {
     ]
     resources = [
       "arn:aws:elasticfilesystem:*:${data.aws_caller_identity.current.account_id}:access-point/*",
-      "arn:aws:elasticfilesystem:*:${data.aws_caller_identity.current.account_id}:file-system/pds-nucleus*"
+      "arn:aws:elasticfilesystem:*:${data.aws_caller_identity.current.account_id}:file-system/pds-nucleus*-${var.pds_node_names[count.index]}"
     ]
   }
 
@@ -242,7 +245,7 @@ data "aws_iam_policy_document" "ecs_task_role_inline_policy" {
       "sqs:sendmessage"
     ]
     resources = [
-      "arn:aws:sqs:${var.region}:${data.aws_caller_identity.current.account_id}:pds-nucleus-*"
+      "arn:aws:sqs:${var.region}:${data.aws_caller_identity.current.account_id}:pds-nucleus-*-${var.pds_node_names[count.index]}"
     ]
   }
 }
@@ -271,13 +274,120 @@ data "aws_iam_policy_document" "ecs_task_role_assume_role" {
   }
 }
 
+# Create pds_nucleus_ecs_task_roles per PDS Node
 resource "aws_iam_role" "pds_nucleus_ecs_task_role" {
-  name = "pds_nucleus_ecs_task_role"
+  count = length(var.pds_node_names)
+
+  name = "pds_nucleus_ecs_task_role-${var.pds_node_names[count.index]}"
   inline_policy {
     name   = "pds-nucleus-ecs-task-role-inline-policy"
-    policy = data.aws_iam_policy_document.ecs_task_role_inline_policy.json
+    policy = data.aws_iam_policy_document.ecs_task_role_inline_policy[count.index].json
   }
   assume_role_policy   = data.aws_iam_policy_document.ecs_task_role_assume_role.json
+  permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
+}
+
+
+#-------------------------------------
+# Harvest ECS Task Role
+#-------------------------------------
+
+# IAM Policy Document for Inline Policy
+data "aws_iam_policy_document" "harvest_ecs_task_role_inline_policy" {
+  count = length(var.pds_node_names)
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "ecr:GetDownloadUrlForLayer",
+      "ecr:BatchGetImage",
+      "ecr:BatchCheckLayerAvailability"
+    ]
+    resources = [
+      "arn:aws:ecr:*:${data.aws_caller_identity.current.account_id}:repository/pds*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "elasticfilesystem:DescribeMountTargets",
+      "elasticfilesystem:ClientMount",
+      "elasticfilesystem:ClientWrite",
+      "elasticfilesystem:ClientRootAccess"
+    ]
+    resources = [
+      "arn:aws:elasticfilesystem:*:${data.aws_caller_identity.current.account_id}:access-point/*",
+      "arn:aws:elasticfilesystem:*:${data.aws_caller_identity.current.account_id}:file-system/pds-nucleus*-${var.pds_node_names[count.index]}"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "logs:CreateLogStream",
+      "logs:CreateLogGroup",
+      "logs:PutLogEvents"
+    ]
+    resources = [
+      "arn:aws:logs:*:${data.aws_caller_identity.current.account_id}:log-group:*:log-stream:*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "aoss:APIAccessAll"
+    ]
+    resources = [
+      var.pds_nucleus_opensearch_collection_arns[count.index]
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "aoss:DashboardsAccessAll"
+    ]
+    resources = [
+      "arn:aws:aoss:${var.region}:${data.aws_caller_identity.current.account_id}:dashboards/default"
+    ]
+  }
+}
+
+# IAM Policy Document for Assume Role
+data "aws_iam_policy_document" "harvest_ecs_task_role_assume_role" {
+  statement {
+    effect = "Allow"
+    principals {
+      type        = "Service"
+      identifiers = ["ecs-tasks.amazonaws.com"]
+    }
+    actions = ["sts:AssumeRole"]
+
+    condition {
+      test     = "ArnLike"
+      variable = "aws:SourceArn"
+      values   = ["arn:aws:ecs:${var.region}:${data.aws_caller_identity.current.account_id}:*"]
+    }
+
+    condition {
+      test     = "StringLike"
+      variable = "aws:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+  }
+}
+
+resource "aws_iam_role" "pds_nucleus_harvest_ecs_task_role" {
+  count = length(var.pds_node_names)
+
+  name = "pds_nucleus_harvest_ecs_task_role-${var.pds_node_names[count.index]}"
+  inline_policy {
+    name   = "pds-nucleus-harvest-ecs-task-role-inline-policy"
+    policy = data.aws_iam_policy_document.harvest_ecs_task_role_inline_policy[count.index].json
+  }
+  assume_role_policy   = data.aws_iam_policy_document.harvest_ecs_task_role_assume_role.json
   permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
 }
 
@@ -609,9 +719,9 @@ data "aws_iam_policy_document" "mwaa_inline_policy" {
       "iam:PassRole"
     ]
     resources = [
-      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/pds_nucleus_ecs_task_role",
-      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/pds_nucleus_ecs_task_execution_role",
-      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/pds-eng-aoss-role"
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/pds_nucleus_ecs_task_role-*",
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/pds_nucleus_harvest_ecs_task_role-*",
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/pds_nucleus_ecs_task_execution_role"
     ]
   }
 
@@ -765,8 +875,12 @@ output "pds_nucleus_viewer_role_arn" {
   value = aws_iam_role.pds_nucleus_viewer_role.arn
 }
 
-output "pds_nucleus_ecs_task_role_arn" {
-  value = aws_iam_role.pds_nucleus_ecs_task_role.arn
+output "pds_nucleus_ecs_task_role_arns" {
+  value = aws_iam_role.pds_nucleus_ecs_task_role.*.arn
+}
+
+output "pds_nucleus_harvest_ecs_task_role_arns" {
+  value = aws_iam_role.pds_nucleus_harvest_ecs_task_role.*.arn
 }
 
 output "pds_nucleus_ecs_task_execution_role_arn" {

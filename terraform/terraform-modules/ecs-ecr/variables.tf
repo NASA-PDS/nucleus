@@ -23,12 +23,6 @@ variable "pds_registry_loader_harvest_cloudwatch_logs_region" {
   sensitive   = true
 }
 
-variable "pds_registry_loader_harvest_task_role_arn" {
-  type        = string
-  description = "PDS Registry Loader Harvest Task Role ARN"
-  sensitive   = true
-}
-
 variable "pds_validate_cloudwatch_logs_group" {
   type        = string
   description = "PDS Validate CloudWatch Logs Group"
@@ -99,10 +93,14 @@ variable "aws_secretmanager_key_arn" {
   sensitive   = true
 }
 
-variable "pds_nucleus_ecs_task_role_arn" {
-  type        = string
-  description = "PDS Nucleus ECS task role ARN"
-  sensitive   = true
+variable "pds_nucleus_ecs_task_role_arns" {
+  type        = list(string)
+  description = "List of PDS Nucleus ECS task role ARNs"
+}
+
+variable "pds_nucleus_harvest_ecs_task_role_arns" {
+  type        = list(string)
+  description = "List of PDS Registry Loader Harvest ECS Task Role ARNs"
 }
 
 variable "pds_nucleus_ecs_task_execution_role_arn" {

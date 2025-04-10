@@ -19,19 +19,21 @@ module "common" {
 module "iam" {
   source = "./terraform-modules/iam"
 
-  permission_boundary_for_iam_roles     = var.permission_boundary_for_iam_roles
-  pds_nucleus_auth_alb_function_name    = var.pds_nucleus_auth_alb_function_name
-  aws_secretmanager_key_arn             = var.aws_secretmanager_key_arn
-  airflow_env_name                      = var.airflow_env_name
-  rds_cluster_id                        = var.rds_cluster_id
-  permission_boundary_for_iam_roles_arn = var.permission_boundary_for_iam_roles_arn
-  region                                = var.region
-  mwaa_dag_s3_bucket_name               = var.mwaa_dag_s3_bucket_name
+  permission_boundary_for_iam_roles      = var.permission_boundary_for_iam_roles
+  pds_nucleus_auth_alb_function_name     = var.pds_nucleus_auth_alb_function_name
+  aws_secretmanager_key_arn              = var.aws_secretmanager_key_arn
+  airflow_env_name                       = var.airflow_env_name
+  rds_cluster_id                         = var.rds_cluster_id
+  permission_boundary_for_iam_roles_arn  = var.permission_boundary_for_iam_roles_arn
+  region                                 = var.region
+  mwaa_dag_s3_bucket_name                = var.mwaa_dag_s3_bucket_name
+  pds_node_names                         = var.pds_node_names
+  pds_nucleus_opensearch_collection_arns = var.pds_nucleus_opensearch_collection_arns
 }
 
 # Terraform module to create primary archive for PDS Nucleus
 module "archive" {
-  source                                       = "./terraform-modules/archive"
+  source = "./terraform-modules/archive"
 
   pds_node_names                               = var.pds_node_names
   pds_nucleus_hot_archive_bucket_name_postfix  = var.pds_nucleus_hot_archive_bucket_name_postfix
@@ -41,12 +43,12 @@ module "archive" {
   pds_nucleus_cold_archive_storage_class       = var.pds_nucleus_cold_archive_storage_class
   pds_nucleus_archive_replication_role_arn     = module.iam.pds_nucleus_archive_replication_role_arn
 
-  depends_on                                   = [module.common, module.ecs_ecr, module.iam]
+  depends_on = [module.common, module.ecs_ecr, module.iam]
 }
 
 # Terraform module to create secondary archive for PDS Nucleus
 module "archive-secondary" {
-  source                                       = "./terraform-modules/archive-secondary"
+  source = "./terraform-modules/archive-secondary"
 
   pds_node_names                               = var.pds_node_names
   pds_nucleus_cold_archive_bucket_name_postfix = var.pds_nucleus_cold_archive_bucket_name_postfix
@@ -55,7 +57,7 @@ module "archive-secondary" {
     aws = aws.secondary
   }
 
-  depends_on                                   = [module.common, module.ecs_ecr]
+  depends_on = [module.common, module.ecs_ecr]
 }
 
 # The Terraform module to create the PDS Nucleus Baseline System (without any project specific components)
@@ -71,7 +73,7 @@ module "mwaa-env" {
   airflow_env_name                    = var.airflow_env_name
   pds_nucleus_mwaa_execution_role_arn = module.iam.pds_nucleus_mwaa_execution_role_arn
 
-  depends_on                        = [module.security-groups, module.iam, module.common]
+  depends_on = [module.security-groups, module.iam, module.common]
 }
 
 # The following modules are specific to PDS Registry and are under development. These modules are currently
@@ -89,7 +91,6 @@ module "ecs_ecr" {
 
   pds_registry_loader_harvest_cloudwatch_logs_group  = var.pds_registry_loader_harvest_cloudwatch_logs_group
   pds_registry_loader_harvest_cloudwatch_logs_region = var.region
-  pds_registry_loader_harvest_task_role_arn          = var.pds_registry_loader_harvest_task_role_arn
 
   pds_validate_cloudwatch_logs_group      = var.pds_validate_cloudwatch_logs_group
   pds_validate_cloudwatch_logs_region     = var.region
@@ -106,8 +107,9 @@ module "ecs_ecr" {
 
   aws_secretmanager_key_arn = var.aws_secretmanager_key_arn
 
-  pds_nucleus_ecs_task_execution_role_arn = module.iam.pds_nucleus_ecs_task_execution_role_arn
-  pds_nucleus_ecs_task_role_arn           = module.iam.pds_nucleus_ecs_task_role_arn
+  pds_nucleus_ecs_task_execution_role_arn  = module.iam.pds_nucleus_ecs_task_execution_role_arn
+  pds_nucleus_ecs_task_role_arns           = module.iam.pds_nucleus_ecs_task_role_arns
+  pds_nucleus_harvest_ecs_task_role_arns   = module.iam.pds_nucleus_harvest_ecs_task_role_arns
 
   subnet_ids = var.subnet_ids
 
@@ -115,10 +117,11 @@ module "ecs_ecr" {
 
   depends_on = [module.common, module.efs, module.iam]
 
+
 }
 
 module "product-copy-completion-checker" {
-  source                                       = "./terraform-modules/product-copy-completion-checker"
+  source = "./terraform-modules/product-copy-completion-checker"
 
   database_port                                = var.database_port
   vpc_id                                       = var.vpc_id
@@ -142,13 +145,13 @@ module "product-copy-completion-checker" {
   region                                = var.region
   pds_nucleus_lambda_execution_role_arn = module.iam.pds_nucleus_lambda_execution_role_arn
   rds_cluster_id                        = var.rds_cluster_id
-  database_name                         =var.database_name
+  database_name                         = var.database_name
 
   depends_on = [module.security-groups, module.iam]
 }
 
 module "test-data" {
-  source                                 = "./terraform-modules/test-data"
+  source = "./terraform-modules/test-data"
 
   pds_nucleus_ecs_cluster_name            = var.pds_nucleus_ecs_cluster_name
   pds_nucleus_ecs_subnets                 = var.subnet_ids
@@ -158,7 +161,7 @@ module "test-data" {
   pds_nucleus_s3_backlog_processor_dag_id = var.pds_nucleus_s3_backlog_processor_dag_id
   pds_node_names                          = var.pds_node_names
 
-  depends_on                               = [module.common, module.ecs_ecr]
+  depends_on = [module.common, module.ecs_ecr]
 }
 
 

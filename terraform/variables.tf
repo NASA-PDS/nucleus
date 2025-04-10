@@ -135,16 +135,16 @@ variable "pds_nucleus_opensearch_credential_relative_url" {
   sensitive   = true
 }
 
+variable "pds_nucleus_opensearch_collection_arns" {
+  type        = list(string)
+  description = "List of PDS OpenSearch Collection ARN"
+  sensitive   = true
+}
+
 variable "pds_nucleus_harvest_replace_prefix_with_list" {
   description = "List of PDS Nucleus Harvest Replace Prefix With"
   type        = list(string)
   default     = ["s3://pds-nucleus-staging-sbn", "s3://pds-nucleus-staging-img"]
-}
-
-variable "pds_registry_loader_harvest_task_role_arn" {
-  type        = string
-  description = "PDS Registry Loader Harvest Task Role ARN"
-  sensitive   = true
 }
 
 variable "aws_secretmanager_key_arn" {
