@@ -50,3 +50,9 @@ variable "pds_nucleus_opensearch_collection_arns" {
   description = "List of PDS OpenSearch Collection ARN"
   sensitive   = true
 }
+
+variable "pds_nucleus_opensearch_cognito_identity_pool_ids" {
+  description = "List of Opensearch Cognito Identity Pool IDs (for each PDS Node)"
+  type        = list(string)
+  sensitive   = true
+}

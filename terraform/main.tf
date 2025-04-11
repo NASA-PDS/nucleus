@@ -19,16 +19,17 @@ module "common" {
 module "iam" {
   source = "./terraform-modules/iam"
 
-  permission_boundary_for_iam_roles      = var.permission_boundary_for_iam_roles
-  pds_nucleus_auth_alb_function_name     = var.pds_nucleus_auth_alb_function_name
-  aws_secretmanager_key_arn              = var.aws_secretmanager_key_arn
-  airflow_env_name                       = var.airflow_env_name
-  rds_cluster_id                         = var.rds_cluster_id
-  permission_boundary_for_iam_roles_arn  = var.permission_boundary_for_iam_roles_arn
-  region                                 = var.region
-  mwaa_dag_s3_bucket_name                = var.mwaa_dag_s3_bucket_name
-  pds_node_names                         = var.pds_node_names
-  pds_nucleus_opensearch_collection_arns = var.pds_nucleus_opensearch_collection_arns
+  permission_boundary_for_iam_roles                = var.permission_boundary_for_iam_roles
+  pds_nucleus_auth_alb_function_name               = var.pds_nucleus_auth_alb_function_name
+  aws_secretmanager_key_arn                        = var.aws_secretmanager_key_arn
+  airflow_env_name                                 = var.airflow_env_name
+  rds_cluster_id                                   = var.rds_cluster_id
+  permission_boundary_for_iam_roles_arn            = var.permission_boundary_for_iam_roles_arn
+  region                                           = var.region
+  mwaa_dag_s3_bucket_name                          = var.mwaa_dag_s3_bucket_name
+  pds_node_names                                   = var.pds_node_names
+  pds_nucleus_opensearch_collection_arns           = var.pds_nucleus_opensearch_collection_arns
+  pds_nucleus_opensearch_cognito_identity_pool_ids = var.pds_nucleus_opensearch_cognito_identity_pool_ids
 }
 
 # Terraform module to create primary archive for PDS Nucleus
@@ -107,9 +108,9 @@ module "ecs_ecr" {
 
   aws_secretmanager_key_arn = var.aws_secretmanager_key_arn
 
-  pds_nucleus_ecs_task_execution_role_arn  = module.iam.pds_nucleus_ecs_task_execution_role_arn
-  pds_nucleus_ecs_task_role_arns           = module.iam.pds_nucleus_ecs_task_role_arns
-  pds_nucleus_harvest_ecs_task_role_arns   = module.iam.pds_nucleus_harvest_ecs_task_role_arns
+  pds_nucleus_ecs_task_execution_role_arn = module.iam.pds_nucleus_ecs_task_execution_role_arn
+  pds_nucleus_ecs_task_role_arns          = module.iam.pds_nucleus_ecs_task_role_arns
+  pds_nucleus_harvest_ecs_task_role_arns  = module.iam.pds_nucleus_harvest_ecs_task_role_arns
 
   subnet_ids = var.subnet_ids
 

@@ -117,27 +117,33 @@ variable "pds_node_names" {
 }
 
 variable "pds_nucleus_opensearch_url" {
-  description = "List of PDS Nucleus OpenSearch URL"
+  description = "List of PDS Nucleus OpenSearch URLS (for each PDS Node)"
   type        = string
   sensitive   = true
 }
 
 variable "pds_nucleus_opensearch_registry_names" {
-  description = "List of PDS Nucleus OpenSearch Registry Names"
+  description = "List of PDS Nucleus OpenSearch Registry Names (for each PDS Node)"
   type        = list(string)
   sensitive   = true
 }
 
 
 variable "pds_nucleus_opensearch_credential_relative_url" {
-  description = "List of PDS Nucleus OpenSearch Credential Relative URL"
+  description = "List of PDS Nucleus OpenSearch Credential Relative URLs (for each PDS Node)"
   type        = string
+  sensitive   = true
+}
+
+variable "pds_nucleus_opensearch_cognito_identity_pool_ids" {
+  description = "List of Opensearch Cognito Identity Pool IDs (for each PDS Node)"
+  type        = list(string)
   sensitive   = true
 }
 
 variable "pds_nucleus_opensearch_collection_arns" {
   type        = list(string)
-  description = "List of PDS OpenSearch Collection ARN"
+  description = "List of PDS OpenSearch Collection ARNs (for each PDS Node)"
   sensitive   = true
 }
 

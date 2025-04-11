@@ -357,6 +357,8 @@ data "aws_iam_policy_document" "harvest_ecs_task_role_inline_policy" {
 
 # IAM Policy Document for Assume Role
 data "aws_iam_policy_document" "harvest_ecs_task_role_assume_role" {
+  count = length(var.pds_node_names)
+
   statement {
     effect = "Allow"
     principals {
@@ -377,6 +379,29 @@ data "aws_iam_policy_document" "harvest_ecs_task_role_assume_role" {
       values   = [data.aws_caller_identity.current.account_id]
     }
   }
+
+  statement {
+    effect = "Allow"
+
+    principals {
+      type        = "Federated"
+      identifiers = ["cognito-identity.amazonaws.com"]
+    }
+
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "cognito-identity.amazonaws.com:aud"
+      values   = [ var.pds_nucleus_opensearch_cognito_identity_pool_ids[count.index]]
+    }
+
+    condition {
+      test     = "ForAnyValue:StringLike"
+      variable = "cognito-identity.amazonaws.com:amr"
+      values   = ["authenticated"]
+    }
+  }
 }
 
 resource "aws_iam_role" "pds_nucleus_harvest_ecs_task_role" {
@@ -387,7 +412,7 @@ resource "aws_iam_role" "pds_nucleus_harvest_ecs_task_role" {
     name   = "pds-nucleus-harvest-ecs-task-role-inline-policy"
     policy = data.aws_iam_policy_document.harvest_ecs_task_role_inline_policy[count.index].json
   }
-  assume_role_policy   = data.aws_iam_policy_document.harvest_ecs_task_role_assume_role.json
+  assume_role_policy   = data.aws_iam_policy_document.harvest_ecs_task_role_assume_role[count.index].json
   permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
 }
 
