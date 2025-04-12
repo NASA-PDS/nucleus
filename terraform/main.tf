@@ -141,12 +141,12 @@ module "product-copy-completion-checker" {
   pds_nucleus_opensearch_credential_relative_url = var.pds_nucleus_opensearch_credential_relative_url
   pds_nucleus_harvest_replace_prefix_with_list   = var.pds_nucleus_harvest_replace_prefix_with_list
 
-  database_availability_zones           = var.database_availability_zones
-  airflow_env_name                      = var.airflow_env_name
-  region                                = var.region
-  pds_nucleus_lambda_execution_role_arn = module.iam.pds_nucleus_lambda_execution_role_arn
-  rds_cluster_id                        = var.rds_cluster_id
-  database_name                         = var.database_name
+  database_availability_zones                              = var.database_availability_zones
+  airflow_env_name                                         = var.airflow_env_name
+  region                                                   = var.region
+  pds_nucleus_lambda_execution_role_arn                    = module.iam.pds_nucleus_lambda_execution_role_arn
+  rds_cluster_id                                           = var.rds_cluster_id
+  database_name                                            = var.database_name
 
   depends_on = [module.security-groups, module.iam]
 }

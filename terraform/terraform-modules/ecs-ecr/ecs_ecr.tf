@@ -178,10 +178,10 @@ resource "aws_secretsmanager_secret_version" "opensearch_password_version" {
   secret_string = "Replace this with Opensearch password of PDS Node: ${var.pds_node_names[count.index]}"
 }
 
-# Replace PDS Registry Loader Harvest related variables in pds-airflow-registry-loader-harvest-containers.json
+# Replace PDS Registry Loader Harvest related variables in pds-registry-loader-harvest-containers.json
 data "template_file" "pds-registry-loader-harvest-containers-json-template" {
   count    = length(var.pds_node_names)
-  template = file("terraform-modules/ecs-ecr/container-definitions/pds-airflow-registry-loader-harvest-containers.json")
+  template = file("terraform-modules/ecs-ecr/container-definitions/pds-registry-loader-harvest-containers.json")
   vars = {
     pds_registry_loader_harvest_ecr_image_path         = aws_ecr_repository.pds_registry_loader_harvest.repository_url
     pds_registry_loader_harvest_cloudwatch_logs_group  = "${var.pds_registry_loader_harvest_cloudwatch_logs_group}-${var.pds_node_names[count.index]}"
@@ -194,7 +194,7 @@ data "template_file" "pds-registry-loader-harvest-containers-json-template" {
 # PDS Registry Loader Harvest Task Definition
 resource "aws_ecs_task_definition" "pds-registry-loader-harvest" {
   count                    = length(var.pds_node_names)
-  family                   = "pds-airflow-registry-loader-harvest-task-definition-${var.pds_node_names[count.index]}"
+  family                   = "pds-registry-loader-harvest-task-definition-${var.pds_node_names[count.index]}"
   requires_compatibilities = ["EC2", "FARGATE"]
   network_mode             = "awsvpc"
   cpu                      = 4096

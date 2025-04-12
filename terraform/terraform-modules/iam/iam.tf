@@ -9,22 +9,29 @@ data "aws_iam_policy" "mcp_operator_policy" {
   arn = var.permission_boundary_for_iam_roles_arn
 }
 
-####################################################
+################################################################
 #
-# IAM Roles and policies used by cognito-auth terraform module
+# Assume role policies
 #
-###################################################
+################################################################
 
 data "aws_iam_policy_document" "assume_role_lambda" {
   statement {
     effect = "Allow"
     principals {
       type        = "Service"
-      identifiers = ["lambda.amazonaws.com", "scheduler.amazonaws.com"]
+      identifiers = ["lambda.amazonaws.com"]
     }
     actions = ["sts:AssumeRole"]
   }
 }
+
+
+################################################################
+#
+# IAM Roles and policies used by cognito-auth terraform module
+#
+################################################################
 
 data "aws_iam_policy_document" "alb_auth_lambda_execution_role_policy" {
 
@@ -41,6 +48,16 @@ data "aws_iam_policy_document" "alb_auth_lambda_execution_role_policy" {
 }
 
 resource "aws_iam_role" "pds_nucleus_alb_auth_lambda_execution_role" {
+  name = "pds_nucleus_alb_auth_lambda_execution_role"
+  inline_policy {
+    name   = "alb_auth_lambda_execution_role_policy"
+    policy = data.aws_iam_policy_document.alb_auth_lambda_execution_role_policy.json
+  }
+  assume_role_policy   = data.aws_iam_policy_document.assume_role_lambda.json
+  permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
+}
+
+resource "aws_iam_role" "pds_nucleus_alb_auth_scheduled_lambda_execution_role" {
   name = "pds_nucleus_alb_auth_lambda_execution_role"
   inline_policy {
     name   = "alb_auth_lambda_execution_role_policy"
@@ -870,7 +887,6 @@ resource "aws_iam_role" "pds_nucleus_lambda_execution_role" {
   assume_role_policy   = data.aws_iam_policy_document.assume_role_lambda.json
   permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
 }
-
 
 
 ###########################################################
