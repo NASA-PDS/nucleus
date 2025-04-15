@@ -122,7 +122,7 @@ region                                = "us-west-2"
 vpc_id                                = "vpc-12345678"
 subnet_ids                            = ["subnet-123456789", "subnet-987654321"]
 vpc_cidr                              = "10.2.0.0/16"
-permission_boundary_for_iam_roles_arn = "arn:aws:iam::441083951559:policy/mcp-tenantOperator-APIG"
+permission_boundary_for_iam_roles_arn = "arn:aws:iam::1234567890:policy/example-permission-boundary"
 database_availability_zones           = ["us-west-2a"]
 aws_secretmanager_key_arn             = "arn:aws:kms:us-west-2:12345678:key/12345-1234-1234-1234-12345abcd"
 
