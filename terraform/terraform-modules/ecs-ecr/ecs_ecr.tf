@@ -417,8 +417,9 @@ resource "aws_ecs_task_definition" "pds-nucleus-s3-to-efs-copy-task-definition" 
 
 # CloudWatch Log Group for PDS Nucleus S3 Backlog Processor ECS Task
 resource "aws_cloudwatch_log_group" "pds-nucleus-s3-backlog-processor-log-group" {
-  count = length(var.pds_node_names)
-  name  = "${var.pds_nucleus_s3_backlog_processor_cloudwatch_logs_group}-${var.pds_node_names[count.index]}"
+  count             = length(var.pds_node_names)
+  name              = "${var.pds_nucleus_s3_backlog_processor_cloudwatch_logs_group}-${var.pds_node_names[count.index]}"
+  retention_in_days = 30
 }
 
 # Replace PDS Nucleus S3 Backlog Processor Image Path in pds-nucleus-s3-backlog-processor-containers.json

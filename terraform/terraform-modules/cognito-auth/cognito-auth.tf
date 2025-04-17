@@ -135,7 +135,7 @@ resource "aws_lambda_function" "pds_nucleus_auth_alb_function" {
 
 # Create CloudWatch Log Group for pds_nucleus_s3_file_file_event_processor_function for each PDS Node
 resource "aws_cloudwatch_log_group" "pds_nucleus_auth_alb" {
-  name = "/aws/lambda/${var.pds_nucleus_auth_alb_function_name}"
+  name              = "/aws/lambda/${var.pds_nucleus_auth_alb_function_name}"
   retention_in_days = 30
 }
 
