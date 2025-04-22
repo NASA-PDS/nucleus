@@ -57,16 +57,6 @@ resource "aws_iam_role" "pds_nucleus_alb_auth_lambda_execution_role" {
   permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
 }
 
-resource "aws_iam_role" "pds_nucleus_alb_auth_scheduled_lambda_execution_role" {
-  name = "pds_nucleus_alb_auth_lambda_execution_role"
-  inline_policy {
-    name   = "alb_auth_lambda_execution_role_policy"
-    policy = data.aws_iam_policy_document.alb_auth_lambda_execution_role_policy.json
-  }
-  assume_role_policy   = data.aws_iam_policy_document.assume_role_lambda.json
-  permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
-}
-
 # Common assume role policy
 data "aws_iam_policy_document" "pds_nucleus_airflow_assume_role" {
   statement {
