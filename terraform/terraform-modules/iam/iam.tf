@@ -226,7 +226,8 @@ data "aws_iam_policy_document" "ecs_task_role_inline_policy" {
       "arn:aws:s3:::${lower(replace(var.pds_node_names[count.index], "_", "-"))}-staging*",
       "arn:aws:s3:::${lower(replace(var.pds_node_names[count.index], "_", "-"))}-staging*/*",
       "arn:aws:s3:::${lower(replace(var.pds_node_names[count.index], "_", "-"))}-archive*",
-      "arn:aws:s3:::${lower(replace(var.pds_node_names[count.index], "_", "-"))}-archive*/*"
+      "arn:aws:s3:::${lower(replace(var.pds_node_names[count.index], "_", "-"))}-archive*/*",
+      "arn:aws:s3:::${lower(replace(var.pds_node_names[count.index], "_", "-"))}-config*/*"
     ]
   }
 
