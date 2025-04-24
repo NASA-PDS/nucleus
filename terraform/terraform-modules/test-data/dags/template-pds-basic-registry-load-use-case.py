@@ -282,8 +282,7 @@ data_archive = EcsRunTaskOperator(
         "containerOverrides": [
             {
                 "name": "pds-nucleus-s3-to-efs-copy",
-                "command": ['{{ dag_run.conf["efs_config_dir"] }}','ARCHIVE','{{ dag_run.conf["pds_hot_archive_bucket_name"] }}', '{{ dag_run.conf["pds_cold_archive_bucket_name"] }}'],
-
+                "command": ['{{ dag_run.conf["efs_config_dir"] }}','ARCHIVE','{{ dag_run.conf["pds_hot_archive_bucket_name"] }}'],
             },
         ],
     },

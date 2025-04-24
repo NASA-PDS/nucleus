@@ -144,7 +144,7 @@ module "product-copy-completion-checker" {
   database_availability_zones                              = var.database_availability_zones
   airflow_env_name                                         = var.airflow_env_name
   region                                                   = var.region
-  pds_nucleus_lambda_execution_role_arns                    = module.iam.pds_nucleus_lambda_execution_role_arns
+  pds_nucleus_lambda_execution_role_arns                   = module.iam.pds_nucleus_lambda_execution_role_arns
   rds_cluster_id                                           = var.rds_cluster_id
   database_name                                            = var.database_name
 

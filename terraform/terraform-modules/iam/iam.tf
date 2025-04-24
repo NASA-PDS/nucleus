@@ -220,7 +220,8 @@ data "aws_iam_policy_document" "ecs_task_role_inline_policy" {
     actions = [
       "s3:GetBucket*",
       "s3:GetObject*",
-      "s3:List*"
+      "s3:List*",
+      "s3:ListObjects*"
     ]
     resources = [
       "arn:aws:s3:::${lower(replace(var.pds_node_names[count.index], "_", "-"))}-staging*",
@@ -228,6 +229,16 @@ data "aws_iam_policy_document" "ecs_task_role_inline_policy" {
       "arn:aws:s3:::${lower(replace(var.pds_node_names[count.index], "_", "-"))}-archive*",
       "arn:aws:s3:::${lower(replace(var.pds_node_names[count.index], "_", "-"))}-archive*/*",
       "arn:aws:s3:::${lower(replace(var.pds_node_names[count.index], "_", "-"))}-config*/*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "s3:ListBucket"
+    ]
+    resources = [
+      "arn:aws:s3:::*"
     ]
   }
 

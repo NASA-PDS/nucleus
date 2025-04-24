@@ -38,7 +38,6 @@ aws sts get-caller-identity
 EFS_CONFIG_DIR=$1
 OPERATION=$2
 HOT_ARCHIVE_S3_BUCKET_NAME=$3
-COLD_ARCHIVE_S3_BUCKET_NAME=$4
 
 if [ "$OPERATION" = "DELETE" ]
 then
