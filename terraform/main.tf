@@ -129,7 +129,7 @@ module "product-copy-completion-checker" {
   permission_boundary_for_iam_roles            = var.permission_boundary_for_iam_roles
   nucleus_security_group_id                    = module.security-groups.nucleus_security_group_id
   pds_nucleus_staging_bucket_name_postfix      = var.pds_nucleus_staging_bucket_name_postfix
-  pds_nucleus_config_bucket_name               = var.pds_nucleus_config_bucket_name
+  pds_nucleus_config_bucket_name_postfix       = var.pds_nucleus_config_bucket_name_postfix
   subnet_ids                                   = var.subnet_ids
   pds_nucleus_default_airflow_dag_id           = var.pds_nucleus_default_airflow_dag_id
   pds_nucleus_hot_archive_bucket_name_postfix  = var.pds_nucleus_hot_archive_bucket_name_postfix
@@ -144,7 +144,7 @@ module "product-copy-completion-checker" {
   database_availability_zones                              = var.database_availability_zones
   airflow_env_name                                         = var.airflow_env_name
   region                                                   = var.region
-  pds_nucleus_lambda_execution_role_arn                    = module.iam.pds_nucleus_lambda_execution_role_arn
+  pds_nucleus_lambda_execution_role_arns                    = module.iam.pds_nucleus_lambda_execution_role_arns
   rds_cluster_id                                           = var.rds_cluster_id
   database_name                                            = var.database_name
 

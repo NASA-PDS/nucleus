@@ -91,9 +91,9 @@ variable "pds_nucleus_cold_archive_storage_class" {
   type        = string
 }
 
-variable "pds_nucleus_config_bucket_name" {
-  description = "PDS Nucleus Configuration S3 Bucket Name"
-  default     = "pds-nucleus-config-<venue-name>"
+variable "pds_nucleus_config_bucket_name_postfix" {
+  description = "The postfix of the namer of the PDS Nucleus Configuration S3 Bucket"
+  default     = "config--<venue-name>"
   type        = string
   sensitive   = true
 }

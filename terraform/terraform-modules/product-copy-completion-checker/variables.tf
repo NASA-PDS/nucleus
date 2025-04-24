@@ -49,12 +49,6 @@ variable "pds_nucleus_default_airflow_dag_id" {
   sensitive   = true
 }
 
-variable "pds_nucleus_config_bucket_name" {
-  description = "PDS Nucleus Configuration S3 Bucket Name"
-  type        = string
-  sensitive   = true
-}
-
 variable "subnet_ids" {
   description = "Comma Separated List of Subnet IDs"
   type        = list(string)
@@ -117,6 +111,13 @@ variable "pds_nucleus_cold_archive_bucket_name_postfix" {
   sensitive   = true
 }
 
+variable "pds_nucleus_config_bucket_name_postfix" {
+  description = "The postfix of the namer of the PDS Nucleus Configuration S3 Bucket"
+  default     = "config--<venue-name>"
+  type        = string
+  sensitive   = true
+}
+
 variable "airflow_env_name" {
   description = "PDS Nucleus Airflow Env Name"
   type        = string
@@ -134,8 +135,8 @@ variable "region" {
   type        = string
 }
 
-variable "pds_nucleus_lambda_execution_role_arn" {
-  description = "PDS Nucleus lambda execution role ARN"
-  type        = string
+variable "pds_nucleus_lambda_execution_role_arns" {
+  description = "List of PDS Nucleus lambda execution role ARNs"
+  type        = list(string)
   sensitive   = true
 }

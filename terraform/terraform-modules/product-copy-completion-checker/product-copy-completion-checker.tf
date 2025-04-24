@@ -106,7 +106,7 @@ resource "aws_lambda_function" "pds_nucleus_init_function" {
   function_name    = "pds-nucleus-init"
   filename         = "${path.module}/lambda/pds_nucleus_init.zip"
   source_code_hash = data.archive_file.pds_nucleus_init_zip.output_base64sha256
-  role             = var.pds_nucleus_lambda_execution_role_arn
+  role             = var.pds_nucleus_lambda_execution_role_arns[0]
   runtime          = "python3.9"
   handler          = "pds-nucleus-init.lambda_handler"
   timeout          = 10
@@ -121,7 +121,8 @@ resource "aws_lambda_function" "pds_nucleus_init_function" {
 }
 
 resource "aws_s3_bucket" "pds_nucleus_s3_config_bucket" {
-  bucket        = var.pds_nucleus_config_bucket_name
+  count  = length(var.pds_node_names)
+  bucket = "${lower(replace(var.pds_node_names[count.index], "_", "-"))}-${var.pds_nucleus_config_bucket_name_postfix}"
   force_destroy = true
 }
 
@@ -161,7 +162,7 @@ resource "aws_lambda_function" "pds_nucleus_s3_file_file_event_processor_functio
   function_name    = "pds_nucleus_s3_file_event_processor-${var.pds_node_names[count.index]}"
   filename         = "${path.module}/lambda/pds-nucleus-s3-file-event-processor.zip"
   source_code_hash = data.archive_file.pds_nucleus_s3_file_file_event_processor_function_zip.output_base64sha256
-  role             = var.pds_nucleus_lambda_execution_role_arn
+  role             = var.pds_nucleus_lambda_execution_role_arns[count.index]
   runtime          = "python3.9"
   handler          = "pds-nucleus-s3-file-event-processor.lambda_handler"
   timeout          = 300
@@ -192,7 +193,7 @@ resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function"
   function_name    = "pds-nucleus-product-completion-checker-${var.pds_node_names[count.index]}"
   filename         = "${path.module}/lambda/pds_nucleus_product_completion_checker.zip"
   source_code_hash = data.archive_file.pds_nucleus_product_completion_checker_zip.output_base64sha256
-  role             = var.pds_nucleus_lambda_execution_role_arn
+  role             = var.pds_nucleus_lambda_execution_role_arns[count.index]
   runtime          = "python3.12"
   handler          = "pds-nucleus-product-completion-checker.lambda_handler"
   timeout          = 300
@@ -209,7 +210,7 @@ resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function"
       OPENSEARCH_REGISTRY_NAME           = var.pds_nucleus_opensearch_registry_names[count.index]
       OPENSEARCH_CREDENTIAL_RELATIVE_URL = var.pds_nucleus_opensearch_credential_relative_url
       PDS_NODE_NAME                      = var.pds_node_names[count.index]
-      PDS_NUCLEUS_CONFIG_BUCKET_NAME     = var.pds_nucleus_config_bucket_name
+      PDS_NUCLEUS_CONFIG_BUCKET_NAME     = "${lower(replace(var.pds_node_names[count.index], "_", "-"))}-${var.pds_nucleus_config_bucket_name_postfix}"
       REPLACE_PREFIX_WITH                = var.pds_nucleus_harvest_replace_prefix_with_list[count.index]
       PDS_MWAA_ENV_NAME                  = var.airflow_env_name
       PDS_HOT_ARCHIVE_S3_BUCKET_NAME     = "${lower(replace(var.pds_node_names[count.index], "_", "-"))}-${var.pds_nucleus_hot_archive_bucket_name_postfix}"
@@ -332,7 +333,7 @@ resource "aws_lambda_function" "pds_nucleus_product_processing_status_tracker_fu
   function_name    = "pds_nucleus_product_processing_status_tracker"
   filename         = "${path.module}/lambda/pds-nucleus-product-processing-status-tracker.zip"
   source_code_hash = data.archive_file.pds_nucleus_product_processing_status_tracker_function_zip.output_base64sha256
-  role             = var.pds_nucleus_lambda_execution_role_arn
+  role             = var.pds_nucleus_lambda_execution_role_arns[0]
   runtime          = "python3.12"
   handler          = "pds-nucleus-product-processing-status-tracker.lambda_handler"
   timeout          = 10

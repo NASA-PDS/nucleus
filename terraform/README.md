@@ -103,7 +103,7 @@ Note:  Examples of `terraform.tfvars` files are available at `terraform/variable
     - pds_nucleus_staging_bucket_name_postfix : Postfix of the S3 Bucket name to keep PDS staging data files (E.g.: staging-mcp-dev)
     - pds_nucleus_hot_archive_bucket_name_postfix : Postfix of the S3 Bucket name to keep PDS hot archive data files (E.g.: archive-hot-mcp-dev)
     - pds_nucleus_cold_archive_bucket_name_postfix : Postfix of the S3 Bucket name to keep PDS cold archive data files (E.g.: archive-cold-mcp-dev)
-    - pds_nucleus_config_bucket_name  : S3 Bucket name to keep temporary configurations (E.g.: pds-nucleus-config-mcp-test)
+    - pds_nucleus_config_bucket_name_postfix: Postfix of the S3 Bucket name to keep temporary configurations (E.g.: pds-nucleus-config-mcp-test)
     - pds_nucleus_default_airflow_dag_id : The default example DAG to be included for testing (E.g.: pds-basic-registry-load-use-case)
     - pds_registry_loader_harvest_task_role_arn: An IAM role which is associated with a Cognito user group
     - cognito_user_pool_id: The ID of the Cognito user pool which is used to create Nuclues user accounts
@@ -144,7 +144,7 @@ mwaa_dag_s3_bucket_name                      = "pds-nucleus-airflow-dags-bucket-
 pds_nucleus_staging_bucket_name_postfix      = "staging-mcp-dev"
 pds_nucleus_hot_archive_bucket_name_postfix  = "archive-hot-mcp-dev"
 pds_nucleus_cold_archive_bucket_name_postfix = "archive-cold-mcp-dev"
-pds_nucleus_config_bucket_name               = "pds-nucleus-config-mcp-dev"
+pds_nucleus_config_bucket_name_postfix       = "config-dev"
 
 pds_nucleus_default_airflow_dag_id = "pds-basic-registry-load-use-case"
 

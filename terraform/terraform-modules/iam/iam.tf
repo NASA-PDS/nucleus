@@ -193,25 +193,12 @@ data "aws_iam_policy_document" "ecs_task_role_inline_policy" {
   statement {
     effect = "Allow"
     actions = [
-      "ecr:GetDownloadUrlForLayer",
-      "ecr:BatchGetImage",
-      "ecr:BatchCheckLayerAvailability"
-    ]
-    resources = [
-      "arn:aws:ecr:*:${data.aws_caller_identity.current.account_id}:repository/pds*"
-    ]
-  }
-
-  statement {
-    effect = "Allow"
-    actions = [
       "elasticfilesystem:DescribeMountTargets",
       "elasticfilesystem:ClientMount",
       "elasticfilesystem:ClientWrite",
       "elasticfilesystem:ClientRootAccess"
     ]
     resources = [
-      "arn:aws:elasticfilesystem:*:${data.aws_caller_identity.current.account_id}:access-point/*",
       "arn:aws:elasticfilesystem:*:${data.aws_caller_identity.current.account_id}:file-system/pds-nucleus*-${var.pds_node_names[count.index]}"
     ]
   }
@@ -224,7 +211,7 @@ data "aws_iam_policy_document" "ecs_task_role_inline_policy" {
       "logs:PutLogEvents"
     ]
     resources = [
-      "arn:aws:logs:*:${data.aws_caller_identity.current.account_id}:log-group:*:log-stream:*"
+      "arn:aws:logs:*:${data.aws_caller_identity.current.account_id}:log-group:/pds/ecs/*-${var.pds_node_names[count.index]}:log-stream:ecs/pds-*"
     ]
   }
 
@@ -233,16 +220,25 @@ data "aws_iam_policy_document" "ecs_task_role_inline_policy" {
     actions = [
       "s3:GetBucket*",
       "s3:GetObject*",
-      "s3:List*",
+      "s3:List*"
+    ]
+    resources = [
+      "arn:aws:s3:::${lower(replace(var.pds_node_names[count.index], "_", "-"))}-staging*",
+      "arn:aws:s3:::${lower(replace(var.pds_node_names[count.index], "_", "-"))}-staging*/*",
+      "arn:aws:s3:::${lower(replace(var.pds_node_names[count.index], "_", "-"))}-archive*",
+      "arn:aws:s3:::${lower(replace(var.pds_node_names[count.index], "_", "-"))}-archive*/*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
       "s3:PutObject"
     ]
     resources = [
-      "arn:aws:s3:::pds-nucleus*",
-      "arn:aws:s3:::pds-nucleus*/*",
-      "arn:aws:s3:::pds-*-staging*",
-      "arn:aws:s3:::pds-*-staging*/*",
-      "arn:aws:s3:::pds-*-archive*",
-      "arn:aws:s3:::pds-*-archive*/*"
+      "arn:aws:s3:::${lower(replace(var.pds_node_names[count.index], "_", "-"))}-archive*",
+      "arn:aws:s3:::${lower(replace(var.pds_node_names[count.index], "_", "-"))}-archive*/*",
+      "arn:aws:s3:::${lower(replace(var.pds_node_names[count.index], "_", "-"))}-config*/*",
     ]
   }
 
@@ -324,7 +320,6 @@ data "aws_iam_policy_document" "harvest_ecs_task_role_inline_policy" {
       "elasticfilesystem:ClientRootAccess"
     ]
     resources = [
-      "arn:aws:elasticfilesystem:*:${data.aws_caller_identity.current.account_id}:access-point/*",
       "arn:aws:elasticfilesystem:*:${data.aws_caller_identity.current.account_id}:file-system/pds-nucleus*-${var.pds_node_names[count.index]}"
     ]
   }
@@ -337,7 +332,7 @@ data "aws_iam_policy_document" "harvest_ecs_task_role_inline_policy" {
       "logs:PutLogEvents"
     ]
     resources = [
-      "arn:aws:logs:*:${data.aws_caller_identity.current.account_id}:log-group:*:log-stream:*"
+      "arn:aws:logs:*:${data.aws_caller_identity.current.account_id}:log-group:/pds/ecs/harvest-${var.pds_node_names[count.index]}:log-stream:ecs/pds-registry-loader-harvest/*"
     ]
   }
 
@@ -386,29 +381,6 @@ data "aws_iam_policy_document" "harvest_ecs_task_role_assume_role" {
       values   = [data.aws_caller_identity.current.account_id]
     }
   }
-
-  statement {
-    effect = "Allow"
-
-    principals {
-      type        = "Federated"
-      identifiers = ["cognito-identity.amazonaws.com"]
-    }
-
-    actions = ["sts:AssumeRoleWithWebIdentity"]
-
-    condition {
-      test     = "StringEquals"
-      variable = "cognito-identity.amazonaws.com:aud"
-      values   = [ var.pds_nucleus_opensearch_cognito_identity_pool_ids[count.index]]
-    }
-
-    condition {
-      test     = "ForAnyValue:StringLike"
-      variable = "cognito-identity.amazonaws.com:amr"
-      values   = ["authenticated"]
-    }
-  }
 }
 
 resource "aws_iam_role" "pds_nucleus_harvest_ecs_task_role" {
@@ -437,6 +409,7 @@ data "aws_iam_policy_document" "ecs_task_execution_role_inline_policy" {
       "ecr:BatchGetImage",
       "ecr:BatchCheckLayerAvailability"
     ]
+    # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-iam-roles.html#ecr-required-iam-permissions
     resources = [
       "arn:aws:ecr:*:${data.aws_caller_identity.current.account_id}:repository/pds*"
     ]
@@ -657,35 +630,10 @@ data "aws_iam_policy_document" "mwaa_inline_policy" {
   statement {
     effect = "Allow"
     actions = [
-      "logs:CreateLogStream",
-      "logs:GetLogEvents",
-      "logs:PutLogEvents"
-    ]
-    resources = [
-      "arn:aws:logs:*:${data.aws_caller_identity.current.account_id}:log-group:*:log-stream:*"
-    ]
-  }
-
-  statement {
-    effect = "Allow"
-    actions = [
       "logs:DescribeLogGroups"
     ]
     resources = [
       "*" // This is required for MWAA (https://docs.aws.amazon.com/mwaa/latest/userguide/mwaa-create-role.html)
-    ]
-  }
-
-  statement {
-    effect = "Allow"
-    actions = [
-      "logs:GetLogRecord",
-      "logs:GetQueryResults",
-      "logs:GetLogGroupFields",
-      "logs:CreateLogGroup"
-    ]
-    resources = [
-      "arn:aws:logs:*:${data.aws_caller_identity.current.account_id}:log-group:*"
     ]
   }
 
@@ -741,7 +689,8 @@ data "aws_iam_policy_document" "mwaa_inline_policy" {
       "logs:GetQueryResults"
     ]
     resources = [
-      "arn:aws:logs:${var.region}:${data.aws_caller_identity.current.account_id}:log-group:airflow-${var.airflow_env_name}-*"
+      "arn:aws:logs:${var.region}:${data.aws_caller_identity.current.account_id}:log-group:airflow-${var.airflow_env_name}-*",
+      "arn:aws:logs:${var.region}:${data.aws_caller_identity.current.account_id}:log-group:/pds/ecs/*:log-stream:ecs/*"
     ]
   }
 
@@ -797,6 +746,9 @@ data "aws_iam_policy_document" "assume_role_airflow" {
 }
 
 data "aws_iam_policy_document" "lambda_inline_policy" {
+
+  count = length(var.pds_node_names)
+
   statement {
     effect = "Allow"
     actions = [
@@ -805,7 +757,7 @@ data "aws_iam_policy_document" "lambda_inline_policy" {
       "logs:PutLogEvents"
     ]
     resources = [
-      "arn:aws:logs:*:${data.aws_caller_identity.current.account_id}:log-group:*:log-stream:*"
+      "arn:aws:logs:*:${data.aws_caller_identity.current.account_id}:log-group:*:log-stream:*",
     ]
   }
 
@@ -834,14 +786,21 @@ data "aws_iam_policy_document" "lambda_inline_policy" {
     actions = [
       "s3:GetBucket*",
       "s3:GetObject*",
-      "s3:PutObject*",
       "s3:List*"
     ]
     resources = [
-      "arn:aws:s3:::pds-nucleus*",
-      "arn:aws:s3:::pds-nucleus*/*",
       "arn:aws:s3:::pds-*-staging*",
       "arn:aws:s3:::pds-*-staging*/*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "s3:PutObject"
+    ]
+    resources = [
+      "arn:aws:s3:::${lower(replace(var.pds_node_names[count.index], "_", "-"))}-config*/*",
     ]
   }
 
@@ -869,10 +828,12 @@ data "aws_iam_policy_document" "lambda_inline_policy" {
 }
 
 resource "aws_iam_role" "pds_nucleus_lambda_execution_role" {
-  name = "pds_nucleus_lambda_execution_role"
+  count = length(var.pds_node_names)
+
+  name = "pds_nucleus_lambda_execution_role-${var.pds_node_names[count.index]}"
   inline_policy {
     name   = "pds-nucleus-lambda-execution-inline-policy"
-    policy = data.aws_iam_policy_document.lambda_inline_policy.json
+    policy = data.aws_iam_policy_document.lambda_inline_policy[count.index].json
   }
   assume_role_policy   = data.aws_iam_policy_document.assume_role_lambda.json
   permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
@@ -926,6 +887,6 @@ output "pds_nucleus_mwaa_execution_role_arn" {
   value = aws_iam_role.pds_nucleus_mwaa_execution_role.arn
 }
 
-output "pds_nucleus_lambda_execution_role_arn" {
-  value = aws_iam_role.pds_nucleus_lambda_execution_role.arn
+output "pds_nucleus_lambda_execution_role_arns" {
+  value = aws_iam_role.pds_nucleus_lambda_execution_role.*.arn
 }
