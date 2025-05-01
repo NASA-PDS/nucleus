@@ -52,6 +52,12 @@ variable "permission_boundary_for_iam_roles" {
   sensitive   = true
 }
 
+variable "permission_boundary_for_iam_roles_arn" {
+  description = "ARN of Permission boundary to be used when creating IAM roles"
+  type        = string
+  sensitive   = true
+}
+
 variable "mwaa_dag_s3_bucket_name" {
   description = "The name of the S3 bucket containing MWAA DAG files"
   type        = string
@@ -85,15 +91,21 @@ variable "pds_nucleus_cold_archive_storage_class" {
   type        = string
 }
 
-variable "pds_nucleus_config_bucket_name" {
-  description = "PDS Nucleus Configuration S3 Bucket Name"
-  default     = "pds-nucleus-config-<venue-name>"
+variable "pds_nucleus_config_bucket_name_postfix" {
+  description = "The postfix of the namer of the PDS Nucleus Configuration S3 Bucket"
+  default     = "config--<venue-name>"
   type        = string
   sensitive   = true
 }
 
 variable "pds_nucleus_default_airflow_dag_id" {
   description = "PDS Nucleus Default Airflow DAG ID"
+  type        = string
+  sensitive   = true
+}
+
+variable "pds_nucleus_s3_backlog_processor_dag_id" {
+  description = "PDS Nucleus S3 Backlog Processor DAG ID"
   type        = string
   sensitive   = true
 }
@@ -105,21 +117,33 @@ variable "pds_node_names" {
 }
 
 variable "pds_nucleus_opensearch_url" {
-  description = "List of PDS Nucleus OpenSearch URL"
+  description = "List of PDS Nucleus OpenSearch URLS (for each PDS Node)"
   type        = string
   sensitive   = true
 }
 
 variable "pds_nucleus_opensearch_registry_names" {
-  description = "List of PDS Nucleus OpenSearch Registry Names"
+  description = "List of PDS Nucleus OpenSearch Registry Names (for each PDS Node)"
   type        = list(string)
   sensitive   = true
 }
 
 
 variable "pds_nucleus_opensearch_credential_relative_url" {
-  description = "List of PDS Nucleus OpenSearch Credential Relative URL"
+  description = "List of PDS Nucleus OpenSearch Credential Relative URLs (for each PDS Node)"
   type        = string
+  sensitive   = true
+}
+
+variable "pds_nucleus_opensearch_cognito_identity_pool_ids" {
+  description = "List of Opensearch Cognito Identity Pool IDs (for each PDS Node)"
+  type        = list(string)
+  sensitive   = true
+}
+
+variable "pds_nucleus_opensearch_collection_arns" {
+  type        = list(string)
+  description = "List of PDS OpenSearch Collection ARNs (for each PDS Node)"
   sensitive   = true
 }
 
@@ -127,12 +151,6 @@ variable "pds_nucleus_harvest_replace_prefix_with_list" {
   description = "List of PDS Nucleus Harvest Replace Prefix With"
   type        = list(string)
   default     = ["s3://pds-nucleus-staging-sbn", "s3://pds-nucleus-staging-img"]
-}
-
-variable "pds_registry_loader_harvest_task_role_arn" {
-  type        = string
-  description = "PDS Registry Loader Harvest Task Role ARN"
-  sensitive   = true
 }
 
 variable "aws_secretmanager_key_arn" {
@@ -230,4 +248,23 @@ variable "aws_elb_account_id_for_the_region" {
   description = "Standard AWS ELB Account ID for the related region"
   type        = string
   sensitive   = true
+}
+
+variable "pds_nucleus_auth_alb_function_name" {
+  description = "PDS Nucleus Auth ALB Function name"
+  default     = "pds_nucleus_alb_auth"
+  type        = string
+  sensitive   = true
+}
+
+variable "rds_cluster_id" {
+  default   = "pdsnucleus"
+  type      = string
+  sensitive = true
+}
+
+variable "database_name" {
+  default   = "pds_nucleus"
+  type      = string
+  sensitive = true
 }

@@ -82,7 +82,7 @@ Note:  Examples of `terraform.tfvars` files are available at `terraform/variable
     - vpc_id     : VPC ID of your AWS VPC
     - subnet_ids : List of Private Subnet IDs to be used for the MWAA
     - vpc_cidr   : VPC CIDR for MWAA (E.g.: "10.1.0.0/16")
-    - permission_boundary_for_iam_roles : The permission boundary for IAM roles can be obtained from the MCP System Admins or PDS Engineering Node team
+    - permission_boundary_for_iam_roles_arn : The ARN of the permission boundary for IAM roles can be obtained from the MCP System Admins or PDS Engineering Node team
     - database_availability_zones : RDS database availability zones (E.g.: ["us-west-2a"])
     - aws_secretmanager_key_arn : The ARN of aws/secretmanager key obtained from KMS -> AWS managed keys (E.g.: "arn:aws:kms:us-west-2:12345678:key/12345-1234-1234-1234-12345abcd")
 
@@ -103,7 +103,7 @@ Note:  Examples of `terraform.tfvars` files are available at `terraform/variable
     - pds_nucleus_staging_bucket_name_postfix : Postfix of the S3 Bucket name to keep PDS staging data files (E.g.: staging-mcp-dev)
     - pds_nucleus_hot_archive_bucket_name_postfix : Postfix of the S3 Bucket name to keep PDS hot archive data files (E.g.: archive-hot-mcp-dev)
     - pds_nucleus_cold_archive_bucket_name_postfix : Postfix of the S3 Bucket name to keep PDS cold archive data files (E.g.: archive-cold-mcp-dev)
-    - pds_nucleus_config_bucket_name  : S3 Bucket name to keep temporary configurations (E.g.: pds-nucleus-config-mcp-test)
+    - pds_nucleus_config_bucket_name_postfix: Postfix of the S3 Bucket name to keep temporary configurations (E.g.: pds-nucleus-config-mcp-test)
     - pds_nucleus_default_airflow_dag_id : The default example DAG to be included for testing (E.g.: pds-basic-registry-load-use-case)
     - pds_registry_loader_harvest_task_role_arn: An IAM role which is associated with a Cognito user group
     - cognito_user_pool_id: The ID of the Cognito user pool which is used to create Nuclues user accounts
@@ -117,14 +117,14 @@ Note:  Examples of `terraform.tfvars` files are available at `terraform/variable
 ```
 # Example terraform.tfvars
 
-env                               = "mcp-test"
-region                            = "us-west-2"
-vpc_id                            = "vpc-12345678"
-subnet_ids                        = ["subnet-123456789", "subnet-987654321"]
-vpc_cidr                          = "10.2.0.0/16"
-permission_boundary_for_iam_roles = "permission_boundary_role_name"
-database_availability_zones       = ["us-west-2a"]
-aws_secretmanager_key_arn         = "arn:aws:kms:us-west-2:12345678:key/12345-1234-1234-1234-12345abcd"
+env                                   = "mcp-test"
+region                                = "us-west-2"
+vpc_id                                = "vpc-12345678"
+subnet_ids                            = ["subnet-123456789", "subnet-987654321"]
+vpc_cidr                              = "10.2.0.0/16"
+permission_boundary_for_iam_roles_arn = "arn:aws:iam::1234567890:policy/example-permission-boundary"
+database_availability_zones           = ["us-west-2a"]
+aws_secretmanager_key_arn             = "arn:aws:kms:us-west-2:12345678:key/12345-1234-1234-1234-12345abcd"
 
 
 # Set node specific values the following lists in correct order. For the list of node names
@@ -144,7 +144,7 @@ mwaa_dag_s3_bucket_name                      = "pds-nucleus-airflow-dags-bucket-
 pds_nucleus_staging_bucket_name_postfix      = "staging-mcp-dev"
 pds_nucleus_hot_archive_bucket_name_postfix  = "archive-hot-mcp-dev"
 pds_nucleus_cold_archive_bucket_name_postfix = "archive-cold-mcp-dev"
-pds_nucleus_config_bucket_name               = "pds-nucleus-config-mcp-dev"
+pds_nucleus_config_bucket_name_postfix       = "config-dev"
 
 pds_nucleus_default_airflow_dag_id = "pds-basic-registry-load-use-case"
 

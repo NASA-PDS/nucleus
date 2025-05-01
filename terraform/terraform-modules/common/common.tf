@@ -1,40 +1,5 @@
 # Terraform script to create the common resources for PDS Nucleus
 
-resource "aws_security_group" "nucleus_security_group" {
-  name        = var.nucleus_security_group_name
-  description = "PDS Nucleus security group"
-  vpc_id      = var.vpc_id
-
-  ingress {
-    from_port = 2049
-    to_port   = 2049
-    protocol  = "tcp"
-    self      = true
-  }
-
-  ingress {
-    from_port = 5432
-    to_port   = 5432
-    protocol  = "tcp"
-    self      = true
-  }
-
-  ingress {
-    from_port = 443
-    to_port   = 443
-    protocol  = "tcp"
-    self      = true
-  }
-
-  egress {
-    from_port        = 0
-    to_port          = 0
-    protocol         = "-1"
-    cidr_blocks      = ["0.0.0.0/0"]
-    ipv6_cidr_blocks = ["::/0"]
-  }
-}
-
 resource "aws_s3_bucket" "pds_nucleus_airflow_dags_bucket" {
   bucket        = var.mwaa_dag_s3_bucket_name
   force_destroy = true
@@ -57,10 +22,6 @@ resource "aws_s3_object" "requirements" {
   source = "./terraform-modules/mwaa-env/requirements.txt"
 
   depends_on = [aws_s3_bucket.pds_nucleus_airflow_dags_bucket]
-}
-
-output "pds_nucleus_security_group_id" {
-  value = aws_security_group.nucleus_security_group.id
 }
 
 output "pds_nucleus_airflow_dags_bucket_arn" {

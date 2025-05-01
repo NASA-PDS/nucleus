@@ -34,3 +34,9 @@ variable "permission_boundary_for_iam_roles" {
   type      = string
   sensitive = true
 }
+
+variable "pds_nucleus_archive_replication_role_arn" {
+  description = "PDS Nucleus archive replication role ARN"
+  type      = string
+  sensitive = true
+}

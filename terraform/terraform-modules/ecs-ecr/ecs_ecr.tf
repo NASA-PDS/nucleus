@@ -28,189 +28,61 @@ resource "local_file" "deploy_ecr_images_script_file" {
   depends_on = [data.template_file.deploy_ecr_images_script_template]
 }
 
-#-------------------------------------
-# ECS Task Role
-#-------------------------------------
+#------------------------------------
+# EFS Volumes
+#------------------------------------
 
-# IAM Policy Document for Inline Policy
-data "aws_iam_policy_document" "ecs_task_role_inline_policy" {
-  statement {
-    effect = "Allow"
-    actions = [
-      "ecr:GetDownloadUrlForLayer",
-      "ecr:BatchGetImage",
-      "ecr:BatchCheckLayerAvailability"
-    ]
-    resources = [
-      "arn:aws:ecr:*:${data.aws_caller_identity.current.account_id}:repository/pds*"
-    ]
-  }
+# Terraform script to create a EFS file system to be used for file exchange between containers
 
-  statement {
-    effect = "Allow"
-    actions = [
-      "elasticfilesystem:DescribeMountTargets",
-      "elasticfilesystem:ClientMount",
-      "elasticfilesystem:ClientWrite",
-      "elasticfilesystem:ClientRootAccess"
-    ]
-    resources = [
-      "arn:aws:elasticfilesystem:*:${data.aws_caller_identity.current.account_id}:access-point/*",
-      "arn:aws:elasticfilesystem:*:${data.aws_caller_identity.current.account_id}:file-system/pds-nucleus*"
-    ]
-  }
+resource "aws_efs_file_system" "nucleus_efs" {
+  count = length(var.pds_node_names)
 
-  statement {
-    effect = "Allow"
-    actions = [
-      "logs:CreateLogStream",
-      "logs:CreateLogGroup",
-      "logs:PutLogEvents"
-    ]
-    resources = [
-      "arn:aws:logs:*:${data.aws_caller_identity.current.account_id}:log-group:*:log-stream:*"
-    ]
-  }
-
-  statement {
-    effect = "Allow"
-    actions = [
-      "ecr:GetAuthorizationToken"
-    ]
-    resources = [
-      "arn:aws:ecr:*:${data.aws_caller_identity.current.account_id}:repository/pds*"
-    ]
-  }
-
-  statement {
-    effect = "Allow"
-    actions = [
-      "s3:GetBucket*",
-      "s3:GetObject*",
-      "s3:List*",
-      "s3:PutObject"
-    ]
-    resources = [
-      "arn:aws:s3:::pds-nucleus*",
-      "arn:aws:s3:::pds-nucleus*/*",
-      "arn:aws:s3:::pds-*-staging*",
-      "arn:aws:s3:::pds-*-staging*/*",
-      "arn:aws:s3:::pds-*-archive*",
-      "arn:aws:s3:::pds-*-archive*/*"
-    ]
+  creation_token = "pds-nucleus-efs-${var.pds_node_names[count.index]}"
+  encrypted      = true
+  tags = {
+    Name = "pds-nucleus-efs-${var.pds_node_names[count.index]}"
   }
 }
 
+resource "aws_efs_mount_target" "pds_nucleus_efs_mount_target_0" {
+  count = length(var.pds_node_names)
 
-# TODO: Restrict to PDS accounts in future
+  file_system_id  = aws_efs_file_system.nucleus_efs[count.index].id
+  subnet_id       = var.subnet_ids[0]
+  security_groups = [var.nucleus_security_group_id]
+}
 
-# IAM Policy Document for Assume Role
-data "aws_iam_policy_document" "ecs_task_role_assume_role" {
-  statement {
-    effect = "Allow"
-    principals {
-      type        = "Service"
-      identifiers = ["ecs-tasks.amazonaws.com"]
+resource "aws_efs_mount_target" "pds_nucleus_efs_mount_target_1" {
+  count = length(var.pds_node_names)
+
+  file_system_id  = aws_efs_file_system.nucleus_efs[count.index].id
+  subnet_id       = var.subnet_ids[1]
+  security_groups = [var.nucleus_security_group_id]
+}
+
+resource "aws_efs_access_point" "pds-data" {
+
+  count = length(var.pds_node_names)
+
+  file_system_id = aws_efs_file_system.nucleus_efs[count.index].id
+
+  root_directory {
+    path = "/pds-data"
+
+    creation_info {
+      owner_gid   = 1000
+      owner_uid   = 1000
+      permissions = 0755
     }
-    actions = ["sts:AssumeRole"]
+  }
+
+
+  tags = {
+    Name = "PDS Data access point"
   }
 }
 
-resource "aws_iam_role" "pds_nucleus_ecs_task_role" {
-  name = "pds_nucleus_ecs_task_role"
-  inline_policy {
-    name   = "pds-nucleus-ecs-task-role-inline-policy"
-    policy = data.aws_iam_policy_document.ecs_task_role_inline_policy.json
-  }
-  assume_role_policy   = data.aws_iam_policy_document.ecs_task_role_assume_role.json
-  permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
-}
 
-
-#-------------------------------------
-# ECS Task Execution Role
-#-------------------------------------
-
-# IAM Policy Document for Inline Policy
-data "aws_iam_policy_document" "ecs_task_execution_role_inline_policy" {
-  statement {
-    effect = "Allow"
-    actions = [
-      "ecr:GetDownloadUrlForLayer",
-      "ecr:BatchGetImage",
-      "ecr:BatchCheckLayerAvailability"
-    ]
-    resources = [
-      "arn:aws:ecr:*:${data.aws_caller_identity.current.account_id}:repository/pds*"
-    ]
-  }
-
-  statement {
-    effect = "Allow"
-    actions = [
-      "ecr:GetAuthorizationToken"
-    ]
-    resources = [
-      "*"
-    ]
-  }
-
-  statement {
-    effect = "Allow"
-    actions = [
-      "logs:CreateLogStream",
-      "logs:PutLogEvents",
-      "logs:CreateLogGroup"
-    ]
-    resources = [
-      "arn:aws:logs:*:${data.aws_caller_identity.current.account_id}:log-group:*:log-stream:*"
-    ]
-  }
-
-  statement {
-    effect = "Allow"
-    actions = [
-      "ecs:stopTask"
-    ]
-    resources = [
-      "arn:aws:ecs:*:${data.aws_caller_identity.current.account_id}:task/pds-nucleus-ecs/*"
-    ]
-  }
-
-  statement {
-    effect = "Allow"
-    actions = [
-      "secretsmanager:GetSecretValue",
-      "kms:Decrypt"
-    ]
-    resources = [
-      "arn:aws:secretsmanager:${var.region}:${data.aws_caller_identity.current.account_id}:secret:pds/nucleus/opensearch/creds/*",
-      var.aws_secretmanager_key_arn
-    ]
-  }
-
-  statement {
-    effect = "Allow"
-    actions = [
-      "secretsmanager:GetSecretValue",
-      "kms:Decrypt"
-    ]
-    resources = [
-      "arn:aws:secretsmanager:${var.region}:${data.aws_caller_identity.current.account_id}:secret:pds/nucleus/opensearch/creds/*",
-      var.aws_secretmanager_key_arn
-    ]
-  }
-}
-
-resource "aws_iam_role" "pds_nucleus_ecs_task_execution_role" {
-  name = "pds_nucleus_ecs_task_execution_role"
-  inline_policy {
-    name   = "pds-nucleus-ecs-task-execution-role-inline-policy"
-    policy = data.aws_iam_policy_document.ecs_task_execution_role_inline_policy.json
-  }
-  assume_role_policy   = data.aws_iam_policy_document.ecs_task_role_assume_role.json
-  permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
-}
 
 #------------------------------------
 # ECR Repositories
@@ -256,6 +128,16 @@ resource "aws_ecr_repository" "pds_validate" {
   }
 }
 
+resource "aws_ecr_repository" "pds_nucleus_s3_backlog_processor" {
+  name                 = "pds-nucleus-s3-backlog-processor"
+  image_tag_mutability = "MUTABLE"
+  force_delete         = true
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+}
+
 
 
 #-------------------------------------
@@ -264,7 +146,8 @@ resource "aws_ecr_repository" "pds_validate" {
 
 # CloudWatch Log Group for PDS Registry Loader Harvest ECS Task
 resource "aws_cloudwatch_log_group" "pds-registry-loader-harvest-log-group" {
-  name = var.pds_registry_loader_harvest_cloudwatch_logs_group
+  count = length(var.pds_node_names)
+  name  = "${var.pds_registry_loader_harvest_cloudwatch_logs_group}-${var.pds_node_names[count.index]}"
 }
 
 # Create secrets to keep usernames for each PDS Node
@@ -295,14 +178,13 @@ resource "aws_secretsmanager_secret_version" "opensearch_password_version" {
   secret_string = "Replace this with Opensearch password of PDS Node: ${var.pds_node_names[count.index]}"
 }
 
-# Replace PDS Registry Loader Harvest related variables in pds-airflow-registry-loader-harvest-containers.json
+# Replace PDS Registry Loader Harvest related variables in pds-registry-loader-harvest-containers.json
 data "template_file" "pds-registry-loader-harvest-containers-json-template" {
   count    = length(var.pds_node_names)
-  template = file("terraform-modules/ecs-ecr/container-definitions/pds-airflow-registry-loader-harvest-containers.json")
+  template = file("terraform-modules/ecs-ecr/container-definitions/pds-registry-loader-harvest-containers.json")
   vars = {
-    pds_registry_loader_harvest_ecs_task_name          = "pds-registry-loader-harvest-${var.pds_node_names[count.index]}"
     pds_registry_loader_harvest_ecr_image_path         = aws_ecr_repository.pds_registry_loader_harvest.repository_url
-    pds_registry_loader_harvest_cloudwatch_logs_group  = var.pds_registry_loader_harvest_cloudwatch_logs_group
+    pds_registry_loader_harvest_cloudwatch_logs_group  = "${var.pds_registry_loader_harvest_cloudwatch_logs_group}-${var.pds_node_names[count.index]}"
     pds_registry_loader_harvest_cloudwatch_logs_region = var.pds_registry_loader_harvest_cloudwatch_logs_region
     opensearch_user_secretmanager_arn                  = aws_secretsmanager_secret_version.opensearch_user_version[count.index].arn
     opensearch_password_secretmanager_arn              = aws_secretsmanager_secret_version.opensearch_password_version[count.index].arn
@@ -312,11 +194,12 @@ data "template_file" "pds-registry-loader-harvest-containers-json-template" {
 # PDS Registry Loader Harvest Task Definition
 resource "aws_ecs_task_definition" "pds-registry-loader-harvest" {
   count                    = length(var.pds_node_names)
-  family                   = "pds-airflow-registry-loader-harvest-task-definition-${var.pds_node_names[count.index]}"
+  family                   = "pds-registry-loader-harvest-task-definition-${var.pds_node_names[count.index]}"
   requires_compatibilities = ["EC2", "FARGATE"]
   network_mode             = "awsvpc"
   cpu                      = 4096
   memory                   = 8192
+
   runtime_platform {
     operating_system_family = "LINUX"
   }
@@ -325,11 +208,10 @@ resource "aws_ecs_task_definition" "pds-registry-loader-harvest" {
     name = "pds-data"
 
     efs_volume_configuration {
-      file_system_id     = var.efs_file_system_id
-      root_directory     = "/"
+      file_system_id     = aws_efs_file_system.nucleus_efs[count.index].id
       transit_encryption = "ENABLED"
       authorization_config {
-        access_point_id = var.pds_data_access_point_id
+        access_point_id = aws_efs_access_point.pds-data[count.index].id
         iam             = "ENABLED"
       }
     }
@@ -337,8 +219,8 @@ resource "aws_ecs_task_definition" "pds-registry-loader-harvest" {
 
 
   container_definitions = data.template_file.pds-registry-loader-harvest-containers-json-template[count.index].rendered
-  task_role_arn         = var.pds_registry_loader_harvest_task_role_arn
-  execution_role_arn    = aws_iam_role.pds_nucleus_ecs_task_execution_role.arn
+  task_role_arn         = var.pds_nucleus_harvest_ecs_task_role_arns[count.index]
+  execution_role_arn    = var.pds_nucleus_ecs_task_execution_role_arn
 
   depends_on = [data.template_file.pds-validate-containers-json-template]
 
@@ -351,26 +233,30 @@ resource "aws_ecs_task_definition" "pds-registry-loader-harvest" {
 
 # CloudWatch Log Group for PDS Validate ECS Task
 resource "aws_cloudwatch_log_group" "pds-validate-log-group" {
-  name = var.pds_validate_cloudwatch_logs_group
+  count    = length(var.pds_node_names)
+  name = "${var.pds_validate_cloudwatch_logs_group}-${var.pds_node_names[count.index]}"
 }
 
 # Replace PDS Validate ECR Image Path in pds-validate-containers.json
 data "template_file" "pds-validate-containers-json-template" {
+  count    = length(var.pds_node_names)
   template = file("terraform-modules/ecs-ecr/container-definitions/pds-validate-containers.json")
   vars = {
     pds_validate_ecr_image_path         = aws_ecr_repository.pds_validate.repository_url
-    pds_validate_cloudwatch_logs_group  = var.pds_validate_cloudwatch_logs_group
+    pds_validate_cloudwatch_logs_group  = "${var.pds_validate_cloudwatch_logs_group}-${var.pds_node_names[count.index]}"
     pds_validate_cloudwatch_logs_region = var.pds_validate_cloudwatch_logs_region
   }
 }
 
 # PDS Validate ECS Task Definition
 resource "aws_ecs_task_definition" "pds-validate-task-definition" {
-  family                   = "pds-validate-task-definition"
+  count                    = length(var.pds_node_names)
+  family                   = "pds-validate-task-definition-${var.pds_node_names[count.index]}"
   requires_compatibilities = ["EC2", "FARGATE"]
   network_mode             = "awsvpc"
   cpu                      = 4096
   memory                   = 8192
+
   runtime_platform {
     operating_system_family = "LINUX"
   }
@@ -379,19 +265,18 @@ resource "aws_ecs_task_definition" "pds-validate-task-definition" {
     name = "pds-data"
 
     efs_volume_configuration {
-      file_system_id     = var.efs_file_system_id
-      root_directory     = "/"
+      file_system_id     = aws_efs_file_system.nucleus_efs[count.index].id
       transit_encryption = "ENABLED"
       authorization_config {
-        access_point_id = var.pds_data_access_point_id
+        access_point_id = aws_efs_access_point.pds-data[count.index].id
         iam             = "ENABLED"
       }
     }
   }
 
-  container_definitions = data.template_file.pds-validate-containers-json-template.rendered
-  task_role_arn         = aws_iam_role.pds_nucleus_ecs_task_role.arn
-  execution_role_arn    = aws_iam_role.pds_nucleus_ecs_task_execution_role.arn
+  container_definitions = data.template_file.pds-validate-containers-json-template[count.index].rendered
+  task_role_arn         = var.pds_nucleus_ecs_task_role_arns[count.index]
+  execution_role_arn    = var.pds_nucleus_ecs_task_execution_role_arn
 
   depends_on = [data.template_file.pds-validate-containers-json-template]
 }
@@ -403,16 +288,19 @@ resource "aws_ecs_task_definition" "pds-validate-task-definition" {
 
 # CloudWatch Log Group for PDS Validate Ref ECS Task
 resource "aws_cloudwatch_log_group" "pds-validate-ref-log-group" {
-  name = var.pds_validate_ref_cloudwatch_logs_group
+  count    = length(var.pds_node_names)
+  name = "${var.pds_validate_ref_cloudwatch_logs_group}-${var.pds_node_names[count.index]}"
 }
 
 # Replace PDS Validate Ref ECR Image Path in pds-validate-refs-containers.json
 data "template_file" "pds-validate-ref-containers-json-template" {
+  count = length(var.pds_node_names)
+
   template = file("terraform-modules/ecs-ecr/container-definitions/pds-validate-refs-containers.json")
   vars = {
     pds_validate_ref_ecr_image_path = aws_ecr_repository.pds_validate.repository_url
     # Validate image is reused
-    pds_validate_ref_cloudwatch_logs_group  = var.pds_validate_ref_cloudwatch_logs_group
+    pds_validate_ref_cloudwatch_logs_group  = "${var.pds_validate_ref_cloudwatch_logs_group}-${var.pds_node_names[count.index]}"
     pds_validate_ref_cloudwatch_logs_region = var.region
   }
 }
@@ -424,26 +312,31 @@ data "template_file" "pds-validate-ref-containers-json-template" {
 
 # CloudWatch Log Group for PDS Nucleus Config Init ECS Task
 resource "aws_cloudwatch_log_group" "pds-nucleus-config-init-log-group" {
-  name = var.pds_nucleus_config_init_cloudwatch_logs_group
+  count = length(var.pds_node_names)
+  name = "${var.pds_nucleus_config_init_cloudwatch_logs_group}-${var.pds_node_names[count.index]}"
 }
 
 # Replace PDS Nucleus Config Init ECR Image Path in pds-nucleus-config-init-containers.json
 data "template_file" "pds-nucleus-config-init-containers-json-template" {
+  count = length(var.pds_node_names)
+
   template = file("terraform-modules/ecs-ecr/container-definitions/pds-nucleus-config-init-containers.json")
   vars = {
     pds_nucleus_config_init_ecr_image_path         = aws_ecr_repository.pds_nucleus_config_init.repository_url
-    pds_nucleus_config_init_cloudwatch_logs_group  = var.pds_nucleus_config_init_cloudwatch_logs_group
+    pds_nucleus_config_init_cloudwatch_logs_group  = "${var.pds_nucleus_config_init_cloudwatch_logs_group}-${var.pds_node_names[count.index]}"
     pds_nucleus_config_init_cloudwatch_logs_region = var.region
   }
 }
 
 # PDS Nucleus Config Init Task Definition
 resource "aws_ecs_task_definition" "pds-nucleus-config-init-task-definition" {
-  family                   = "pds-nucleus-config-init-task-definition"
+  count                    = length(var.pds_node_names)
+  family                   = "pds-nucleus-config-init-task-definition-${var.pds_node_names[count.index]}"
   requires_compatibilities = ["EC2", "FARGATE"]
   network_mode             = "awsvpc"
   cpu                      = 4096
   memory                   = 8192
+
   runtime_platform {
     operating_system_family = "LINUX"
   }
@@ -452,19 +345,18 @@ resource "aws_ecs_task_definition" "pds-nucleus-config-init-task-definition" {
     name = "pds-data"
 
     efs_volume_configuration {
-      file_system_id     = var.efs_file_system_id
-      root_directory     = "/"
+      file_system_id     = aws_efs_file_system.nucleus_efs[count.index].id
       transit_encryption = "ENABLED"
       authorization_config {
-        access_point_id = var.pds_data_access_point_id
+        access_point_id = aws_efs_access_point.pds-data[count.index].id
         iam             = "ENABLED"
       }
     }
   }
 
-  container_definitions = data.template_file.pds-nucleus-config-init-containers-json-template.rendered
-  task_role_arn         = aws_iam_role.pds_nucleus_ecs_task_role.arn
-  execution_role_arn    = aws_iam_role.pds_nucleus_ecs_task_execution_role.arn
+  container_definitions = data.template_file.pds-nucleus-config-init-containers-json-template[count.index].rendered
+  task_role_arn         = var.pds_nucleus_ecs_task_role_arns[count.index]
+  execution_role_arn    = var.pds_nucleus_ecs_task_execution_role_arn
 
   depends_on = [data.template_file.pds-nucleus-config-init-containers-json-template]
 }
@@ -476,21 +368,24 @@ resource "aws_ecs_task_definition" "pds-nucleus-config-init-task-definition" {
 
 # Replace PDS Nucleus S3 to EFS Copy ECR Image Path in pds-nucleus-s3-to-efs-copy-containers.json
 data "template_file" "pds-nucleus-s3-to-efs-copy-containers-json-template" {
+  count    = length(var.pds_node_names)
   template = file("terraform-modules/ecs-ecr/container-definitions/pds-nucleus-s3-to-efs-copy-containers.json")
   vars = {
     pds_nucleus_s3_to_efs_copy_ecr_image_path         = aws_ecr_repository.pds_nucleus_s3_to_efs_copy.repository_url
-    pds_nucleus_s3_to_efs_copy_cloudwatch_logs_group  = var.pds_nucleus_s3_to_efs_copy_cloudwatch_logs_group
+    pds_nucleus_s3_to_efs_copy_cloudwatch_logs_group  = "${var.pds_nucleus_s3_to_efs_copy_cloudwatch_logs_group}-${var.pds_node_names[count.index]}"
     pds_nucleus_s3_to_efs_copy_cloudwatch_logs_region = var.region
   }
 }
 
 # PDS Nucleus S3 to EFS Copy Task Definition
 resource "aws_ecs_task_definition" "pds-nucleus-s3-to-efs-copy-task-definition" {
-  family                   = "pds-nucleus-s3-to-efs-copy-task-definition"
+  count                    = length(var.pds_node_names)
+  family                   = "pds-nucleus-s3-to-efs-copy-task-definition-${var.pds_node_names[count.index]}"
   requires_compatibilities = ["EC2", "FARGATE"]
   network_mode             = "awsvpc"
   cpu                      = 4096
   memory                   = 8192
+
   runtime_platform {
     operating_system_family = "LINUX"
   }
@@ -499,23 +394,69 @@ resource "aws_ecs_task_definition" "pds-nucleus-s3-to-efs-copy-task-definition" 
     name = "pds-data"
 
     efs_volume_configuration {
-      file_system_id     = var.efs_file_system_id
-      root_directory     = "/"
+      file_system_id     = aws_efs_file_system.nucleus_efs[count.index].id
       transit_encryption = "ENABLED"
       authorization_config {
-        access_point_id = var.pds_data_access_point_id
+        access_point_id = aws_efs_access_point.pds-data[count.index].id
         iam             = "ENABLED"
       }
     }
   }
 
-  container_definitions = data.template_file.pds-nucleus-s3-to-efs-copy-containers-json-template.rendered
-  task_role_arn         = aws_iam_role.pds_nucleus_ecs_task_role.arn
-  execution_role_arn    = aws_iam_role.pds_nucleus_ecs_task_execution_role.arn
+  container_definitions = data.template_file.pds-nucleus-s3-to-efs-copy-containers-json-template[count.index].rendered
+  task_role_arn         = var.pds_nucleus_ecs_task_role_arns[count.index]
+  execution_role_arn    = var.pds_nucleus_ecs_task_execution_role_arn
 
   depends_on = [data.template_file.pds-nucleus-s3-to-efs-copy-containers-json-template]
 }
 
+
+#---------------------------------------------
+# PDS Nucleus S3 Backlog Processor ECS Task Definition
+#---------------------------------------------
+
+# CloudWatch Log Group for PDS Nucleus S3 Backlog Processor ECS Task
+resource "aws_cloudwatch_log_group" "pds-nucleus-s3-backlog-processor-log-group" {
+  count             = length(var.pds_node_names)
+  name              = "${var.pds_nucleus_s3_backlog_processor_cloudwatch_logs_group}-${var.pds_node_names[count.index]}"
+  retention_in_days = 30
+}
+
+# Replace PDS Nucleus S3 Backlog Processor Image Path in pds-nucleus-s3-backlog-processor-containers.json
+data "template_file" "pds-nucleus-s3-backlog-processor-containers-json-template" {
+  count    = length(var.pds_node_names)
+  template = file("terraform-modules/ecs-ecr/container-definitions/pds-nucleus-s3-backlog-processor-containers.json")
+  vars = {
+    pds_nucleus_s3_backlog_processor_ecr_image_path         = aws_ecr_repository.pds_nucleus_s3_backlog_processor.repository_url
+    pds_nucleus_s3_backlog_processor_cloudwatch_logs_group  = "${var.pds_nucleus_s3_backlog_processor_cloudwatch_logs_group}-${var.pds_node_names[count.index]}"
+    pds_nucleus_s3_backlog_processor_cloudwatch_logs_region = var.region
+  }
+}
+
+# PDS Nucleus S3 to EFS Copy Task Definition
+resource "aws_ecs_task_definition" "pds-nucleus-s3-backlog-processor-task-definition" {
+  count                    = length(var.pds_node_names)
+  family                   = "pds-nucleus-s3-backlog-processor-task-definition-${var.pds_node_names[count.index]}"
+  requires_compatibilities = ["EC2", "FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = 4096
+  memory                   = 8192
+
+  runtime_platform {
+    operating_system_family = "LINUX"
+  }
+
+  container_definitions = data.template_file.pds-nucleus-s3-backlog-processor-containers-json-template[count.index].rendered
+  task_role_arn         = var.pds_nucleus_ecs_task_role_arns[count.index]
+  execution_role_arn    = var.pds_nucleus_ecs_task_execution_role_arn
+
+  depends_on = [data.template_file.pds-nucleus-s3-backlog-processor-containers-json-template]
+}
+
+
+
+
+# Deploy ECR images
 resource "null_resource" "deploy_ecr_images" {
   provisioner "local-exec" {
     command = "./terraform-modules/ecs-ecr/docker/deploy-ecr-images.sh"

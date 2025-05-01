@@ -25,17 +25,34 @@ pds_node = os.environ.get('PDS_NODE_NAME')
 rds_data = boto3.client('rds-data')
 
 def lambda_handler(event, context):
-    s3_event = json.loads(event['Records'][0].get("body"))
-    s3_bucket = s3_event['Records'][0].get("s3").get("bucket").get("name")
-    s3_key = s3_event['Records'][0].get("s3").get("object").get("key")
-    s3_url_of_file = "s3://" + s3_bucket + "/" + s3_key
 
-    logger.info(f"s3_url_of_file: {s3_url_of_file}")
+    logger.info(f"event: {event}")
+
+    s3_key = None
+    s3_bucket = None
+
+    s3_event = json.loads(event['Records'][0].get("body"))
+
+    logger.info(f"s3_event: {s3_event}")
+
+    is_backlog = s3_event.get("backlog")
+
+    if  is_backlog == 'true':
+        logger.info(f"backlog: {is_backlog}")
+        s3_bucket = s3_event.get("s3_bucket")
+        s3_key = s3_event.get("s3_key")
+    else:
+        s3_bucket = s3_event['Records'][0].get("s3").get("bucket").get("name")
+        s3_key = s3_event['Records'][0].get("s3").get("object").get("key")
+
     logger.info(f"s3_bucket: {s3_bucket}")
     logger.info(f"s3_key: {s3_key}")
 
-    handle_file_types(s3_url_of_file, s3_bucket, s3_key)
+    s3_url_of_file = "s3://" + s3_bucket + "/" + s3_key
 
+    logger.info(f"s3_url_of_file: {s3_url_of_file}")
+
+    handle_file_types(s3_url_of_file, s3_bucket, s3_key)
 
 
 def handle_file_types(s3_url_of_file, s3_bucket, s3_key):
@@ -158,6 +175,8 @@ def save_product_completion_status_in_database(s3_url_of_product_label, completi
 
 def save_data_file_in_database(s3_url_of_data_file):
 
+    original_s3_url_of_data_file_name = s3_url_of_data_file
+
     # Handle .fz files
     if s3_url_of_data_file.endswith('.fz'):
         s3_url_of_data_file = s3_url_of_data_file.rstrip(",.fz")
@@ -170,21 +189,24 @@ def save_data_file_in_database(s3_url_of_data_file):
             REPLACE INTO data_file
             (
                 s3_url_of_data_file,
+                original_s3_url_of_data_file_name,
                 last_updated_epoch_time,
                 pds_node)
             VALUES(
                 :s3_url_of_data_file_param,
+                :original_s3_url_of_data_file_name_param,
                 :last_updated_epoch_time_param,
                 :pds_node_param
                 )
             """
 
     s3_url_of_data_file_param = {'name': 's3_url_of_data_file_param', 'value': {'stringValue': s3_url_of_data_file}}
+    original_s3_url_of_data_file_name_param = {'name': 'original_s3_url_of_data_file_name_param', 'value': {'stringValue': original_s3_url_of_data_file_name}}
     last_updated_epoch_time_param = {'name': 'last_updated_epoch_time_param',
                                      'value': {'longValue': round(time.time() * 1000)}}
     pds_node_param = {'name': 'pds_node_param', 'value': {'stringValue': pds_node}}
 
-    param_set = [s3_url_of_data_file_param, last_updated_epoch_time_param, pds_node_param]
+    param_set = [s3_url_of_data_file_param, original_s3_url_of_data_file_name_param, last_updated_epoch_time_param, pds_node_param]
 
     try:
         response = rds_data.execute_statement(

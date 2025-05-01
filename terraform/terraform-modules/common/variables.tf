@@ -58,9 +58,8 @@ variable "mwaa_dag_s3_bucket_name" {
   sensitive   = true
 }
 
-variable "nucleus_security_group_name" {
-  description = "The name of the PDS Nucleus security group"
-  default     = "pds_nucleus_security_group"
+variable "nucleus_security_group_id" {
+  description = "The ID of the PDS Nucleus security group"
   type        = string
   sensitive   = true
 }

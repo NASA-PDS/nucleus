@@ -1,12 +1,13 @@
-env                               = "mcp-test"
-region                            = "us-west-2"
-vpc_id                            = "vpc-12345678"
-subnet_ids                        = ["subnet-12345678", "subnet-87654321"]
-auth_alb_subnet_ids               = ["subnet-12345678", "subnet-87654321"]
-vpc_cidr                          = "10.2.0.0/16"
-permission_boundary_for_iam_roles = "name_of_permission_boundary_iam_role"
-database_availability_zones       = ["us-west-2a"]
-aws_secretmanager_key_arn         = "arn:aws:kms:us-west-2:12345678:key/abcdef-abcd-abcd-abcd-abcdef2527g"
+env                                   = "mcp-test"
+region                                = "us-west-2"
+vpc_id                                = "vpc-12345678"
+subnet_ids                            = ["subnet-12345678", "subnet-87654321"]
+auth_alb_subnet_ids                   = ["subnet-12345678", "subnet-87654321"]
+vpc_cidr                              = "10.2.0.0/16"
+permission_boundary_for_iam_roles     = "name_of_permission_boundary_iam_role"
+permission_boundary_for_iam_roles_arn = "arn:aws:iam::1234567890:policy/example-permission-boundary"
+database_availability_zones           = ["us-west-2a"]
+aws_secretmanager_key_arn             = "arn:aws:kms:us-west-2:12345678:key/abcdef-abcd-abcd-abcd-abcdef2527g"
 
 # Set node specific values the following lists in correct order. For the list of node names
 # the following node name format should be used.
@@ -17,20 +18,22 @@ pds_nucleus_opensearch_url                     = "https://abcdef.us-west-2.aoss.
 pds_nucleus_opensearch_registry_names          = ["pds-nucleus-sbn-registry"", "pds-nucleus-img-registry"]
 pds_nucleus_opensearch_credential_relative_url = "http://<IP ADDRESS>/AWS_CONTAINER_CREDENTIALS_RELATIVE_URI"
 pds_nucleus_harvest_replace_prefix_with_list   = ["s3://pds-sbn-nucleus-staging", "s3://pds-img-nucleus-staging"]
-
+pds_nucleus_opensearch_collection_arns         = ["arn:aws:aoss:us-west-2:********:collection/abcdefgh", "arn:aws:aoss:us-west-2:********:collection/abcdefgh"]
+pds_nucleus_opensearch_cognito_identity_pool_ids = ["us-west-2:12345-abcd-abcd-abcd-1234abcdef", "us-west-2:12345-abcd-abcd-abcd-1234abcdef"]
 
 airflow_env_name                             = "pds-nucleus-airflow-env"
 mwaa_dag_s3_bucket_name                      = "pds-nucleus-airflow-dags-bucket-mcp-dev"
-pds_nucleus_staging_bucket_name_postfix      = "staging-mcp-dev"
+pds_nucleus_staging_bucket_name_postfix      = "staging-dev"
 pds_nucleus_hot_archive_bucket_name_postfix  = "archive-hot-mcp-dev"
 pds_nucleus_cold_archive_bucket_name_postfix = "archive-cold-mcp-dev"
-pds_nucleus_config_bucket_name               = "pds-nucleus-config-mcp-dev"
+pds_nucleus_config_bucket_name_postfix       = "config-dev"
 
-pds_nucleus_default_airflow_dag_id = "pds-basic-registry-load-use-case"
-
-pds_registry_loader_harvest_task_role_arn = "arn:aws:iam::12345678:role/pds-registry-loader-harvest-role"
+pds_nucleus_default_airflow_dag_id      = "pds-basic-registry-load-use-case"
+pds_nucleus_s3_backlog_processor_dag_id = "pds-nucleus-s3-backlog-processor"
 
 cognito_user_pool_id              = "us-west-2_ABCDEFG"
 cognito_user_pool_domain          = "pds-registry"
 auth_alb_listener_certificate_arn = "arn:aws:acm:us-west-2:123456789:certificate/ca123456-abcd-abcd-1234-abcdefghi"
+
+# This accountID is given by Amazon for ELBs in the us-west-2 region
 aws_elb_account_id_for_the_region = "797873946194"

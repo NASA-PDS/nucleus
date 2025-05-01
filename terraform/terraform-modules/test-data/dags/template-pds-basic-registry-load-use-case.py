@@ -122,7 +122,7 @@ validate = EcsRunTaskOperator(
     task_id="Validate_Products",
     dag=dag,
     cluster=ECS_CLUSTER_NAME,
-    task_definition="pds-validate-task-definition",
+    task_definition="pds-validate-task-definition-${pds_node_name}",
     launch_type=ECS_LAUNCH_TYPE,
     network_configuration={
             "awsvpcConfiguration": {
@@ -133,13 +133,13 @@ validate = EcsRunTaskOperator(
     overrides={
         "containerOverrides": [
             {
-                "name": "pds-validate-task",
+                "name": "pds-validate",
                 "command": ['{{ dag_run.conf["list_of_product_labels_to_process"] }}'],
             },
         ],
     },
-    awslogs_group="/pds/ecs/validate",
-    awslogs_stream_prefix="ecs/pds-validate-task",
+    awslogs_group="/pds/ecs/validate-${pds_node_name}",
+    awslogs_stream_prefix="ecs/pds-validate",
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,
     on_success_callback=save_product_processing_status_validate_successful,
@@ -162,7 +162,7 @@ harvest = EcsRunTaskOperator(
     overrides={
             "containerOverrides": [
                 {
-                    "name": "pds-registry-loader-harvest-${pds_node_name}",
+                    "name": "pds-registry-loader-harvest",
                     "environment": [
                         {
                             "name": "HARVEST_CFG",
@@ -172,8 +172,8 @@ harvest = EcsRunTaskOperator(
                 },
             ],
     },
-    awslogs_group="/pds/ecs/harvest",
-    awslogs_stream_prefix="ecs/pds-registry-loader-harvest-${pds_node_name}",
+    awslogs_group="/pds/ecs/harvest-${pds_node_name}",
+    awslogs_stream_prefix="ecs/pds-registry-loader-harvest",
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,
     trigger_rule=TriggerRule.ALL_DONE,
@@ -186,7 +186,7 @@ config_init = EcsRunTaskOperator(
     task_id="Config_Init",
     dag=dag,
     cluster=ECS_CLUSTER_NAME,
-    task_definition="pds-nucleus-config-init-task-definition",
+    task_definition="pds-nucleus-config-init-task-definition-${pds_node_name}",
     launch_type=ECS_LAUNCH_TYPE,
     network_configuration={
             "awsvpcConfiguration": {
@@ -202,7 +202,7 @@ config_init = EcsRunTaskOperator(
             },
         ],
     },
-    awslogs_group="/pds/ecs/pds-nucleus-config-init",
+    awslogs_group="/pds/ecs/pds-nucleus-config-init-${pds_node_name}",
     awslogs_stream_prefix="ecs/pds-nucleus-config-init",
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500
@@ -213,7 +213,7 @@ config_s3_to_efs_copy = EcsRunTaskOperator(
     task_id="Config_S3_to_EFS_Copy",
     dag=dag,
     cluster=ECS_CLUSTER_NAME,
-    task_definition="pds-nucleus-s3-to-efs-copy-task-definition",
+    task_definition="pds-nucleus-s3-to-efs-copy-task-definition-${pds_node_name}",
     launch_type=ECS_LAUNCH_TYPE,
     network_configuration={
             "awsvpcConfiguration": {
@@ -230,7 +230,7 @@ config_s3_to_efs_copy = EcsRunTaskOperator(
             },
         ],
     },
-    awslogs_group="/pds/ecs/pds-nucleus-s3-to-efs-copy",
+    awslogs_group="/pds/ecs/pds-nucleus-s3-to-efs-copy-${pds_node_name}",
     awslogs_stream_prefix="ecs/pds-nucleus-s3-to-efs-copy",
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500
@@ -241,7 +241,7 @@ config_init_cleanup = EcsRunTaskOperator(
     task_id="Config_Init_Cleanup",
     dag=dag,
     cluster=ECS_CLUSTER_NAME,
-    task_definition="pds-nucleus-config-init-task-definition",
+    task_definition="pds-nucleus-config-init-task-definition-${pds_node_name}",
     launch_type=ECS_LAUNCH_TYPE,
     network_configuration={
             "awsvpcConfiguration": {
@@ -257,7 +257,7 @@ config_init_cleanup = EcsRunTaskOperator(
             },
         ],
     },
-    awslogs_group="/pds/ecs/pds-nucleus-config-init",
+    awslogs_group="/pds/ecs/pds-nucleus-config-init-${pds_node_name}",
     awslogs_stream_prefix="ecs/pds-nucleus-config-init",
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,
@@ -270,7 +270,7 @@ data_archive = EcsRunTaskOperator(
     task_id="Data_Archive",
     dag=dag,
     cluster=ECS_CLUSTER_NAME,
-    task_definition="pds-nucleus-s3-to-efs-copy-task-definition",
+    task_definition="pds-nucleus-s3-to-efs-copy-task-definition-${pds_node_name}",
     launch_type=ECS_LAUNCH_TYPE,
     network_configuration={
             "awsvpcConfiguration": {
@@ -282,12 +282,11 @@ data_archive = EcsRunTaskOperator(
         "containerOverrides": [
             {
                 "name": "pds-nucleus-s3-to-efs-copy",
-                "command": ['{{ dag_run.conf["efs_config_dir"] }}','ARCHIVE','{{ dag_run.conf["pds_hot_archive_bucket_name"] }}', '{{ dag_run.conf["pds_cold_archive_bucket_name"] }}', '{{ dag_run.conf["pds_staging_bucket_name"] }}'],
-
+                "command": ['{{ dag_run.conf["efs_config_dir"] }}','ARCHIVE','{{ dag_run.conf["pds_hot_archive_bucket_name"] }}'],
             },
         ],
     },
-    awslogs_group="/pds/ecs/pds-nucleus-s3-to-efs-copy",
+    awslogs_group="/pds/ecs/pds-nucleus-s3-to-efs-copy-${pds_node_name}",
     awslogs_stream_prefix="ecs/pds-nucleus-s3-to-efs-copy",
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,
@@ -301,7 +300,7 @@ config_s3_to_efs_copy_cleanup = EcsRunTaskOperator(
     task_id="Config_S3_to_EFS_Copy_Cleanup",
     dag=dag,
     cluster=ECS_CLUSTER_NAME,
-    task_definition="pds-nucleus-s3-to-efs-copy-task-definition",
+    task_definition="pds-nucleus-s3-to-efs-copy-task-definition-${pds_node_name}",
     launch_type=ECS_LAUNCH_TYPE,
     network_configuration={
             "awsvpcConfiguration": {
@@ -318,7 +317,7 @@ config_s3_to_efs_copy_cleanup = EcsRunTaskOperator(
             },
         ],
     },
-    awslogs_group="/pds/ecs/pds-nucleus-s3-to-efs-copy",
+    awslogs_group="/pds/ecs/pds-nucleus-s3-to-efs-copy-${pds_node_name}",
     awslogs_stream_prefix="ecs/pds-nucleus-s3-to-efs-copy",
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,

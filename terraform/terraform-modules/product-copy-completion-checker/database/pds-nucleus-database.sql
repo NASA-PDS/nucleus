@@ -13,6 +13,7 @@ DROP TABLE IF EXISTS data_file;
 CREATE TABLE data_file
 (
     s3_url_of_data_file     VARCHAR(1000) CHARACTER SET latin1,
+    original_s3_url_of_data_file_name VARCHAR(1500) CHARACTER SET latin1,
     last_updated_epoch_time BIGINT,
     PRIMARY KEY (s3_url_of_data_file)
 );

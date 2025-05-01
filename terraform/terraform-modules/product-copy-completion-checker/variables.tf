@@ -4,13 +4,11 @@ variable "permission_boundary_for_iam_roles" {
 }
 
 variable "rds_cluster_id" {
-  default   = "pdsnucleus"
   type      = string
   sensitive = true
 }
 
 variable "database_name" {
-  default   = "pds_nucleus"
   type      = string
   sensitive = true
 }
@@ -47,12 +45,6 @@ variable "vpc_id" {
 
 variable "pds_nucleus_default_airflow_dag_id" {
   description = "PDS Nucleus Default Airflow DAG ID"
-  type        = string
-  sensitive   = true
-}
-
-variable "pds_nucleus_config_bucket_name" {
-  description = "PDS Nucleus Configuration S3 Bucket Name"
   type        = string
   sensitive   = true
 }
@@ -119,19 +111,32 @@ variable "pds_nucleus_cold_archive_bucket_name_postfix" {
   sensitive   = true
 }
 
+variable "pds_nucleus_config_bucket_name_postfix" {
+  description = "The postfix of the namer of the PDS Nucleus Configuration S3 Bucket"
+  default     = "config--<venue-name>"
+  type        = string
+  sensitive   = true
+}
+
 variable "airflow_env_name" {
   description = "PDS Nucleus Airflow Env Name"
-  default     = "pds-nucleus-airflow-env"
   type        = string
+  sensitive   = true
 }
 
 variable "product_batch_size" {
   description = "Size of the product batch to send to Nuclees DAG top process per given DAG invocation"
-  default     = 10
+  default     = 100
   type        = number
 }
 
 variable "region" {
   description = "AWS Region"
   type        = string
+}
+
+variable "pds_nucleus_lambda_execution_role_arns" {
+  description = "List of PDS Nucleus lambda execution role ARNs"
+  type        = list(string)
+  sensitive   = true
 }

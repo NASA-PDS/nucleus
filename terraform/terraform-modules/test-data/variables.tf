@@ -35,6 +35,18 @@ variable "pds_nucleus_default_airflow_dag_id" {
   type        = string
 }
 
+variable "pds_nucleus_s3_backlog_processor_dag_file_name" {
+  description = "PDS Nucleus S3 Backlog Processor DAG File Name"
+  type        = string
+  default     = "pds-nucleus-s3-backlog-processor.py"
+  sensitive   = true
+}
+
+variable "pds_nucleus_s3_backlog_processor_dag_id" {
+  description = "PDS Nucleus S3 Backlog Processor DAG ID"
+  type        = string
+}
+
 variable "pds_node_names" {
   description = "List of PDS Node Names"
   type        = list(string)
