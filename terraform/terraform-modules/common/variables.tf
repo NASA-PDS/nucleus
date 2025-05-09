@@ -64,3 +64,13 @@ variable "nucleus_security_group_id" {
   sensitive   = true
 }
 
+variable "pds_node_names" {
+  type        = list(string)
+  description = "List of PDS Node Names"
+}
+
+variable "pds_node_specific_dags_approval_bucket_postfix" {
+  type        = string
+  default     = "dags-for-approval"
+  description = "PDS Node Specific DAG Approval Bucket Postfix"
+}

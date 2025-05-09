@@ -14,6 +14,7 @@ module "common" {
   vpc_cidr                  = var.vpc_cidr
   mwaa_dag_s3_bucket_name   = var.mwaa_dag_s3_bucket_name
   nucleus_security_group_id = module.security-groups.nucleus_security_group_id
+  pds_node_names                                   = var.pds_node_names
 }
 
 module "iam" {
