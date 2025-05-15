@@ -14,7 +14,7 @@ resource "aws_s3_bucket" "pds_nucleus_auth_alb_logs" {
 resource "aws_s3_bucket_logging" "pds_nucleus_auth_alb_logs_bucket_logging" {
   bucket = aws_s3_bucket.pds_nucleus_auth_alb_logs.id
 
-  target_bucket = aws_s3_bucket.pds_nucleus_auth_alb_logs.id
+  target_bucket = aws_s3_bucket.pds_nucleus_auth_alb_logs_bucket_logs.id
   target_prefix = "auth-alb-logs-bucket-logs"
 }
 
@@ -58,7 +58,7 @@ data "aws_iam_policy_document" "pds_nucleus_auth_alb_logs_s3_bucket_policy" {
   }
 }
 
-resource "aws_s3_bucket_policy" "logs_prod_policy" {
+resource "aws_s3_bucket_policy" "logs_bucket_policy" {
   bucket = aws_s3_bucket.pds_nucleus_auth_alb_logs.id
 
   policy = data.aws_iam_policy_document.pds_nucleus_auth_alb_logs_s3_bucket_policy.json

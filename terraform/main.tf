@@ -72,6 +72,7 @@ module "mwaa-env" {
   airflow_dags_bucket_arn             = module.common.pds_nucleus_airflow_dags_bucket_arn
   permission_boundary_for_iam_roles   = var.permission_boundary_for_iam_roles
   airflow_env_name                    = var.airflow_env_name
+  airflow_version                     = var.airflow_version
   pds_nucleus_mwaa_execution_role_arn = module.iam.pds_nucleus_mwaa_execution_role_arn
 
   depends_on = [module.security-groups, module.iam, module.common]
