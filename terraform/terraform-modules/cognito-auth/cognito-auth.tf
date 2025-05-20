@@ -9,6 +9,7 @@
 
 resource "aws_s3_bucket" "pds_nucleus_auth_alb_logs" {
   bucket = "pds-nucleus-auth-alb-logs"
+  acl    = "log-delivery-write"
 }
 
 resource "aws_s3_bucket_logging" "pds_nucleus_auth_alb_logs_bucket_logging" {
