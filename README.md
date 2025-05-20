@@ -79,7 +79,7 @@ detect-secrets scan --disable-plugin AbsolutePathDetectorExperimental \
     --exclude-files 'build' \
     --exclude-files '.*\.egg-info' \
     --exclude-files '.*\.tfstate' \
-    --exclude-files '.*\.tfvars' \
+    --exclude-files '.*\.tfvars'
     > .secrets.baseline
 ```
 
