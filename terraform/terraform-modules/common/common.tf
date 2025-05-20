@@ -15,6 +15,7 @@ resource "aws_s3_bucket_logging" "pds_nucleus_auth_alb_logs_bucket_logging" {
 #  logging bucket for pds_nucleus_airflow_dags_bucket bucket
 resource "aws_s3_bucket" "pds_nucleus_airflow_dags_bucket_logs" {
   bucket = "${var.mwaa_dag_s3_bucket_name}-logs"
+  acl    = "log-delivery-write"
 }
 
 data "aws_iam_policy_document" "pds_nucleus_airflow_dags_bucket_logs_bucket_policy" {
