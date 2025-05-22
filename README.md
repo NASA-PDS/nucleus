@@ -79,7 +79,7 @@ detect-secrets scan --disable-plugin AbsolutePathDetectorExperimental \
     --exclude-files 'build' \
     --exclude-files '.*\.egg-info' \
     --exclude-files '.*\.tfstate' \
-    --exclude-files '.*\.tfvars' >> .secrets.baseline
+    --exclude-files '.*\.tfvars' > .secrets.baseline
 ```
 
 3) Execute the following command in Nucleus root directory to audit the possible secrets detected.
