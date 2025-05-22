@@ -268,3 +268,9 @@ variable "database_name" {
   type      = string
   sensitive = true
 }
+
+variable "airflow_version" {
+  description = "PDS Nucleus Airflow Version"
+  default     = "2.10.3"
+  type        = string
+}

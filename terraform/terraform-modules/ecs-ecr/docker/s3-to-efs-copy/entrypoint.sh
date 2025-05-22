@@ -94,9 +94,9 @@ then
   while read -r line; do
       s3_url_of_file="$line"
       echo "Name read from file - $s3_url_of_file"
-      staging_bucket_name="s3://$STAGING_S3_BUCKET_NAME/"
-
-      hot_archive_bucket_name="s3://$HOT_ARCHIVE_S3_BUCKET_NAME/"
+      staging_bucket_name=$(echo "$s3_url_of_file" | awk -F'/' '{print $3}')
+      echo "Copying from staging bucket - ${staging_bucket_name}"
+      hot_archive_bucket_name="$HOT_ARCHIVE_S3_BUCKET_NAME"
       hot_archive_target_location="${s3_url_of_file//$staging_bucket_name/$hot_archive_bucket_name}"
       echo "Archiving files to hot archive: $hot_archive_target_location"
       aws s3 cp "$s3_url_of_file" "$hot_archive_target_location"

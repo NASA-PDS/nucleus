@@ -5,7 +5,6 @@ variable "airflow_env_name" {
 
 variable "airflow_version" {
   description = "PDS Nucleus Airflow Version"
-  default     = "2.8.1"
   type        = string
 }
 

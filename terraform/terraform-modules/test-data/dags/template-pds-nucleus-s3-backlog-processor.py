@@ -26,20 +26,20 @@ LAMBDA_FUNCTION_NAME = "pds_nucleus_product_processing_status_tracker"
 ##################################################################################
 
 dag = DAG(
-        dag_id="${pds_nucleus_s3_backlog_processor_dag_id}",
-        schedule_interval=None,
-        catchup=False,
-        start_date=days_ago(1),
-        default_args={
+    dag_id="PDS_SBN-pds-nucleus-s3-backlog-processor",
+    schedule_interval=None,
+    catchup=False,
+    start_date=days_ago(1),
+    default_args={
         "retries": 3,
         "retry_delay": timedelta(seconds=2),
-        },
-        params={
-            "s3_bucket_name": Param("<S3 bucket name>", type="string"),
-            "s3_bucket_prefix": Param("<prefix (S3 path to start listing the objects from>", type=["null", "string"]),
-            "sqs_queue_url": Param("<SQS queue which is used to save files names in the database>", type="string"),
-            "aws_region": Param("<aws_region>", type="string"),
-        },
+    },
+    params={
+        "s3_bucket_name": Param(default="<S3 bucket name>", type="string", pattern= "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$", minLength=3, maxLength=63),
+        "s3_bucket_prefix": Param(default="<prefix (S3 path to start listing the objects from>", type=["null", "string"], pattern="^([^/]+/)*[^/]+/?$"),
+        "sqs_queue_url": Param(default="<SQS queue which is used to save files names in the database>", type="string", pattern="^https:\\/\\/sqs\\.us-west-2\\.amazonaws\\.com\\/\\d+\\/pds-nucleus.*$"),
+        "aws_region": Param(default="<aws_region>", type="string", pattern="^(us|eu|ap|ca|sa|af|me)-[a-z]+-\\d{1}$")
+    },
 )
 
 # Print start time

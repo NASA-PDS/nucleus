@@ -220,8 +220,7 @@ data "aws_iam_policy_document" "ecs_task_role_inline_policy" {
     actions = [
       "s3:GetBucket*",
       "s3:GetObject*",
-      "s3:List*",
-      "s3:ListObjects*"
+      "s3:List*"
     ]
     resources = [
       "arn:aws:s3:::${lower(replace(var.pds_node_names[count.index], "_", "-"))}-staging*",
