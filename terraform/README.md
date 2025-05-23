@@ -165,6 +165,7 @@ If a bucket to keep the Terraform remote state is not available, please create a
 6. Initialize Terraform working directory.
 
 ```shell
+sudo su
 terraform init
 ```
 
