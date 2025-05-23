@@ -6,10 +6,26 @@
 #  - Accessing a private Amazon MWAA environment using federated identities (https://d1.awsstatic.com/whitepapers/accessing-a-private-amazon-mwaa-environment-using-federated-identities.pdf )
 
 
-
+# This S3 bucket is used to keep ALB logs
 resource "aws_s3_bucket" "pds_nucleus_auth_alb_logs" {
   bucket = "pds-nucleus-auth-alb-logs"
+}
+
+resource "aws_s3_bucket_ownership_controls" "pds_nucleus_auth_alb_logs_controls" {
+  bucket = aws_s3_bucket.pds_nucleus_auth_alb_logs.id
+
+  rule {
+    object_ownership = "ObjectWriter"
+  }
+}
+
+resource "aws_s3_bucket_acl" "pds_nucleus_auth_alb_logs_acl" {
+  bucket = aws_s3_bucket.pds_nucleus_auth_alb_logs.id
   acl    = "log-delivery-write"
+
+  depends_on = [
+    aws_s3_bucket_ownership_controls.pds_nucleus_auth_alb_logs_controls
+  ]
 }
 
 resource "aws_s3_bucket_logging" "pds_nucleus_auth_alb_logs_bucket_logging" {
