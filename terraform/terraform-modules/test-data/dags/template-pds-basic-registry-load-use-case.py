@@ -151,7 +151,7 @@ harvest = EcsRunTaskOperator(
     task_id="Harvest_Data",
     dag=dag,
     cluster=ECS_CLUSTER_NAME,
-    task_definition="pds-airflow-registry-loader-harvest-task-definition-${pds_node_name}",
+    task_definition="pds-registry-loader-harvest-task-definition-${pds_node_name}",
     launch_type=ECS_LAUNCH_TYPE,
     network_configuration={
             "awsvpcConfiguration": {
