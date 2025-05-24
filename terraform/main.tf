@@ -82,10 +82,6 @@ module "mwaa-env" {
 # capable of successfully deploying some ECS tasks related with PDS Registry. However, these modules
 # can be disabled (comment-out) to keep the PDS Nucleus Baseline System clean and to avoid confusions.
 
-module "efs" {
-  source = "./terraform-modules/efs"
-}
-
 module "ecs_ecr" {
   source = "./terraform-modules/ecs-ecr"
 
@@ -117,7 +113,7 @@ module "ecs_ecr" {
 
   nucleus_security_group_id = module.security-groups.nucleus_security_group_id
 
-  depends_on = [module.common, module.efs, module.iam]
+  depends_on = [module.common, module.iam]
 
 
 }
