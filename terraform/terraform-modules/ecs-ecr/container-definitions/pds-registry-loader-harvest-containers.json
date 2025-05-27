@@ -8,7 +8,7 @@
     "entryPoint": [
       "/bin/sh",
       "-c",
-      "harvest -v DEBUG -c $HARVEST_CFG"
+      "echo 'user = ' >> /etc/es-auth.cfg && echo 'password = ' >> /etc/es-auth.cfg && harvest -v DEBUG -c $HARVEST_CFG"
     ],
     "command": [],
     "environment": [],
