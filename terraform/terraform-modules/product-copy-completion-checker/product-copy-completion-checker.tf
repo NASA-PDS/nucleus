@@ -220,12 +220,6 @@ resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function"
   }
 }
 
-# Create CloudWatch Log Group for pds_nucleus_product_completion_checker_function for each PDS Node
-resource "aws_cloudwatch_log_group" "pds_nucleus_product_completion_checker_function_log_group" {
-  count = length(var.pds_node_names)
-  name  = "/aws/lambda/pds-nucleus-product-completion-checker-${var.pds_node_names[count.index]}"
-}
-
 resource "aws_cloudwatch_event_rule" "every_one_minute" {
   name                = "pds-nucleus-every-one-minutes"
   description         = "Fires every one minute"
@@ -265,7 +259,7 @@ resource "aws_sqs_queue" "pds_nucleus_files_to_save_in_database_sqs_queue" {
   count                      = length(var.pds_node_names)
   name                       = "pds-nucleus-files-to-save-in-database-${var.pds_node_names[count.index]}"
   delay_seconds              = 0
-  visibility_timeout_seconds = 30
+  visibility_timeout_seconds = 300
   message_retention_seconds  = 345600
   receive_wait_time_seconds  = 0
   sqs_managed_sse_enabled    = true

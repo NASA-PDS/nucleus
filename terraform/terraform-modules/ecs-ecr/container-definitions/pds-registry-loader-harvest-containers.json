@@ -8,7 +8,7 @@
     "entryPoint": [
       "/bin/sh",
       "-c",
-      "echo 'user = $OPENSEARCH_USER' >> /etc/es-auth.cfg && echo 'password = $OPENSEARCH_PASSWORD' >> /etc/es-auth.cfg && harvest -v DEBUG -c $HARVEST_CFG"
+      "echo 'user = ' >> /etc/es-auth.cfg && echo 'password = ' >> /etc/es-auth.cfg && harvest -v DEBUG -c $HARVEST_CFG"
     ],
     "command": [],
     "environment": [],
@@ -20,16 +20,7 @@
       }
     ],
     "volumesFrom": [],
-    "secrets": [
-      {
-        "name": "OPENSEARCH_USER",
-        "valueFrom": "${opensearch_user_secretmanager_arn}"
-      },
-      {
-        "name": "OPENSEARCH_PASSWORD",
-        "valueFrom": "${opensearch_password_secretmanager_arn}"
-      }
-    ],
+    "secrets": [],
     "logConfiguration": {
       "logDriver": "awslogs",
       "options": {

@@ -6,10 +6,26 @@
 #  - Accessing a private Amazon MWAA environment using federated identities (https://d1.awsstatic.com/whitepapers/accessing-a-private-amazon-mwaa-environment-using-federated-identities.pdf )
 
 
-
+# This S3 bucket is used to keep ALB logs
 resource "aws_s3_bucket" "pds_nucleus_auth_alb_logs" {
   bucket = "pds-nucleus-auth-alb-logs"
+}
+
+resource "aws_s3_bucket_ownership_controls" "pds_nucleus_auth_alb_logs_controls" {
+  bucket = aws_s3_bucket.pds_nucleus_auth_alb_logs.id
+
+  rule {
+    object_ownership = "ObjectWriter"
+  }
+}
+
+resource "aws_s3_bucket_acl" "pds_nucleus_auth_alb_logs_acl" {
+  bucket = aws_s3_bucket.pds_nucleus_auth_alb_logs.id
   acl    = "log-delivery-write"
+
+  depends_on = [
+    aws_s3_bucket_ownership_controls.pds_nucleus_auth_alb_logs_controls
+  ]
 }
 
 resource "aws_s3_bucket_logging" "pds_nucleus_auth_alb_logs_bucket_logging" {
@@ -226,7 +242,6 @@ resource "aws_cognito_user_group" "pds_nucleus_admin_cognito_user_group" {
   user_pool_id = data.aws_cognito_user_pool.cognito_user_pool.id
   description  = "PDS Nucleus Airflow Admin Cognito User Group"
   precedence   = 50
-  role_arn     = var.pds_nucleus_admin_role_arn
 }
 
 resource "aws_cognito_user_group" "pds_nucleus_op_cognito_user_group" {
@@ -234,7 +249,6 @@ resource "aws_cognito_user_group" "pds_nucleus_op_cognito_user_group" {
   user_pool_id = data.aws_cognito_user_pool.cognito_user_pool.id
   description  = "PDS Nucleus Airflow Op Cognito User Group"
   precedence   = 55
-  role_arn     = var.pds_nucleus_op_role_arn
 }
 
 
@@ -243,7 +257,6 @@ resource "aws_cognito_user_group" "pds_nucleus_user_cognito_user_group" {
   user_pool_id = data.aws_cognito_user_pool.cognito_user_pool.id
   description  = "PDS Nucleus Airflow User Cognito User Group"
   precedence   = 60
-  role_arn     = var.pds_nucleus_user_role_arn
 }
 
 
@@ -252,7 +265,6 @@ resource "aws_cognito_user_group" "pds_nucleus_viewer_cognito_user_group" {
   user_pool_id = data.aws_cognito_user_pool.cognito_user_pool.id
   description  = "PDS Nucleus Airflow Viewer Cognito User Group"
   precedence   = 65
-  role_arn     = var.pds_nucleus_viewer_role_arn
 }
 
 
