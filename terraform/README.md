@@ -71,7 +71,6 @@ cd nucleus/terraform
     - AWS_SECRET_ACCESS_KEY
     - AWS_SESSION_TOKEN
     - AWS_DEFAULT_REGION
-    - AWS_ACCOUNT_ID
 
 4. Create a `terraform.tfvars` file locally under `./terraform/terraform.tfvars` and enter the value for variables specified in `variables.tf` file at `nucleus/terraform/terraform-modules/mwaa-env/variables.tf`. Ensure these values match with your AWS Setup and also the variable value types (ex: string `" "`, number `1`, list(string)`[" "]`, etc). Most of the below values can be obtained by the system admin team of your AWS account.
 
