@@ -1,3 +1,9 @@
+variable "venue" {
+  description = "Venue"
+  type        = string
+  default     = "dev"
+}
+
 variable "auth_alb_subnet_ids" {
   description = "Auth ALB Subnet IDs"
   type        = list(string)

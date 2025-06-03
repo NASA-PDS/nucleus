@@ -170,6 +170,7 @@ module "cognito-auth" {
   vpc_id                                         = var.vpc_id
   depends_on                                     = [module.common, module.iam, module.security-groups]
   region                                         = var.region
+  venue                                          = var.venue
   airflow_env_name                               = var.airflow_env_name
   auth_alb_listener_port                         = var.auth_alb_listener_port
   auth_alb_name                                  = var.auth_alb_name

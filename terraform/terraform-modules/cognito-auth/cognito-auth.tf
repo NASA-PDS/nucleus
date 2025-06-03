@@ -8,7 +8,7 @@
 
 # This S3 bucket is used to keep ALB logs
 resource "aws_s3_bucket" "pds_nucleus_auth_alb_logs" {
-  bucket = "pds-nucleus-auth-alb-logs"
+  bucket = "pds-nucleus-auth-alb-logs-bucket-${var.venue}"
 }
 
 resource "aws_s3_bucket_ownership_controls" "pds_nucleus_auth_alb_logs_controls" {
@@ -37,7 +37,7 @@ resource "aws_s3_bucket_logging" "pds_nucleus_auth_alb_logs_bucket_logging" {
 
 #  logging bucket for pds_nucleus_auth_alb_logs bucket
 resource "aws_s3_bucket" "pds_nucleus_auth_alb_logs_bucket_logs" {
-  bucket = "pds-nucleus-auth-alb-logs-bucket-logs"
+  bucket = "pds-nucleus-auth-alb-logs-bucket-${var.venue}-logs"
 }
 
 data "aws_iam_policy_document" "pds_nucleus_auth_alb_logs_bucket_logs_bucket_policy" {

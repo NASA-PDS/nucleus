@@ -1,5 +1,5 @@
-variable "env" {
-  description = "Environment"
+variable "venue" {
+  description = "Venue"
   type        = string
   default     = "dev"
 }
