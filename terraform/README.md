@@ -77,7 +77,7 @@ cd nucleus/terraform
 
 Note:  Examples of `terraform.tfvars` files are available at `terraform/variables` directory for your reference.
 
-    - env        : Name of the Cloud environment to deploy PDS Nucleus (E.g: "mcp-dev", "mcp-test")
+    - venue      : Name of the Cloud venue to deploy PDS Nucleus (E.g: "mcp-dev", "mcp-test")
     - region     : AWS Region
     - vpc_id     : VPC ID of your AWS VPC
     - subnet_ids : List of Private Subnet IDs to be used for the MWAA
@@ -117,7 +117,7 @@ Note:  Examples of `terraform.tfvars` files are available at `terraform/variable
 ```
 # Example terraform.tfvars
 
-env                                   = "mcp-test"
+venue                                 = "dev"
 region                                = "us-west-2"
 vpc_id                                = "vpc-12345678"
 subnet_ids                            = ["subnet-123456789", "subnet-987654321"]
