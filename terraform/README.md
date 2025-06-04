@@ -77,7 +77,7 @@ cd nucleus/terraform
 
 Note:  Examples of `terraform.tfvars` files are available at `terraform/variables` directory for your reference.
 
-    - venue      : Name of the Cloud venue to deploy PDS Nucleus (E.g: "mcp-dev", "mcp-test")
+    - venue      : Name of the Cloud venue to deploy PDS Nucleus (E.g: "dev", "test")
     - region     : AWS Region
     - vpc_id     : VPC ID of your AWS VPC
     - subnet_ids : List of Private Subnet IDs to be used for the MWAA
