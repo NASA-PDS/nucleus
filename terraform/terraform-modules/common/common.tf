@@ -63,6 +63,20 @@ resource "aws_s3_bucket_policy" "logs_bucket_policy" {
   policy = data.aws_iam_policy_document.pds_nucleus_airflow_dags_bucket_logs_bucket_policy.json
 }
 
+resource "aws_s3_bucket_lifecycle_configuration" "pds_nucleus_airflow_dags_bucket_logs_lifecycle" {
+  bucket = aws_s3_bucket.pds_nucleus_airflow_dags_bucket_logs.id
+
+  rule {
+    id     = "delete_old_logs"
+    status = "Enabled"
+
+    # Delete objects after a certain number of days
+    expiration {
+      days = 7
+    }
+  }
+}
+
 resource "aws_s3_object" "dags" {
   bucket = aws_s3_bucket.pds_nucleus_airflow_dags_bucket.id
   acl    = "private"
