@@ -26,7 +26,7 @@ LAMBDA_FUNCTION_NAME = "pds_nucleus_product_processing_status_tracker"
 ##################################################################################
 
 dag = DAG(
-    dag_id="PDS_SBN-pds-nucleus-s3-backlog-processor",
+    dag_id="${pds_node_name}-pds-nucleus-s3-backlog-processor",
     schedule_interval=None,
     catchup=False,
     start_date=days_ago(1),
