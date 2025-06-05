@@ -10,10 +10,11 @@ module "security-groups" {
 module "common" {
   source = "./terraform-modules/common"
 
-  vpc_id                    = var.vpc_id
-  vpc_cidr                  = var.vpc_cidr
-  mwaa_dag_s3_bucket_name   = var.mwaa_dag_s3_bucket_name
-  nucleus_security_group_id = module.security-groups.nucleus_security_group_id
+  vpc_id                      = var.vpc_id
+  vpc_cidr                    = var.vpc_cidr
+  mwaa_dag_s3_bucket_name     = var.mwaa_dag_s3_bucket_name
+  nucleus_security_group_id   = module.security-groups.nucleus_security_group_id
+  pds_shared_logs_bucket_name = var.pds_shared_logs_bucket_name
 }
 
 module "iam" {
@@ -170,6 +171,7 @@ module "cognito-auth" {
   vpc_id                                         = var.vpc_id
   depends_on                                     = [module.common, module.iam, module.security-groups]
   region                                         = var.region
+  venue                                          = var.venue
   airflow_env_name                               = var.airflow_env_name
   auth_alb_listener_port                         = var.auth_alb_listener_port
   auth_alb_name                                  = var.auth_alb_name
@@ -185,6 +187,7 @@ module "cognito-auth" {
   pds_nucleus_user_role_arn                      = module.iam.pds_nucleus_user_role_arn
   pds_nucleus_viewer_role_arn                    = module.iam.pds_nucleus_viewer_role_arn
   nucleus_auth_alb_security_group_id             = module.security-groups.nucleus_alb_security_group_id
+  pds_shared_logs_bucket_name                    = var.pds_shared_logs_bucket_name
 }
 
 # Output the ALB URL for Airflow UI

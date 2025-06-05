@@ -76,7 +76,7 @@ cd nucleus/terraform
 
 Note:  Examples of `terraform.tfvars` files are available at `terraform/variables` directory for your reference.
 
-    - env        : Name of the Cloud environment to deploy PDS Nucleus (E.g: "mcp-dev", "mcp-test")
+    - venue      : Name of the Cloud venue to deploy PDS Nucleus (E.g: "dev", "test")
     - region     : AWS Region
     - vpc_id     : VPC ID of your AWS VPC
     - subnet_ids : List of Private Subnet IDs to be used for the MWAA
@@ -102,13 +102,16 @@ Note:  Examples of `terraform.tfvars` files are available at `terraform/variable
     - pds_nucleus_staging_bucket_name_postfix : Postfix of the S3 Bucket name to keep PDS staging data files (E.g.: staging-mcp-dev)
     - pds_nucleus_hot_archive_bucket_name_postfix : Postfix of the S3 Bucket name to keep PDS hot archive data files (E.g.: archive-hot-mcp-dev)
     - pds_nucleus_cold_archive_bucket_name_postfix : Postfix of the S3 Bucket name to keep PDS cold archive data files (E.g.: archive-cold-mcp-dev)
-    - pds_nucleus_config_bucket_name_postfix: Postfix of the S3 Bucket name to keep temporary configurations (E.g.: pds-nucleus-config-mcp-test)
+    - pds_nucleus_config_bucket_name_postfix : Postfix of the S3 Bucket name to keep temporary configurations (E.g.: pds-nucleus-config-mcp-test)
+    - pds_shared_logs_bucket_name : Name of the shared PDS logs S# bucket (E.g.: pds-logs-dev, pds-logs-prod)
+
     - pds_nucleus_default_airflow_dag_id : The default example DAG to be included for testing (E.g.: pds-basic-registry-load-use-case)
-    - pds_registry_loader_harvest_task_role_arn: An IAM role which is associated with a Cognito user group
-    - cognito_user_pool_id: The ID of the Cognito user pool which is used to create Nuclues user accounts
-    - cognito_user_pool_domain: Cognitp domain name of the Cognito user pool which is sued to create Nuclues user accounts
-    - auth_alb_listener_certificate_arn: ARN of the certificate to be used for the ALB Listener facing Airflow UI
-    - aws_elb_account_id_for_the_region: The standard ELB account ID for the AWS region. For US West (Oregon), this is  797873946194. Read more at https://docs.aws.amazon.com/elasticloadbalancing/latest/application/enable-access-logging.html)
+    - pds_nucleus_s3_backlog_processor_dag_id : The DAG ID of the S3 Backlog Processer DAG (E.g: pds-nucleus-s3-backlog-processor)
+
+    - cognito_user_pool_id : The ID of the Cognito user pool which is used to create Nuclues user accounts
+    - cognito_user_pool_domain : Cognitp domain name of the Cognito user pool which is sued to create Nuclues user accounts
+    - auth_alb_listener_certificate_arn : ARN of the certificate to be used for the ALB Listener facing Airflow UI
+    - aws_elb_account_id_for_the_region : The standard ELB account ID for the AWS region. For US West (Oregon), this is  797873946194. Read more at https://docs.aws.amazon.com/elasticloadbalancing/latest/application/enable-access-logging.html)
 
 
 > Note: `terraform.tfvars` is only used to test with your configuration with the actual values in your AWS account. This file will not be uploaded to GitHub as it's ignored by Git. Once testing is completed successfully work with your admin to get the values for these tested variables updated via GitHub secrets, which are dynamically passed in during runtime.
@@ -116,7 +119,7 @@ Note:  Examples of `terraform.tfvars` files are available at `terraform/variable
 ```
 # Example terraform.tfvars
 
-env                                   = "mcp-test"
+venue                                 = "dev"
 region                                = "us-west-2"
 vpc_id                                = "vpc-12345678"
 subnet_ids                            = ["subnet-123456789", "subnet-987654321"]
@@ -137,23 +140,22 @@ pds_nucleus_opensearch_registry_names          = ["pds-nucleus-sbn-registry"", "
 pds_nucleus_opensearch_credential_relative_url = "http://<IP ADDRESS>/AWS_CONTAINER_CREDENTIALS_RELATIVE_URI"
 pds_nucleus_harvest_replace_prefix_with_list   = ["s3://pds-sbn-nucleus-staging", "s3://pds-img-nucleus-staging"]
 
-
 airflow_env_name                             = "pds-nucleus-airflow-env"
-mwaa_dag_s3_bucket_name                      = "pds-nucleus-airflow-dags-bucket-mcp-dev"
-pds_nucleus_staging_bucket_name_postfix      = "staging-mcp-dev"
-pds_nucleus_hot_archive_bucket_name_postfix  = "archive-hot-mcp-dev"
-pds_nucleus_cold_archive_bucket_name_postfix = "archive-cold-mcp-dev"
+mwaa_dag_s3_bucket_name                      = "pds-nucleus-airflow-dags-bucket-dev"
+pds_nucleus_staging_bucket_name_postfix      = "staging-dev"
+pds_nucleus_hot_archive_bucket_name_postfix  = "archive-hot-dev"
+pds_nucleus_cold_archive_bucket_name_postfix = "archive-cold-dev"
 pds_nucleus_config_bucket_name_postfix       = "config-dev"
-
-pds_nucleus_default_airflow_dag_id = "pds-basic-registry-load-use-case"
-
-pds_registry_loader_harvest_task_role_arn = "arn:aws:iam::12345678:role/harvest-task-role"
-
-
+pds_shared_logs_bucket_name                  = "pds-logs-dev"
+ 
+pds_nucleus_default_airflow_dag_id      = "pds-basic-registry-load-use-case"
+pds_nucleus_s3_backlog_processor_dag_id = "pds-nucleus-s3-backlog-processor"
+ 
 cognito_user_pool_id              = "us-west-2_ABCDEFG"
 cognito_user_pool_domain          = "pds-registry"
 auth_alb_listener_certificate_arn = "arn:aws:acm:us-west-2:123456789:certificate/ca123456-abcd-abcd-1234-abcdefghi"
 aws_elb_account_id_for_the_region = "797873946194"
+
 ```
 
 

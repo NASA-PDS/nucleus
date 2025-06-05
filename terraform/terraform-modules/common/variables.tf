@@ -64,3 +64,8 @@ variable "nucleus_security_group_id" {
   sensitive   = true
 }
 
+variable "pds_shared_logs_bucket_name" {
+  description = "The name of the PDS shared logs bucket"
+  type        = string
+  sensitive   = true
+}

@@ -1,3 +1,9 @@
+variable "venue" {
+  description = "Venue"
+  type        = string
+  default     = "dev"
+}
+
 variable "auth_alb_subnet_ids" {
   description = "Auth ALB Subnet IDs"
   type        = list(string)
@@ -96,4 +102,10 @@ variable "vpc_id" {
 variable "region" {
   description = "Region"
   type        = string
+}
+
+variable "pds_shared_logs_bucket_name" {
+  description = "The name of the PDS shared logs bucket"
+  type        = string
+  sensitive   = true
 }

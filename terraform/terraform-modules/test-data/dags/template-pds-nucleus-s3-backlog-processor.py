@@ -1,7 +1,7 @@
-# PDS Basic Registry Load Use Case DAG
+# PDS S3 Backlog Processor DAG
 #
-# This DAG is a very basic workflow with validate tool and harvest tool. This was just added as an example DAG for
-# Nucleus baseline deployment.
+# This DAG is used to process data from an existing S3 bucket (instead of triggering DAGs based on S3 file creation events).
+#
 
 import boto3
 import json
@@ -26,7 +26,7 @@ LAMBDA_FUNCTION_NAME = "pds_nucleus_product_processing_status_tracker"
 ##################################################################################
 
 dag = DAG(
-    dag_id="PDS_SBN-pds-nucleus-s3-backlog-processor",
+    dag_id="${pds_nucleus_s3_backlog_processor_dag_id}",
     schedule_interval=None,
     catchup=False,
     start_date=days_ago(1),

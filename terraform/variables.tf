@@ -1,5 +1,5 @@
-variable "env" {
-  description = "Environment"
+variable "venue" {
+  description = "Venue"
   type        = string
   default     = "dev"
 }
@@ -94,6 +94,12 @@ variable "pds_nucleus_cold_archive_storage_class" {
 variable "pds_nucleus_config_bucket_name_postfix" {
   description = "The postfix of the namer of the PDS Nucleus Configuration S3 Bucket"
   default     = "config--<venue-name>"
+  type        = string
+  sensitive   = true
+}
+
+variable "pds_shared_logs_bucket_name" {
+  description = "The name of the PDS shared logs bucket"
   type        = string
   sensitive   = true
 }
