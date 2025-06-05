@@ -98,6 +98,12 @@ variable "pds_nucleus_config_bucket_name_postfix" {
   sensitive   = true
 }
 
+variable "pds_shared_logs_bucket_name" {
+  description = "The name of the PDS shared logs bucket"
+  type        = string
+  sensitive   = true
+}
+
 variable "pds_nucleus_default_airflow_dag_id" {
   description = "PDS Nucleus Default Airflow DAG ID"
   type        = string

@@ -103,3 +103,9 @@ variable "region" {
   description = "Region"
   type        = string
 }
+
+variable "pds_shared_logs_bucket_name" {
+  description = "The name of the PDS shared logs bucket"
+  type        = string
+  sensitive   = true
+}

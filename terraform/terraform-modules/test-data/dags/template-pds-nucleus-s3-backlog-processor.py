@@ -1,6 +1,6 @@
 # PDS S3 Backlog Processor DAG
 #
-# This DAG is used to process data from an existing S3 bucket (instead of triggering DAGs based on S3 file creation events.
+# This DAG is used to process data from an existing S3 bucket (instead of triggering DAGs based on S3 file creation events).
 #
 
 import boto3
