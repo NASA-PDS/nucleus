@@ -32,7 +32,7 @@ resource "local_file" "pds-basic-registry-load-use-case-dag-file" {
 resource "aws_s3_object" "pds_basic_registry_data_load_dag_file" {
   count  = length(var.pds_node_names)
   bucket = var.mwaa_dag_s3_bucket_name
-  key    = "dags/${var.pds_node_names[count.index]}-${var.pds_basic_registry_data_load_dag_file_name}"
+  key    = "dags/${var.pds_node_names[count.index]}/${var.pds_node_names[count.index]}-${var.pds_basic_registry_data_load_dag_file_name}"
   acl    = "private"
   source = "terraform-modules/test-data/dags/${var.pds_node_names[count.index]}-${var.pds_basic_registry_data_load_dag_file_name}"
 
@@ -73,7 +73,7 @@ resource "local_file" "pds-nucleus-s3-backlog-processor-dag-file" {
 resource "aws_s3_object" "pds_nucleus_s3_backlog_processor_dag_file" {
   count  = length(var.pds_node_names)
   bucket = var.mwaa_dag_s3_bucket_name
-  key    = "dags/${var.pds_node_names[count.index]}-${var.pds_nucleus_s3_backlog_processor_dag_file_name}"
+  key    = "dags/${var.pds_node_names[count.index]}/${var.pds_node_names[count.index]}-${var.pds_nucleus_s3_backlog_processor_dag_file_name}"
   acl    = "private"
   source = "terraform-modules/test-data/dags/${var.pds_node_names[count.index]}-${var.pds_nucleus_s3_backlog_processor_dag_file_name}"
 
