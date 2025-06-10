@@ -150,7 +150,6 @@ def get_mwaa_client(role_arn, user):
     try:
         logger.info(f'Assuming role "{role_arn}"')
         response = sts.assume_role(RoleArn=role_arn, RoleSessionName=user, DurationSeconds=900)
-        logger.info(str(response))
         credentials = response.get('Credentials')
         config = Config(user_agent=user)
 
