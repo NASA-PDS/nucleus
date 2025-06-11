@@ -128,8 +128,8 @@ resource "aws_ecr_repository" "pds_validate" {
   }
 }
 
-resource "aws_ecr_repository" "pds_nucleus_s3_backlog_processor" {
-  name                 = "pds-nucleus-s3-backlog-processor"
+resource "aws_ecr_repository" "pds_nucleus_tools_java" {
+  name                 = "pds-nucleus-tools-java"
   image_tag_mutability = "MUTABLE"
   force_delete         = true
 
@@ -427,7 +427,7 @@ data "template_file" "pds-nucleus-s3-backlog-processor-containers-json-template"
   count    = length(var.pds_node_names)
   template = file("terraform-modules/ecs-ecr/container-definitions/pds-nucleus-s3-backlog-processor-containers.json")
   vars = {
-    pds_nucleus_s3_backlog_processor_ecr_image_path         = aws_ecr_repository.pds_nucleus_s3_backlog_processor.repository_url
+    pds_nucleus_tools_java_ecr_image_path                   = aws_ecr_repository.pds_nucleus_tools_java.repository_url
     pds_nucleus_s3_backlog_processor_cloudwatch_logs_group  = "${var.pds_nucleus_s3_backlog_processor_cloudwatch_logs_group}-${var.pds_node_names[count.index]}"
     pds_nucleus_s3_backlog_processor_cloudwatch_logs_region = var.region
   }

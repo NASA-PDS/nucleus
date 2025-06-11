@@ -1,11 +1,15 @@
 [
   {
     "name": "pds-nucleus-s3-backlog-processor",
-    "image": "${pds_nucleus_s3_backlog_processor_ecr_image_path}",
+    "image": "${pds_nucleus_tools_java_ecr_image_path}",
     "cpu": 0,
     "portMappings": [],
     "essential": true,
     "environment": [
+      {
+        "name": "MAIN_CLASS",
+        "value": "gov.nasa.pds.nucleus.ingress.PDSNucleusS3BackLogProcessor"
+      },
       {
         "name": "S3_BUCKET_NAME",
         "value": ""
