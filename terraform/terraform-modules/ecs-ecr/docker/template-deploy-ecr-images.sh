@@ -24,3 +24,9 @@ docker push "${pds_nucleus_aws_account_id}".dkr.ecr.us-west-2.amazonaws.com/pds-
 docker image pull nasapds/validate
 docker tag nasapds/validate:latest "${pds_nucleus_aws_account_id}".dkr.ecr.us-west-2.amazonaws.com/pds-validate:latest
 docker push "${pds_nucleus_aws_account_id}".dkr.ecr.us-west-2.amazonaws.com/pds-validate:latest
+
+# Deploy pds_nucleus_s3_backlog_processor ECR image
+docker image pull nasapds/nucleus-tools-java
+docker tag nasapds/nucleus-tools-java:latest "${pds_nucleus_aws_account_id}".dkr.ecr.us-west-2.amazonaws.com/pds-nucleus-tools-java:latest
+docker push "${pds_nucleus_aws_account_id}".dkr.ecr.us-west-2.amazonaws.com/pds-nucleus-tools-java:latest
+

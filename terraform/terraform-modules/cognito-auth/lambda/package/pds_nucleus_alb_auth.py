@@ -122,7 +122,6 @@ def login(headers, query_params=None, user_claims=None,iam_role_arn=None):
         logger.debug(f"Create Airflow web login token for environment: '{AIRFLOW_ENV_NAME}'")
         if AIRFLOW_ENV_NAME:
             response = mwaa.create_web_login_token(Name=AIRFLOW_ENV_NAME)
-            logger.info(str(response))
             mwaa_web_token = response.get("WebToken")
             host = response.get("WebServerHostname")
             logger.info('Redirecting with Amazon MWAA WebToken')
@@ -148,9 +147,7 @@ def get_mwaa_client(role_arn, user):
     """
     mwaa = None
     try:
-        logger.info(f'Assuming role "{role_arn}"')
         response = sts.assume_role(RoleArn=role_arn, RoleSessionName=user, DurationSeconds=900)
-        logger.info(str(response))
         credentials = response.get('Credentials')
         config = Config(user_agent=user)
 
@@ -212,7 +209,7 @@ def validate_jwt_and_get_jwt_claims(encoded_jwt, token_type):
                 "require": ["token_use", "exp", "iss", "sub"],
             },
         )
-        logger.info("Token is valid:", payload)
+        logger.info("Token is valid")
     except jwt.ExpiredSignatureError as error:
         logger.error("Token has expired.")
         logger.error(error)
@@ -240,10 +237,12 @@ def get_iam_role_arn(jwt_payload):
 
     if 'cognito:groups' in jwt_payload:
         user_groups = jwt_payload['cognito:groups']
+        user_name = jwt_payload['username']
 
         for mapping in COGNITO_GROUP_TO_ROLE_MAP:
             if mapping['cognito-group'] in user_groups:
                 role_name = mapping['iam-role']
+                logger.info(f"User : {user_name} logs in with Role: {role_name}")
                 role_arn = f'arn:aws:iam::{AWS_ACCOUNT_ID}:role/{role_name}'
                 break
     return role_arn
