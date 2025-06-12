@@ -68,8 +68,8 @@ process_s3_backlog = EcsRunTaskOperator(
                     "name": "pds-nucleus-s3-backlog-processor",
                     "environment": [
                         {
-                            "name": "S3_BUCKET_NAME",
-                            "value": "{{ params['s3_bucket_name'] }}"
+                            "name": "MAINCLASS",
+                            "value": "gov.nasa.pds.nucleus.ingress.PDSNucleusS3BackLogProcessor"
                         },
                         {
                             "name": "S3_BUCKET_PREFIX",
@@ -82,6 +82,10 @@ process_s3_backlog = EcsRunTaskOperator(
                         {
                             "name": "AWS_REGION",
                             "value": "{{ params['aws_region'] }}"
+                        },
+                        {
+                            "name": "S3_BUCKET_NAME",
+                            "value": "{{ params['s3_bucket_name'] }}"
                         }
                     ],
                 },
