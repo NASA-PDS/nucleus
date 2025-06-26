@@ -70,7 +70,7 @@ def lambda_handler(event, context):
             logger.error("Invalid token")
             return close(headers, "Unauthorized", status_code=401)
 
-        if path == '/aws_mwaa/aws-console-sso':
+        if path.lower().startswith('/nucleus') or path == '/aws_mwaa/aws-console-sso':
             redirect = login(headers=headers, query_params=query_params, user_claims=user_claims, iam_role_arn=iam_role_arn)
         else:
             redirect = close(headers, f"Bad request: {path}, {query_params}, {headers}", status_code=400)
