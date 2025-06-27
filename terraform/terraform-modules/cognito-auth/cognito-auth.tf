@@ -160,7 +160,7 @@ resource "aws_cognito_user_pool_client" "cognito_user_pool_client_for_mwaa" {
   name                                 = "pds-nucleus-airflow-ui-client"
   user_pool_id                         = data.aws_cognito_user_pool.cognito_user_pool.id
   generate_secret                      = true
-  callback_urls                        = ["https://${aws_lb.pds_nucleus_auth_alb.dns_name}:${var.auth_alb_listener_port}/oauth2/idpresponse"]
+  callback_urls                        = ["https://${aws_lb.pds_nucleus_auth_alb.dns_name}/oauth2/idpresponse", "https://${var.nucleus_cloudfront_origin_hostname}/oauth2/idpresponse"]
   allowed_oauth_flows_user_pool_client = true
   allowed_oauth_flows                  = ["code"]
   allowed_oauth_scopes                 = ["email", "openid"]
@@ -199,6 +199,6 @@ resource "aws_cognito_user_group" "pds_nucleus_viewer_cognito_user_group" {
 
 
 
-output "pds_nucleus_airflow_ui_url" {
-  value = "https://${aws_lb.pds_nucleus_auth_alb.dns_name}:${var.auth_alb_listener_port}/aws_mwaa/aws-console-sso"
+output "pds_nucleus_airflow_ui_urls" {
+  value = ["https://${aws_lb.pds_nucleus_auth_alb.dns_name}/aws_mwaa/aws-console-sso", "https://${var.nucleus_cloudfront_origin_hostname}/nucleus"]
 }

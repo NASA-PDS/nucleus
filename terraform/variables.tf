@@ -239,7 +239,7 @@ variable "auth_alb_name" {
 
 variable "auth_alb_listener_port" {
   description = "Auth ALB Listener Port"
-  default     = "4443"
+  default     = "443"
   type        = string
   sensitive   = true
 }
@@ -248,6 +248,11 @@ variable "auth_alb_listener_certificate_arn" {
   description = "Auth ALB Listener Certificate ARN"
   type        = string
   sensitive   = true
+}
+
+variable "nucleus_cloudfront_origin_hostname" {
+  description = "Hostname of the Nucleus Cloudfront origin (E.g: pds-sit.mcp.nasa.gov)"
+  type        = string
 }
 
 variable "aws_elb_account_id_for_the_region" {

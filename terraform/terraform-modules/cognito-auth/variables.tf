@@ -34,6 +34,11 @@ variable "auth_alb_listener_certificate_arn" {
   sensitive   = true
 }
 
+variable "nucleus_cloudfront_origin_hostname" {
+  description = "Hostname of the Nucleus Cloudfront origin (E.g: pds-sit.mcp.nasa.gov)"
+  type        = string
+}
+
 variable "aws_elb_account_id_for_the_region" {
   description = "Standard AWS ELB Account ID for the related region"
   type        = string

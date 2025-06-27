@@ -31,9 +31,10 @@ pds_nucleus_config_bucket_name_postfix       = "config-dev"
 pds_nucleus_default_airflow_dag_id      = "pds-basic-registry-load-use-case"
 pds_nucleus_s3_backlog_processor_dag_id = "pds-nucleus-s3-backlog-processor"
 
-cognito_user_pool_id              = "us-west-2_ABCDEFG"
-cognito_user_pool_domain          = "pds-registry"
-auth_alb_listener_certificate_arn = "arn:aws:acm:us-west-2:123456789:certificate/ca123456-abcd-abcd-1234-abcdefghi"
+cognito_user_pool_id               = "us-west-2_ABCDEFG"
+cognito_user_pool_domain           = "pds-registry"
+auth_alb_listener_certificate_arn  = "arn:aws:acm:us-west-2:123456789:certificate/ca123456-abcd-abcd-1234-abcdefghi"
+nucleus_cloudfront_origin_hostname = "pds-sit.mcp.nasa.gov"
 
 # This accountID is given by Amazon for ELBs in the us-west-2 region
 aws_elb_account_id_for_the_region = "797873946194"

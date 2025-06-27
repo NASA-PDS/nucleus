@@ -177,6 +177,7 @@ module "cognito-auth" {
   auth_alb_name                                  = var.auth_alb_name
   auth_alb_subnet_ids                            = var.auth_alb_subnet_ids
   auth_alb_listener_certificate_arn              = var.auth_alb_listener_certificate_arn
+  nucleus_cloudfront_origin_hostname             = var.nucleus_cloudfront_origin_hostname
   cognito_user_pool_domain                       = var.cognito_user_pool_domain
   cognito_user_pool_id                           = var.cognito_user_pool_id
   aws_elb_account_id_for_the_region              = var.aws_elb_account_id_for_the_region
@@ -191,6 +192,6 @@ module "cognito-auth" {
 }
 
 # Output the ALB URL for Airflow UI
-output "pds_nucleus_airflow_ui_url" {
-  value = nonsensitive(module.cognito-auth.pds_nucleus_airflow_ui_url)
+output "pds_nucleus_airflow_ui_urls" {
+  value = nonsensitive(module.cognito-auth.pds_nucleus_airflow_ui_urls)
 }

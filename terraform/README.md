@@ -111,6 +111,7 @@ Note:  Examples of `terraform.tfvars` files are available at `terraform/variable
     - cognito_user_pool_id : The ID of the Cognito user pool which is used to create Nuclues user accounts
     - cognito_user_pool_domain : Cognitp domain name of the Cognito user pool which is sued to create Nuclues user accounts
     - auth_alb_listener_certificate_arn : ARN of the certificate to be used for the ALB Listener facing Airflow UI
+    - nucleus_cloudfront_origin_hostname : Hostname of the Nucleus Cloudfront origin (E.g: pds-sit.mcp.nasa.gov)
     - aws_elb_account_id_for_the_region : The standard ELB account ID for the AWS region. For US West (Oregon), this is  797873946194. Read more at https://docs.aws.amazon.com/elasticloadbalancing/latest/application/enable-access-logging.html)
 
 
@@ -151,10 +152,11 @@ pds_shared_logs_bucket_name                  = "pds-logs-dev"
 pds_nucleus_default_airflow_dag_id      = "pds-basic-registry-load-use-case"
 pds_nucleus_s3_backlog_processor_dag_id = "pds-nucleus-s3-backlog-processor"
  
-cognito_user_pool_id              = "us-west-2_ABCDEFG"
-cognito_user_pool_domain          = "pds-registry"
-auth_alb_listener_certificate_arn = "arn:aws:acm:us-west-2:123456789:certificate/ca123456-abcd-abcd-1234-abcdefghi"
-aws_elb_account_id_for_the_region = "797873946194"
+cognito_user_pool_id               = "us-west-2_ABCDEFG"
+cognito_user_pool_domain           = "pds-registry"
+auth_alb_listener_certificate_arn  = "arn:aws:acm:us-west-2:123456789:certificate/ca123456-abcd-abcd-1234-abcdefghi"
+nucleus_cloudfront_origin_hostname = "pds-sit.mcp.nasa.gov"
+aws_elb_account_id_for_the_region  = "797873946194"
 
 ```
 
@@ -192,7 +194,7 @@ Example:
 ```shell
 Outputs:
 
-pds_nucleus_airflow_ui_url = "https://pds-nucleus-12345678.us-west-2.elb.amazonaws.com:4443/aws_mwaa/aws-console-sso"
+pds_nucleus_airflow_ui_url = "https://pds-nucleus-12345678.us-west-2.elb.amazonaws.com/aws_mwaa/aws-console-sso"
 ```
 
 11. Login to the AWS Console with your AWS Account.
@@ -225,7 +227,7 @@ Example:
 ```shell
 Outputs:
 
-pds_nucleus_airflow_ui_url = "https://pds-nucleus-12345678.us-west-2.elb.amazonaws.com:4443/aws_mwaa/aws-console-sso"
+pds_nucleus_airflow_ui_url = "https://pds-nucleus-12345678.us-west-2.elb.amazonaws.com/aws_mwaa/aws-console-sso"
 ```
 
 3. Use the Cognito username and password to login.
