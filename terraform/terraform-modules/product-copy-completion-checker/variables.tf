@@ -67,6 +67,12 @@ variable "pds_node_names" {
   sensitive   = true
 }
 
+variable "pds_archive_bucket_names" {
+  description = "List of PDS archive buckets"
+  type        = list(string)
+  sensitive   = true
+}
+
 variable "pds_nucleus_opensearch_url" {
   description = "List of PDS Nucleus OpenSearch URL"
   type        = string
@@ -93,20 +99,6 @@ variable "pds_nucleus_harvest_replace_prefix_with_list" {
 variable "pds_nucleus_staging_bucket_name_postfix" {
   description = "The postfix of the name of the S3 staging bucket to receive data to be processed"
   default     = "staging-<venue-name>"
-  type        = string
-  sensitive   = true
-}
-
-variable "pds_nucleus_hot_archive_bucket_name_postfix" {
-  description = "The postfix of the name of the hot archive s3 bucket"
-  default     = "hot-archive-<venue-name>"
-  type        = string
-  sensitive   = true
-}
-
-variable "pds_nucleus_cold_archive_bucket_name_postfix" {
-  description = "The postfix of the name of the cold archive s3 bucket"
-  default     = "cold-archive-<venue-name>"
   type        = string
   sensitive   = true
 }
@@ -140,3 +132,4 @@ variable "pds_nucleus_lambda_execution_role_arns" {
   type        = list(string)
   sensitive   = true
 }
+

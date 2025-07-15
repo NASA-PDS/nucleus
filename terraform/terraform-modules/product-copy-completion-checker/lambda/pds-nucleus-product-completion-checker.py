@@ -44,7 +44,6 @@ es_auth_file = os.environ.get('ES_AUTH_CONFIG_FILE_PATH')
 pds_nucleus_config_bucket_name = os.environ.get('PDS_NUCLEUS_CONFIG_BUCKET_NAME')
 mwaa_env_name = os.environ.get('PDS_MWAA_ENV_NAME')
 pds_hot_archive_bucket_name = os.environ.get('PDS_HOT_ARCHIVE_S3_BUCKET_NAME')
-pds_cold_archive_bucket_name = os.environ.get('PDS_COLD_ARCHIVE_S3_BUCKET_NAME')
 product_batch_size = os.environ.get('PRODUCT_BATCH_SIZE')
 
 replace_prefix = efs_mount_path
@@ -313,8 +312,6 @@ def trigger_nucleus_workflow(random_batch_number, list_of_product_labels_to_proc
     pds_hot_archive_bucket_name_key = "pds_hot_archive_bucket_name"
     pds_hot_archive_bucket_name_value = pds_hot_archive_bucket_name
 
-    pds_cold_archive_bucket_name_key = "pds_cold_archive_bucket_name"
-    pds_cold_archive_bucket_name_value = pds_cold_archive_bucket_name
 
     conf = "{\"" + \
            s3_config_dir_key + "\":\"" + s3_config_dir_value + "\",\"" + \
@@ -322,7 +319,6 @@ def trigger_nucleus_workflow(random_batch_number, list_of_product_labels_to_proc
            pds_node_name_key + "\":\"" + pds_node_name_value + "\",\"" + \
            batch_number_key + "\":\"" + batch_number_value + "\",\"" + \
            pds_hot_archive_bucket_name_key + "\":\"" + pds_hot_archive_bucket_name_value + "\",\"" + \
-           pds_cold_archive_bucket_name_key + "\":\"" + pds_cold_archive_bucket_name_value + "\",\"" + \
            efs_config_dir_key + "\":\"" + efs_config_dir_value + "\"}"
 
     logger.info(f"Triggering Nucleus workflow {dag_name} with parameters : {conf}")

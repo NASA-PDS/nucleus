@@ -86,12 +86,43 @@ Note:  Examples of `terraform.tfvars` files are available at `terraform/variable
     - aws_secretmanager_key_arn : The ARN of aws/secretmanager key obtained from KMS -> AWS managed keys (E.g.: "arn:aws:kms:us-west-2:12345678:key/12345-1234-1234-1234-12345abcd")
 
     - Set node specific values the following lists in correct order
-      - pds_node_names = List of PDS Node names to be supported (E.g.: ["PDS_SBN", "PDS_IMG", "PDS_EN"]).The following node name format should be used.
+      - pds_node_names : List of PDS Node names to be supported (E.g.: ["PDS_SBN", "PDS_IMG", "PDS_EN"]).The following node name format should be used.
           - (PDS_ATM, PDS_ENG, PDS_GEO, PDS_IMG, PDS_NAIF, PDS_RMS, PDS_SBN, PSA, JAXA, ROSCOSMOS)
           - Please check https://nasa-pds.github.io/registry/user/harvest_job_configuration.html for PDS Node name descriptions.
-      
+
+      - pds_archive_bucket_names : List of Node specific archive bucket names, usualy in another AWS account (E.g.: ["pds-sbn-archive-dev", "pds-img-archive-dev"])
+            - The archive buckets should have S3 bucket permissions to allow the each Node specific `pds_nucleus_ecs_task_role-NODE_NAME` to write data.
+
+            The following S3 bucket policy is an example to allow pds_nucleus_ecs_task_role-PDS_SBN role to write to the PDS_SBN archive bucket.
+         
+   ```json
+                    {
+                      "Version": "2012-10-17",
+                      "Statement": [
+                          {
+                              "Sid": "AllowECSAccountToPutObjects",
+                              "Effect": "Allow",
+                              "Principal": {
+                                  "AWS": "arn:aws:iam::<account_id_of_aws_account_with_nucleus>:role/pds_nucleus_ecs_task_role-PDS_SBN"
+                              },
+                              "Action": "s3:PutObject",
+                              "Resource": "arn:aws:s3:::pds-sbn-archive-test/*"
+                          },
+                          {
+                              "Sid": "AllowECSAccountToAbortMultipartUploads",
+                              "Effect": "Allow",
+                              "Principal": {
+                                  "AWS": "arn:aws:iam::<account_id_of_aws_account_with_nucleus>:role/pds_nucleus_ecs_task_role-PDS_SBN"
+                              },
+                              "Action": "s3:AbortMultipartUpload",
+                              "Resource": "arn:aws:s3:::pds-sbn-archive-test/*"
+                          }
+                      ]
+                  }
+   ```
+
       - pds_nucleus_opensearch_url : OpenSearch URL to be used with Harvest tool
-      - pds_nucleus_opensearch_registry_names : List of Nod3e specific OpenSearch registry names (E.g.: ["pds-nucleus-sbn-registry"", "pds-nucleus-img-registry"])
+      - pds_nucleus_opensearch_registry_names : List of Node specific OpenSearch registry names (E.g.: ["pds-nucleus-sbn-registry"", "pds-nucleus-img-registry"])
       - pds_nucleus_opensearch_urls : List of Node specific OpenSearch URLs (E.g.: ["https://abcdef.us-west-2.aoss.amazonaws.com", "https://opqrst.us-west-2.aoss.amazonaws.com"])
       - pds_nucleus_opensearch_credential_relative_url : Opensearch Credential URL (E.g.: "http://<IP ADDRESS>/AWS_CONTAINER_CREDENTIALS_RELATIVE_URI")
       - pds_nucleus_harvest_replace_prefix_with_list : List of harvest replace with strings (E.g.: ["s3://pds-sbn-nucleus-staging","s3://pds-img-nucleus-staging"])
@@ -100,8 +131,6 @@ Note:  Examples of `terraform.tfvars` files are available at `terraform/variable
     - airflow_env_name: Name of the Nucleus Airflow environment (E.g.: "pds-nucleus-airflow-env")
     - mwaa_dag_s3_bucket_name : S3 Bucket name to keep Airflow DAG files (E.g.: pds-nucleus-airflow-dags-bucket-mcp-test)
     - pds_nucleus_staging_bucket_name_postfix : Postfix of the S3 Bucket name to keep PDS staging data files (E.g.: staging-mcp-dev)
-    - pds_nucleus_hot_archive_bucket_name_postfix : Postfix of the S3 Bucket name to keep PDS hot archive data files (E.g.: archive-hot-mcp-dev)
-    - pds_nucleus_cold_archive_bucket_name_postfix : Postfix of the S3 Bucket name to keep PDS cold archive data files (E.g.: archive-cold-mcp-dev)
     - pds_nucleus_config_bucket_name_postfix : Postfix of the S3 Bucket name to keep temporary configurations (E.g.: pds-nucleus-config-mcp-test)
     - pds_shared_logs_bucket_name : Name of the shared PDS logs S# bucket (E.g.: pds-logs-dev, pds-logs-prod)
 
@@ -136,6 +165,7 @@ aws_secretmanager_key_arn             = "arn:aws:kms:us-west-2:12345678:key/1234
 # Please check https://nasa-pds.github.io/registry/user/harvest_job_configuration.html for PDS Node name descriptions.
 
 pds_node_names                                 = ["PDS_SBN", "PDS_IMG"]
+pds_archive_bucket_names                       = ["pds-sbn-archive-dev", "pds-img-archive-dev"]
 pds_nucleus_opensearch_url                     = "https://abcdef.us-west-2.aoss.amazonaws.com"
 pds_nucleus_opensearch_registry_names          = ["pds-nucleus-sbn-registry"", "pds-nucleus-img-registry"]
 pds_nucleus_opensearch_credential_relative_url = "http://<IP ADDRESS>/AWS_CONTAINER_CREDENTIALS_RELATIVE_URI"
@@ -144,8 +174,6 @@ pds_nucleus_harvest_replace_prefix_with_list   = ["s3://pds-sbn-nucleus-staging"
 airflow_env_name                             = "pds-nucleus-airflow-env"
 mwaa_dag_s3_bucket_name                      = "pds-nucleus-airflow-dags-bucket-dev"
 pds_nucleus_staging_bucket_name_postfix      = "staging-dev"
-pds_nucleus_hot_archive_bucket_name_postfix  = "archive-hot-dev"
-pds_nucleus_cold_archive_bucket_name_postfix = "archive-cold-dev"
 pds_nucleus_config_bucket_name_postfix       = "config-dev"
 pds_shared_logs_bucket_name                  = "pds-logs-dev"
  

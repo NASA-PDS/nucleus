@@ -10,12 +10,6 @@ variable "region" {
   default     = "us-west-2"
 }
 
-variable "region_secondary" {
-  description = "Secondary Region for Archive"
-  type        = string
-  default     = "us-east-2"
-}
-
 variable "vpc_id" {
   description = "VPC ID"
   type        = string
@@ -71,26 +65,6 @@ variable "pds_nucleus_staging_bucket_name_postfix" {
   sensitive   = true
 }
 
-variable "pds_nucleus_hot_archive_bucket_name_postfix" {
-  description = "The postfix of the name of the hot archive s3 bucket"
-  default     = "hot-archive-<venue-name>"
-  type        = string
-  sensitive   = true
-}
-
-variable "pds_nucleus_cold_archive_bucket_name_postfix" {
-  description = "The postfix of the name of the cold archive s3 bucket"
-  default     = "cold-archive-<venue-name>"
-  type        = string
-  sensitive   = true
-}
-
-variable "pds_nucleus_cold_archive_storage_class" {
-  description = "The storage class of the cold archive s3 buckets"
-  default     = "DEEP_ARCHIVE"
-  type        = string
-}
-
 variable "pds_nucleus_config_bucket_name_postfix" {
   description = "The postfix of the namer of the PDS Nucleus Configuration S3 Bucket"
   default     = "config--<venue-name>"
@@ -118,6 +92,12 @@ variable "pds_nucleus_s3_backlog_processor_dag_id" {
 
 variable "pds_node_names" {
   description = "List of PDS Node Names"
+  type        = list(string)
+  sensitive   = true
+}
+
+variable "pds_archive_bucket_names" {
+  description = "List of PDS archive buckets"
   type        = list(string)
   sensitive   = true
 }
