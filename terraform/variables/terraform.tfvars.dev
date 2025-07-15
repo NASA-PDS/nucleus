@@ -14,6 +14,7 @@ aws_secretmanager_key_arn             = "arn:aws:kms:us-west-2:12345678:key/abcd
 # (PDS_ATM, PDS_ENG, PDS_GEO, PDS_IMG, PDS_NAIF, PDS_RMS, PDS_SBN, PSA, JAXA, ROSCOSMOS)
 
 pds_node_names                                 = ["PDS_SBN", "PDS_IMG"]
+pds_archive_bucket_names                       = ["pds-sbn-archive-dev", "pds-img-archive-dev"]
 pds_nucleus_opensearch_url                     = "https://abcdef.us-west-2.aoss.amazonaws.com"
 pds_nucleus_opensearch_registry_names          = ["pds-nucleus-sbn-registry"", "pds-nucleus-img-registry"]
 pds_nucleus_opensearch_credential_relative_url = "http://<IP ADDRESS>/AWS_CONTAINER_CREDENTIALS_RELATIVE_URI"
@@ -24,8 +25,6 @@ pds_nucleus_opensearch_cognito_identity_pool_ids = ["us-west-2:12345-abcd-abcd-a
 airflow_env_name                             = "pds-nucleus-airflow-env"
 mwaa_dag_s3_bucket_name                      = "pds-nucleus-airflow-dags-bucket-mcp-dev"
 pds_nucleus_staging_bucket_name_postfix      = "staging-dev"
-pds_nucleus_hot_archive_bucket_name_postfix  = "archive-hot-mcp-dev"
-pds_nucleus_cold_archive_bucket_name_postfix = "archive-cold-mcp-dev"
 pds_nucleus_config_bucket_name_postfix       = "config-dev"
 
 pds_nucleus_default_airflow_dag_id      = "pds-basic-registry-load-use-case"

@@ -101,8 +101,6 @@ module "product-copy-completion-checker" {
   pds_nucleus_config_bucket_name_postfix       = var.pds_nucleus_config_bucket_name_postfix
   subnet_ids                                   = var.subnet_ids
   pds_nucleus_default_airflow_dag_id           = var.pds_nucleus_default_airflow_dag_id
-  pds_nucleus_hot_archive_bucket_name_postfix  = var.pds_nucleus_hot_archive_bucket_name_postfix
-  pds_nucleus_cold_archive_bucket_name_postfix = var.pds_nucleus_cold_archive_bucket_name_postfix
 
   pds_node_names                                 = var.pds_node_names
   pds_archive_bucket_names                       = var.pds_archive_bucket_names

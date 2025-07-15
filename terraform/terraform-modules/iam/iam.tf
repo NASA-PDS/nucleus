@@ -494,81 +494,6 @@ resource "aws_iam_role" "pds_nucleus_ecs_task_execution_role" {
 }
 
 
-
-##########################################################
-#
-# IAM Roles and policies used by archive replication
-#
-##########################################################
-
-data "aws_iam_policy_document" "pds_nucleus_archive_replication_assume_role" {
-  statement {
-    effect = "Allow"
-
-    principals {
-      type        = "Service"
-      identifiers = ["s3.amazonaws.com"]
-    }
-
-    actions = ["sts:AssumeRole"]
-  }
-}
-
-resource "aws_iam_role" "pds_nucleus_archive_replication_role" {
-  name                 = "pds-nucleus-archive-replication-role"
-  assume_role_policy   = data.aws_iam_policy_document.pds_nucleus_archive_replication_assume_role.json
-  permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
-}
-
-data "aws_iam_policy_document" "pds_nucleus_archive_replication_policy" {
-
-  statement {
-    effect = "Allow"
-
-    actions = [
-      "s3:GetReplicationConfiguration",
-      "s3:ListBucket",
-    ]
-
-    resources = ["arn:aws:s3:::pds-*-archive-*"]
-  }
-
-  statement {
-    effect = "Allow"
-
-    actions = [
-      "s3:GetObjectVersionForReplication",
-      "s3:GetObjectVersionAcl",
-      "s3:GetObjectVersionTagging",
-    ]
-
-    resources = ["arn:aws:s3:::pds-*-archive-*"]
-  }
-
-  statement {
-    effect = "Allow"
-
-    actions = [
-      "s3:ReplicateObject",
-      "s3:ReplicateDelete",
-      "s3:ReplicateTags",
-    ]
-
-    resources = ["arn:aws:s3:::pds-*-archive-*"]
-  }
-}
-
-resource "aws_iam_policy" "pds_nucleus_archive_replication_policy" {
-  name   = "pds-nucleus-archive-replication-policy"
-  policy = data.aws_iam_policy_document.pds_nucleus_archive_replication_policy.json
-}
-
-resource "aws_iam_role_policy_attachment" "pds_nucleus_archive_replication_policy_document" {
-  role       = aws_iam_role.pds_nucleus_archive_replication_role.name
-  policy_arn = aws_iam_policy.pds_nucleus_archive_replication_policy.arn
-}
-
-
 ##########################################################
 #
 # IAM Roles and policies used by MWAA
@@ -888,10 +813,6 @@ output "pds_nucleus_harvest_ecs_task_role_arns" {
 
 output "pds_nucleus_ecs_task_execution_role_arn" {
   value = aws_iam_role.pds_nucleus_ecs_task_execution_role.arn
-}
-
-output "pds_nucleus_archive_replication_role_arn" {
-  value = aws_iam_role.pds_nucleus_archive_replication_role.arn
 }
 
 output "pds_nucleus_mwaa_execution_role_arn" {
