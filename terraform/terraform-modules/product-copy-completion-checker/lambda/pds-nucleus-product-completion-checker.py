@@ -312,8 +312,6 @@ def trigger_nucleus_workflow(random_batch_number, list_of_product_labels_to_proc
     pds_hot_archive_bucket_name_key = "pds_hot_archive_bucket_name"
     pds_hot_archive_bucket_name_value = pds_hot_archive_bucket_name
 
-    pds_cold_archive_bucket_name_key = "pds_cold_archive_bucket_name"
-    pds_cold_archive_bucket_name_value = pds_cold_archive_bucket_name
 
     conf = "{\"" + \
            s3_config_dir_key + "\":\"" + s3_config_dir_value + "\",\"" + \
@@ -321,7 +319,6 @@ def trigger_nucleus_workflow(random_batch_number, list_of_product_labels_to_proc
            pds_node_name_key + "\":\"" + pds_node_name_value + "\",\"" + \
            batch_number_key + "\":\"" + batch_number_value + "\",\"" + \
            pds_hot_archive_bucket_name_key + "\":\"" + pds_hot_archive_bucket_name_value + "\",\"" + \
-           pds_cold_archive_bucket_name_key + "\":\"" + pds_cold_archive_bucket_name_value + "\",\"" + \
            efs_config_dir_key + "\":\"" + efs_config_dir_value + "\"}"
 
     logger.info(f"Triggering Nucleus workflow {dag_name} with parameters : {conf}")
