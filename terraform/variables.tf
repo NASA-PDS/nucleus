@@ -122,6 +122,12 @@ variable "pds_node_names" {
   sensitive   = true
 }
 
+variable "pds_archive_bucket_names" {
+  description = "List of PDS archive buckets"
+  type        = list(string)
+  sensitive   = true
+}
+
 variable "pds_nucleus_opensearch_url" {
   description = "List of PDS Nucleus OpenSearch URLS (for each PDS Node)"
   type        = string

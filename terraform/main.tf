@@ -33,35 +33,6 @@ module "iam" {
   pds_nucleus_opensearch_cognito_identity_pool_ids = var.pds_nucleus_opensearch_cognito_identity_pool_ids
 }
 
-# Terraform module to create primary archive for PDS Nucleus
-module "archive" {
-  source = "./terraform-modules/archive"
-
-  pds_node_names                               = var.pds_node_names
-  pds_nucleus_hot_archive_bucket_name_postfix  = var.pds_nucleus_hot_archive_bucket_name_postfix
-  pds_nucleus_cold_archive_bucket_name_postfix = var.pds_nucleus_cold_archive_bucket_name_postfix
-  pds_nucleus_cold_archive_buckets             = module.archive-secondary.pds_nucleus_cold_archive_buckets
-  permission_boundary_for_iam_roles            = var.permission_boundary_for_iam_roles
-  pds_nucleus_cold_archive_storage_class       = var.pds_nucleus_cold_archive_storage_class
-  pds_nucleus_archive_replication_role_arn     = module.iam.pds_nucleus_archive_replication_role_arn
-
-  depends_on = [module.common, module.ecs_ecr, module.iam]
-}
-
-# Terraform module to create secondary archive for PDS Nucleus
-module "archive-secondary" {
-  source = "./terraform-modules/archive-secondary"
-
-  pds_node_names                               = var.pds_node_names
-  pds_nucleus_cold_archive_bucket_name_postfix = var.pds_nucleus_cold_archive_bucket_name_postfix
-
-  providers = {
-    aws = aws.secondary
-  }
-
-  depends_on = [module.common, module.ecs_ecr]
-}
-
 # The Terraform module to create the PDS Nucleus Baseline System (without any project specific components)
 module "mwaa-env" {
   source = "./terraform-modules/mwaa-env"
@@ -134,6 +105,7 @@ module "product-copy-completion-checker" {
   pds_nucleus_cold_archive_bucket_name_postfix = var.pds_nucleus_cold_archive_bucket_name_postfix
 
   pds_node_names                                 = var.pds_node_names
+  pds_archive_bucket_names                       = var.pds_archive_bucket_names
   pds_nucleus_opensearch_url                     = var.pds_nucleus_opensearch_url
   pds_nucleus_opensearch_registry_names          = var.pds_nucleus_opensearch_registry_names
   pds_nucleus_opensearch_credential_relative_url = var.pds_nucleus_opensearch_credential_relative_url

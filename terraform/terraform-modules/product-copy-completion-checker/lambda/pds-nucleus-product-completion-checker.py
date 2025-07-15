@@ -44,7 +44,6 @@ es_auth_file = os.environ.get('ES_AUTH_CONFIG_FILE_PATH')
 pds_nucleus_config_bucket_name = os.environ.get('PDS_NUCLEUS_CONFIG_BUCKET_NAME')
 mwaa_env_name = os.environ.get('PDS_MWAA_ENV_NAME')
 pds_hot_archive_bucket_name = os.environ.get('PDS_HOT_ARCHIVE_S3_BUCKET_NAME')
-pds_cold_archive_bucket_name = os.environ.get('PDS_COLD_ARCHIVE_S3_BUCKET_NAME')
 product_batch_size = os.environ.get('PRODUCT_BATCH_SIZE')
 
 replace_prefix = efs_mount_path
