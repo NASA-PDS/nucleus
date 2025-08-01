@@ -217,6 +217,13 @@ variable "auth_alb_name" {
   sensitive   = true
 }
 
+variable "auth_alb_dns_name_ssm_param" {
+  description = "SSM parameter to hold the Auth ALB dns name"
+  default     = "/pds/nucleus/auth-load-balancer-domain"
+  type        = string
+  sensitive   = true
+}
+
 variable "auth_alb_listener_port" {
   description = "Auth ALB Listener Port"
   default     = "443"

@@ -25,6 +25,12 @@ resource "aws_lb" "pds_nucleus_auth_alb" {
   }
 }
 
+resource "aws_ssm_parameter" "pds_nucleus_auth_alb_dns_name" {
+  name  = var.auth_alb_dns_name_ssm_param
+  type  = "String"
+  value = aws_lb.pds_nucleus_auth_alb.dns_name
+}
+
 resource "aws_lb_target_group" "mwaa_auth_alb_lambda_tg" {
   name                               = "pds-nucleus-auth-alb-lambda-tg"
   lambda_multi_value_headers_enabled = true

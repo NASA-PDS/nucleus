@@ -28,6 +28,12 @@ variable "auth_alb_name" {
   sensitive   = true
 }
 
+variable "auth_alb_dns_name_ssm_param" {
+  description = "SSM parameter to hold the Auth ALB dns name"
+  type        = string
+  sensitive   = true
+}
+
 variable "auth_alb_listener_certificate_arn" {
   description = "Auth ALB Listener Certificate ARN"
   type        = string
