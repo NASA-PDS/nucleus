@@ -145,6 +145,7 @@ module "cognito-auth" {
   airflow_env_name                               = var.airflow_env_name
   auth_alb_listener_port                         = var.auth_alb_listener_port
   auth_alb_name                                  = var.auth_alb_name
+  auth_alb_dns_name_ssm_param                    = var.auth_alb_dns_name_ssm_param
   auth_alb_subnet_ids                            = var.auth_alb_subnet_ids
   auth_alb_listener_certificate_arn              = var.auth_alb_listener_certificate_arn
   nucleus_cloudfront_origin_hostname             = var.nucleus_cloudfront_origin_hostname

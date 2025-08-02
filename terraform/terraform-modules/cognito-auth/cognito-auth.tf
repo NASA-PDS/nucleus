@@ -25,6 +25,12 @@ resource "aws_lb" "pds_nucleus_auth_alb" {
   }
 }
 
+resource "aws_ssm_parameter" "pds_nucleus_auth_alb_dns_name" {
+  name  = var.auth_alb_dns_name_ssm_param
+  type  = "String"
+  value = aws_lb.pds_nucleus_auth_alb.dns_name
+}
+
 resource "aws_lb_target_group" "mwaa_auth_alb_lambda_tg" {
   name                               = "pds-nucleus-auth-alb-lambda-tg"
   lambda_multi_value_headers_enabled = true
@@ -39,7 +45,7 @@ data "aws_region" "current" {}
 resource "null_resource" "install_dependencies" {
   provisioner "local-exec" {
     command = "bash ${path.module}/lambda/build-lambda.sh"
-
+    # Ensure Docker is installed and running
     environment = {
       path_module = path.module
     }
@@ -47,15 +53,17 @@ resource "null_resource" "install_dependencies" {
 
   triggers = {
     dependencies_versions = filemd5("${path.module}/lambda/requirements.txt")
-    source_versions       = filemd5("${path.module}/lambda/package/pds_nucleus_alb_auth.py")
+    source_versions       = filemd5("${path.module}/lambda/pds_nucleus_alb_auth.py")
+    dockerfile_version    = filemd5("${path.module}/lambda/Dockerfile")
   }
 }
 
+# The 'source_dir' attribute is now used to point to the directory where the build script
+# placed the dependencies and source code. This is the most robust way to handle this.
 data "archive_file" "pds_nucleus_auth_alb_function_zip_packages" {
   type        = "zip"
   source_dir  = "${path.module}/lambda/package"
   output_path = "${path.module}/lambda/pds_nucleus_alb_auth_layer.zip"
-
   depends_on = [null_resource.install_dependencies]
 }
 
