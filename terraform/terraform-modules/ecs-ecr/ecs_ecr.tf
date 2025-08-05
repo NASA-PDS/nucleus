@@ -17,6 +17,8 @@ data "template_file" "deploy_ecr_images_script_template" {
   template = file("terraform-modules/ecs-ecr/docker/template-deploy-ecr-images.sh")
   vars = {
     pds_nucleus_aws_account_id = data.aws_caller_identity.current.account_id
+    aws_region = var.region
+    ecs_registry = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.region}.amazonaws.com"
   }
   depends_on = [data.aws_caller_identity.current]
 }
