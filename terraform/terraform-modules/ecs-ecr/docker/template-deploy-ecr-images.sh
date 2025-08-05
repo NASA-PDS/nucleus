@@ -3,7 +3,6 @@
 # Exit immediately if a command exits with a non-zero status.
 set -e
 
-# --- Configuration (Terraform-provided variables) ---
 echo "Logging in to Amazon ECR..."
 aws ecr get-login-password --region "${aws_region}" | docker login --username AWS --password-stdin "${ecs_registry}"
 
