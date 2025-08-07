@@ -244,7 +244,8 @@ data "aws_iam_policy_document" "ecs_task_role_inline_policy" {
   statement {
     effect = "Allow"
     actions = [
-      "s3:PutObject"
+      "s3:PutObject",
+      "s3:PutObjectTagging"
     ]
     resources = [
       "arn:aws:s3:::${lower(replace(var.pds_node_names[count.index], "_", "-"))}-archive*",
