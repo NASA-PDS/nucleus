@@ -30,7 +30,7 @@ resource "aws_rds_cluster" "default" {
   cluster_identifier           = var.rds_cluster_id
   engine                       = "aurora-mysql"
   engine_mode                  = "provisioned"
-  engine_version               = "8.0.mysql_aurora.3.08.0"
+  engine_version               = "8.0.mysql_aurora.3.08.2"
   availability_zones           = var.database_availability_zones
   db_subnet_group_name         = aws_db_subnet_group.default.id
   database_name                = var.database_name
