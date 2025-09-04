@@ -18,7 +18,7 @@
 # -- Project information -----------------------------------------------------
 
 project = 'NASA PDS Nucleus'
-copyright = '2024 California Institute of Technology'
+copyright = '2024–2025 California Institute of Technology'
 author = 'NASA Planetary Data System'
 release = '0.1'
 version = '0.1'
@@ -36,11 +36,7 @@ extensions = [
     'sphinx.ext.viewcode',
     'sphinx.ext.githubpages',
     'sphinx.ext.autosummary',
-    'sphinx_rtd_theme'
 ]
-
-# Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -67,8 +63,8 @@ html_logo = '_static/images/PDS_Planets.png'
 # TODO - Update with your user/org and repo
 html_context = {
     'display_github': True,
-    "github_user": "nasa-pds",
-    "github_repo": "template-repo-python",
+    "github_user": "NASA-PDS",
+    "github_repo": "nucleus",
     "github_version": "main/docs/source/"
 }
 
@@ -78,8 +74,6 @@ html_css_files = [
 
 html_theme_options = {
     'canonical_url': '',
-    'logo_only': False,
-    'display_version': True,
     'prev_next_buttons_location': 'bottom',
     'style_external_links': False,
     # Toc options

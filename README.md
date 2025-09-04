@@ -12,7 +12,7 @@ Please visit the documentation at: https://nasa-pds.github.io/doi-service/
 
 ## Prerequisites
 
-- Python 3.9 or above
+- Python 3.13 or above
 - Access to Planetary Data Cloud
 
 ## Test
@@ -44,10 +44,10 @@ User documentation is managed with Sphinx, which is also installed in your Pytho
 
     python3 -m venv venv
     source venv/bin/activate
-    pip install -e '.[dev]'
+    pip install 'sphinx~=8.2.3' 'sphinx_rtd_theme~=3.0.2' 'myst-parser~=4.0.1'
     sphinx-build -b html docs/source docs/build/html
 
-Publish the pages on gh-pages branch
+Publish the pages on gh-pages branch.
 
 
 ## Secret Detection
@@ -70,14 +70,6 @@ detect-secrets scan --disable-plugin AbsolutePathDetectorExperimental \
     --exclude-files '\.secrets\..*' \
     --exclude-files '\.git.*' \
     --exclude-files '\.pre-commit-config\.yaml' \
-    --exclude-files '\.mypy_cache' \
-    --exclude-files '\.pytest_cache' \
-    --exclude-files '\.tox' \
-    --exclude-files '\.venv' \
-    --exclude-files 'venv' \
-    --exclude-files 'dist' \
-    --exclude-files 'build' \
-    --exclude-files '.*\.egg-info' \
     --exclude-files '.*\.tfstate' \
     --exclude-files '.*\.tfvars' > .secrets.baseline
 ```

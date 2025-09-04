@@ -13,9 +13,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
       - name: Install dependencies
         run: |
-          pip install sphinx sphinx_rtd_theme myst_parser
+          pip install 'sphinx~=8.2.3' 'sphinx_rtd_theme~=3.0.2' 'myst_parser~=4.0.1'
       - name: Sphinx build
         run: |
           rm -Rf docs/build

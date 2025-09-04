@@ -87,13 +87,13 @@ variable "pds_nucleus_opensearch_registry_names" {
 
 variable "pds_nucleus_opensearch_credential_relative_url" {
   description = "List of PDS Nucleus OpenSearch Credential Relative URL"
-  type        =  string
+  type        = string
   sensitive   = true
 }
 
 variable "pds_nucleus_harvest_replace_prefix_with_list" {
   description = "List of PDS Nucleus Harvest Replace Prefix With"
-  type        =  list(string)
+  type        = list(string)
 }
 
 variable "pds_nucleus_staging_bucket_name_postfix" {

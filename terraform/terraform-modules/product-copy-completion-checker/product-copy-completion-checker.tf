@@ -107,7 +107,7 @@ resource "aws_lambda_function" "pds_nucleus_init_function" {
   filename         = "${path.module}/lambda/pds_nucleus_init.zip"
   source_code_hash = data.archive_file.pds_nucleus_init_zip.output_base64sha256
   role             = var.pds_nucleus_lambda_execution_role_arns[0]
-  runtime          = "python3.9"
+  runtime          = "python3.13"
   handler          = "pds-nucleus-init.lambda_handler"
   timeout          = 10
   depends_on       = [data.archive_file.pds_nucleus_init_zip]
@@ -121,8 +121,8 @@ resource "aws_lambda_function" "pds_nucleus_init_function" {
 }
 
 resource "aws_s3_bucket" "pds_nucleus_s3_config_bucket" {
-  count  = length(var.pds_node_names)
-  bucket = "${lower(replace(var.pds_node_names[count.index], "_", "-"))}-${var.pds_nucleus_config_bucket_name_postfix}"
+  count         = length(var.pds_node_names)
+  bucket        = "${lower(replace(var.pds_node_names[count.index], "_", "-"))}-${var.pds_nucleus_config_bucket_name_postfix}"
   force_destroy = true
 }
 
@@ -163,7 +163,7 @@ resource "aws_lambda_function" "pds_nucleus_s3_file_file_event_processor_functio
   filename         = "${path.module}/lambda/pds-nucleus-s3-file-event-processor.zip"
   source_code_hash = data.archive_file.pds_nucleus_s3_file_file_event_processor_function_zip.output_base64sha256
   role             = var.pds_nucleus_lambda_execution_role_arns[count.index]
-  runtime          = "python3.9"
+  runtime          = "python3.13"
   handler          = "pds-nucleus-s3-file-event-processor.lambda_handler"
   timeout          = 300
   depends_on       = [data.archive_file.pds_nucleus_s3_file_file_event_processor_function_zip]
