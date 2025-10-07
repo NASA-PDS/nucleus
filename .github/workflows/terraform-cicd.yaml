@@ -18,7 +18,6 @@ jobs:
       run:
         shell: bash
         working-directory: ./terraform
-    environment: NGAP DEV
     env:
       TF_LOG: INFO
 
