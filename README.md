@@ -6,7 +6,7 @@ PDS Nucleus is a software platform used to create workflows for managing data ar
 
 ## User Documentation
 
-Please visit the documentation at: https://nasa-pds.github.io/doi-service/
+Please visit the documentation at: https://nasa-pds.github.io/nucleus/
 
 ## Developers
 
