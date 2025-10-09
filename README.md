@@ -2,82 +2,64 @@
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.7996080.svg)](https://doi.org/10.5281/zenodo.7996080)
 
-PDS Nucleus is a software platform used to create workflows for managing data archives.
+PDS **Nucleus** is a software platform used to create workflows for the Planetary Data System (PDS).
+
+---
 
 ## User Documentation
 
-Please visit the documentation at: https://nasa-pds.github.io/nucleus/
+Please visit the documentation at:  
+👉 https://nasa-pds.github.io/nucleus/
+
+---
 
 ## Developers
 
-## Prerequisites
+https://github.com/NASA-PDS/nucleus/graphs/contributors 
 
-- Python 3.13 or above
-- Access to Planetary Data Cloud
+### Prerequisites
+
+The prerequisites to deploy and use Nucleus are available at:
+https://github.com/NASA-PDS/nucleus/tree/main/terraform#prerequisites-to-deploy-nucleus-baseline-system  
+
+---
 
 ## Test
 
-TBD
+The **Nucleus** workflows are tested using a basic **Registry Loader** workflow, which is deployed as part of the initial Nucleus deployment.  
+This workflow includes several PDS tools such as **Validate**, **Harvest**, and **Archive**.
+
+To test Nucleus:
+
+1. Log in to the Nucleus web interface (URL and user credentials can be obtained from the Planetary Data System team).  
+2. Execute the **basic registry loader** workflow.  
+3. Verify that each workflow task reaches a **successful** state.  
+
+A successful execution of all tasks in this workflow indicates that the Nucleus integration test has passed.
+
+---
 
 ## Deploy
 
-See in this repository:
+The Terraform-based Nucleus deployment guide is available at:  
+https://github.com/NASA-PDS/nucleus/tree/main/terraform
 
-    https://github.com/NASA-PDS/nucleus/tree/main/terraform
-
-## Documentation Management
-
-Documentation about the documentation is described in this section.
-
+---
 
 ### Design
 
-See in this repository:
+Requirements, trade studies, and design documents are available at:  
+https://github.com/NASA-PDS/nucleus/tree/main/docs  
+or in the `docs` directory within the source package.
 
-    https://github.com/NASA-PDS/nucleus/tree/main/docs
+---
 
-or the `docs` directory in the source package.
+### User Documentation and Documentation Management
 
-### User Documentation
+User documentation is managed with **Sphinx**, which is also installed in your Python virtual environment when you run:
 
-User documentation is managed with Sphinx, which is also installed in your Python virtual environment when you run `pip install --editable .[dev]`:
-
-    python3 -m venv venv
-    source venv/bin/activate
-    pip install 'sphinx~=8.2.3' 'sphinx_rtd_theme~=3.0.2' 'myst-parser~=4.0.1'
-    sphinx-build -b html docs/source docs/build/html
-
-Publish the pages on gh-pages branch.
-
-
-## Secret Detection
-
-The following commands can be used to detect secrets in the code.
-
-1) Setup a pythion virtual environment.
-
-```shell
-mkdir ~/Tools
-python3 -m venv ~/Tools/detect-secrets
-source ~/Tools/detect-secrets/bin/activate
-pip install git+https://github.com/NASA-AMMOS/slim-detect-secrets.git@exp
-```
-
-2) Execute the following command in Nucleus root directory to scan the code for secrets.
-
-```shell
-detect-secrets scan --disable-plugin AbsolutePathDetectorExperimental \
-    --exclude-files '\.secrets\..*' \
-    --exclude-files '\.git.*' \
-    --exclude-files '\.pre-commit-config\.yaml' \
-    --exclude-files '.*\.tfstate' \
-    --exclude-files '.*\.tfvars' > .secrets.baseline
-```
-
-3) Execute the following command in Nucleus root directory to audit the possible secrets detected.
-
-```shell
-detect-secrets audit .secrets.baseline
-```
-
-This will create a `.secrets.baseline` in Nucleus root directory. Commit and push that file, in order to pass the checks in GitHub during a pull request.
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install 'sphinx~=8.2.3' 'sphinx_rtd_theme~=3.0.2' 'myst-parser~=4.0.1'
+sphinx-build -b html docs/source docs/build/html
