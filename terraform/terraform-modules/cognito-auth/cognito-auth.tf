@@ -108,7 +108,7 @@ resource "aws_lambda_function" "pds_nucleus_auth_alb_function" {
   filename         = data.archive_file.pds_nucleus_auth_alb_function_zip_packages.output_path
   source_code_hash = data.archive_file.pds_nucleus_auth_alb_function_zip_packages.output_base64sha256
   role             = var.pds_nucleus_alb_auth_lambda_execution_role_arn
-  runtime          = var.lambda_runtime    # python3.13
+  runtime          = var.lambda_runtime
   handler          = "pds_nucleus_alb_auth.lambda_handler"
   timeout          = 10
 
