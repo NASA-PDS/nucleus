@@ -1,12 +1,12 @@
 # Terraform script to implement Cognito authentication for MWAA.
 # --------------------------------------------------------------
 #
-# Based on:
-#  - Application load balancer single-sign-on for Amazon MWAA
-#    https://github.com/aws-samples/alb-sso-mwaa
-#  - Accessing a private Amazon MWAA environment using federated identities
-#    https://d1.awsstatic.com/whitepapers/accessing-a-private-amazon-mwaa-environment-using-federated-identities.pdf
+# This code is implemented based on the following references:
+#  - Application load balancer single-sign-on for Amazon MWAA (https://github.com/aws-samples/alb-sso-mwaa)
+#  - Accessing a private Amazon MWAA environment using federated identities (https://d1.awsstatic.com/whitepapers/accessing-a-private-amazon-mwaa-environment-using-federated-identities.pdf )
 
+
+# PDS shared logs bucket to keep ALB logs
 data "aws_s3_bucket" "pds_shared_logs_bucket" {
   bucket = var.pds_shared_logs_bucket_name
 }
