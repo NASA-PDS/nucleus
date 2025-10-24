@@ -133,3 +133,13 @@ variable "pds_nucleus_lambda_execution_role_arns" {
   sensitive   = true
 }
 
+variable "lambda_runtime" {
+  description = "Lambda runtime"
+  type        = string
+}
+
+variable "aws_rds_cluster_engine_version" {
+  description = "RDS Cluster Engine Version"
+  default     = "8.0.mysql_aurora.3.10.1"
+  type        = string
+}

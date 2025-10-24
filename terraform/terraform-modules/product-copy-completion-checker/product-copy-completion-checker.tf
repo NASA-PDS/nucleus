@@ -30,7 +30,7 @@ resource "aws_rds_cluster" "default" {
   cluster_identifier           = var.rds_cluster_id
   engine                       = "aurora-mysql"
   engine_mode                  = "provisioned"
-  engine_version               = "8.0.mysql_aurora.3.08.0"
+  engine_version               = var.aws_rds_cluster_engine_version
   availability_zones           = var.database_availability_zones
   db_subnet_group_name         = aws_db_subnet_group.default.id
   database_name                = var.database_name
@@ -107,7 +107,7 @@ resource "aws_lambda_function" "pds_nucleus_init_function" {
   filename         = "${path.module}/lambda/pds_nucleus_init.zip"
   source_code_hash = data.archive_file.pds_nucleus_init_zip.output_base64sha256
   role             = var.pds_nucleus_lambda_execution_role_arns[0]
-  runtime          = "python3.13"
+  runtime          = var.lambda_runtime
   handler          = "pds-nucleus-init.lambda_handler"
   timeout          = 10
   depends_on       = [data.archive_file.pds_nucleus_init_zip]
@@ -163,7 +163,7 @@ resource "aws_lambda_function" "pds_nucleus_s3_file_file_event_processor_functio
   filename         = "${path.module}/lambda/pds-nucleus-s3-file-event-processor.zip"
   source_code_hash = data.archive_file.pds_nucleus_s3_file_file_event_processor_function_zip.output_base64sha256
   role             = var.pds_nucleus_lambda_execution_role_arns[count.index]
-  runtime          = "python3.13"
+  runtime          = var.lambda_runtime
   handler          = "pds-nucleus-s3-file-event-processor.lambda_handler"
   timeout          = 300
   depends_on       = [data.archive_file.pds_nucleus_s3_file_file_event_processor_function_zip]
@@ -194,7 +194,7 @@ resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function"
   filename         = "${path.module}/lambda/pds_nucleus_product_completion_checker.zip"
   source_code_hash = data.archive_file.pds_nucleus_product_completion_checker_zip.output_base64sha256
   role             = var.pds_nucleus_lambda_execution_role_arns[count.index]
-  runtime          = "python3.12"
+  runtime          = var.lambda_runtime
   handler          = "pds-nucleus-product-completion-checker.lambda_handler"
   timeout          = 300
   depends_on       = [data.archive_file.pds_nucleus_product_completion_checker_zip]
@@ -236,7 +236,7 @@ resource "aws_cloudwatch_event_target" "check_product_completion_event_target" {
 resource "aws_lambda_permission" "allow_cloudwatch_to_call_product_completion_checker_function" {
   count = length(var.pds_node_names)
 
-  statement_id  = "AllowExecutionFromCloudWatch"
+  statement_id  = "AllowExecutionFromCloudWatch-${var.pds_node_names[count.index]}"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.pds_nucleus_product_completion_checker_function[count.index].function_name
   principal     = "events.amazonaws.com"
@@ -246,7 +246,7 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_call_product_completion_ch
 # Apply lambda permissions for each pds_nucleus_s3_file_file_event_processor_function of each Node
 resource "aws_lambda_permission" "s3-lambda-permission" {
   count         = length(var.pds_node_names)
-  statement_id  = "AllowExecutionFromS3Bucket"
+  statement_id  = "AllowExecutionFromS3Bucket-${var.pds_node_names[count.index]}"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.pds_nucleus_s3_file_file_event_processor_function[count.index].function_name
   principal     = "s3.amazonaws.com"
@@ -327,7 +327,7 @@ resource "aws_lambda_function" "pds_nucleus_product_processing_status_tracker_fu
   filename         = "${path.module}/lambda/pds-nucleus-product-processing-status-tracker.zip"
   source_code_hash = data.archive_file.pds_nucleus_product_processing_status_tracker_function_zip.output_base64sha256
   role             = var.pds_nucleus_lambda_execution_role_arns[0]
-  runtime          = "python3.12"
+  runtime          = var.lambda_runtime
   handler          = "pds-nucleus-product-processing-status-tracker.lambda_handler"
   timeout          = 10
   depends_on       = [data.archive_file.pds_nucleus_product_processing_status_tracker_function_zip]

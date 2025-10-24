@@ -57,6 +57,14 @@ resource "aws_mwaa_environment" "pds_nucleus_airflow_env" {
     }
   }
 
+  # Prevent Terraform from overwriting manually managed MWAA paths (plugins, startup, etc.)
+  lifecycle {
+    ignore_changes = [
+      plugins_s3_path,
+      startup_script_s3_path
+    ]
+  }
+
   timeouts {
     create = "4h"
     update = "4h"

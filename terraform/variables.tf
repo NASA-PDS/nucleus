@@ -272,3 +272,9 @@ variable "airflow_version" {
   default     = "2.10.3"
   type        = string
 }
+
+variable "lambda_runtime" {
+  description = "Lambda runtime"
+  default     = "python3.13"
+  type        = string
+}

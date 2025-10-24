@@ -93,14 +93,14 @@ module "ecs_ecr" {
 module "product-copy-completion-checker" {
   source = "./terraform-modules/product-copy-completion-checker"
 
-  database_port                                = var.database_port
-  vpc_id                                       = var.vpc_id
-  permission_boundary_for_iam_roles            = var.permission_boundary_for_iam_roles
-  nucleus_security_group_id                    = module.security-groups.nucleus_security_group_id
-  pds_nucleus_staging_bucket_name_postfix      = var.pds_nucleus_staging_bucket_name_postfix
-  pds_nucleus_config_bucket_name_postfix       = var.pds_nucleus_config_bucket_name_postfix
-  subnet_ids                                   = var.subnet_ids
-  pds_nucleus_default_airflow_dag_id           = var.pds_nucleus_default_airflow_dag_id
+  database_port                           = var.database_port
+  vpc_id                                  = var.vpc_id
+  permission_boundary_for_iam_roles       = var.permission_boundary_for_iam_roles
+  nucleus_security_group_id               = module.security-groups.nucleus_security_group_id
+  pds_nucleus_staging_bucket_name_postfix = var.pds_nucleus_staging_bucket_name_postfix
+  pds_nucleus_config_bucket_name_postfix  = var.pds_nucleus_config_bucket_name_postfix
+  subnet_ids                              = var.subnet_ids
+  pds_nucleus_default_airflow_dag_id      = var.pds_nucleus_default_airflow_dag_id
 
   pds_node_names                                 = var.pds_node_names
   pds_archive_bucket_names                       = var.pds_archive_bucket_names
@@ -109,14 +109,16 @@ module "product-copy-completion-checker" {
   pds_nucleus_opensearch_credential_relative_url = var.pds_nucleus_opensearch_credential_relative_url
   pds_nucleus_harvest_replace_prefix_with_list   = var.pds_nucleus_harvest_replace_prefix_with_list
 
-  database_availability_zones                              = var.database_availability_zones
-  airflow_env_name                                         = var.airflow_env_name
-  region                                                   = var.region
-  pds_nucleus_lambda_execution_role_arns                   = module.iam.pds_nucleus_lambda_execution_role_arns
-  rds_cluster_id                                           = var.rds_cluster_id
-  database_name                                            = var.database_name
+  database_availability_zones            = var.database_availability_zones
+  airflow_env_name                       = var.airflow_env_name
+  region                                 = var.region
+  pds_nucleus_lambda_execution_role_arns = module.iam.pds_nucleus_lambda_execution_role_arns
+  rds_cluster_id                         = var.rds_cluster_id
+  database_name                          = var.database_name
+  lambda_runtime                         = var.lambda_runtime
 
   depends_on = [module.security-groups, module.iam]
+
 }
 
 module "test-data" {
@@ -160,6 +162,7 @@ module "cognito-auth" {
   pds_nucleus_viewer_role_arn                    = module.iam.pds_nucleus_viewer_role_arn
   nucleus_auth_alb_security_group_id             = module.security-groups.nucleus_alb_security_group_id
   pds_shared_logs_bucket_name                    = var.pds_shared_logs_bucket_name
+  lambda_runtime                                 = var.lambda_runtime
 }
 
 # Output the ALB URL for Airflow UI
