@@ -46,7 +46,7 @@ resource "null_resource" "install_dependencies" {
     command = <<EOT
       set -e
       echo "Building Lambda package automatically..."
-      cd ${path.module}/lambda
+      cd "${path.module}/lambda"
       rm -rf package
       mkdir -p package
       bash build-lambda.sh
