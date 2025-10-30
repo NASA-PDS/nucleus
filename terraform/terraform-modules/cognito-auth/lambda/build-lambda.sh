@@ -12,16 +12,18 @@ cd "$(dirname "$0")"
 rm -rf package && mkdir -p package
 
 # Use AWS SAM build image for Python 3.13 (x86_64)
-docker run --rm --platform linux/amd64 \
-  -v "$PWD":/var/task \
-  -w /var/task \
+docker run \
+  --rm \
+  --platform linux/amd64 \
+  --volume "$PWD":/var/task \
+  --workdir /var/task \
   public.ecr.aws/sam/build-python3.13 \
-  bash -c "
+  bash --login -c "
     set -euo pipefail
     echo 'Installing dependencies...'
-    pip install -r requirements.txt --target /var/task/package
+    pip install --requirement requirements.txt --target /var/task/package
     echo 'Copying handler...'
-    cp /var/task/pds_nucleus_alb_auth.py /var/task/package/
+    cp --verbose /var/task/pds_nucleus_alb_auth.py /var/task/package/
   "
 
 # Validate that package directory exists and is not empty
