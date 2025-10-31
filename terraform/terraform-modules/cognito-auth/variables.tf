@@ -120,3 +120,8 @@ variable "pds_shared_logs_bucket_name" {
   type        = string
   sensitive   = true
 }
+
+variable "lambda_runtime" {
+  description = "Lambda runtime"
+  type        = string
+}

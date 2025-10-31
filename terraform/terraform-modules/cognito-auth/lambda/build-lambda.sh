@@ -1,55 +1,39 @@
 #!/bin/bash
-# Exit immediately if a command exits with a non-zero status.
-set -e
+# Exit on error, undefined var, or failed pipe; ensures safe script execution
+set -euo pipefail
+trap 'echo "Build failed — cleaning up..."; rm -rf package' ERR
 
-# Define variables
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-PROJECT_DIR="${SCRIPT_DIR}"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Building Lambda package..."
 
-# This is the directory on the host machine where the lambda source code and dependencies will be placed.
-PACKAGE_DIR="${PROJECT_DIR}/package"
-DOCKER_IMAGE_NAME="pds-nucleus-lambda-builder"
+# Move to script directory
+cd "$(dirname "$0")"
 
-echo "Cleaning up old package directory..."
-# Remove old packages to ensure a clean install
-rm -rf "$PACKAGE_DIR"
-mkdir -p "$PACKAGE_DIR"
+# Clean old build and create package folder
+rm -rf package && mkdir -p package
 
-echo "Building Docker image for x86_64..."
-# The --platform flag is a good practice for cross-compilation on Apple Silicon.
-docker build --platform linux/amd64 -t "$DOCKER_IMAGE_NAME" -f "${PROJECT_DIR}/Dockerfile" "${PROJECT_DIR}"
+# Use AWS SAM build image for Python 3.13 (x86_64)
+docker run \
+  --rm \
+  --platform linux/amd64 \
+  --volume "$PWD":/var/task \
+  --workdir /var/task \
+  public.ecr.aws/sam/build-python3.13 \
+  bash --login -c "
+    set -euo pipefail
+    echo 'Installing dependencies...'
+    pip install --requirement requirements.txt --target /var/task/package
+    echo 'Copying handler...'
+    cp --verbose /var/task/pds_nucleus_alb_auth.py /var/task/package/
+  "
 
-# Check if docker build was successful
-if [ $? -ne 0 ]; then
-    echo "ERROR: Docker image build failed!"
-    exit 1
+# Validate that package directory exists and is not empty
+if [[ ! -d "package" ]] || [[ -z "$(ls -A package)" ]]; then
+  echo 'ERROR: package directory is empty or missing.' >&2
+  exit 1
 fi
 
-echo "Copying built dependencies and source code from Docker container to host..."
-# Create a temporary container
-CONTAINER_ID=$(docker create "$DOCKER_IMAGE_NAME")
+# Zip the Lambda package
+(cd package && zip -qr ../lambda_package.zip .)
 
-# Copy the contents of the 'python' folder (the dependencies) to the host's package directory.
-# The `.` at the end of the source path is crucial here. It copies the contents of the folder,
-# not the folder itself.
-echo "Extracting Python dependencies..."
-docker cp "$CONTAINER_ID":/var/task/python/. "$PACKAGE_DIR"
-
-# Copy the pds_nucleus_alb_auth.py file to the host's package directory.
-echo "Copying lambda handler file..."
-docker cp "$CONTAINER_ID":/var/task/pds_nucleus_alb_auth.py "$PACKAGE_DIR"/pds_nucleus_alb_auth.py
-
-# Clean up the temporary container
-docker rm "$CONTAINER_ID"
-
-# Check if docker cp was successful
-if [ $? -ne 0 ]; then
-    echo "ERROR: Docker container run or file copy failed!"
-    exit 1
-fi
-
-echo "Source code and dependencies are ready in the '$PACKAGE_DIR' directory."
-echo "Verifying contents of the package directory on host machine..."
-ls -R "$PACKAGE_DIR"
-
-echo "Terraform's 'archive_file' data source will now create the final zip package."
+# Build complete
+echo "Lambda package built successfully at $(pwd)/lambda_package.zip"
