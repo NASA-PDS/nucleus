@@ -24,7 +24,7 @@ jobs:
           sphinx-build -a -b html docs/source docs/build
           ls docs/build
       - name: Deploy to GitHub pages (Deploy to gh-pages branch by default. Make sure to point Settings -> Pages in GitHub repository to use gh-pages branch)
-        uses: JamesIves/github-pages-deploy-action@v4
+        uses: JamesIves/github-pages-deploy-action@4a3abc783e1a24aeb44c16e869ad83caf6b4cc23
         with:
           folder: docs/build # The folder the action should deploy.
         
