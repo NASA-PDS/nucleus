@@ -1,338 +1,292 @@
-# PDS Basic Registry Load Use Case DAG
-#
-# This DAG is a very basic workflow with validate tool and harvest tool. This was just added as an example DAG for
-# Nucleus baseline deployment.
+# PDS Basic Registry Load Use Case DAG (Airflow 3 compatible, TEMPLATE)
 
 import boto3
 import json
 from airflow import DAG
 from airflow.operators.bash import BashOperator
 from airflow.providers.amazon.aws.operators.ecs import EcsRunTaskOperator
-from airflow.utils.dates import days_ago
 from airflow.utils.trigger_rule import TriggerRule
-from datetime import timedelta
+from datetime import datetime, timedelta
 
-# ECS configurations
+# -------------------------------------------------------------------
+# ECS configuration (TEMPLATE — injected by Terraform)
+# -------------------------------------------------------------------
 ECS_CLUSTER_NAME = "${pds_nucleus_ecs_cluster_name}"
 ECS_LAUNCH_TYPE = "FARGATE"
 ECS_SUBNETS = ${pds_nucleus_ecs_subnets}
-ECS_SECURITY_GROUPS = ["${pds_nucleus_ecs_security_groups}"]
+ECS_SECURITY_GROUPS = ${pds_nucleus_ecs_security_groups}
+
 LAMBDA_FUNCTION_NAME = "pds_nucleus_product_processing_status_tracker"
 
-
-##################################################################################
-# Success/Failure monitoring
-##################################################################################
-
-# Save product processing status validate_successful
-def save_product_processing_status_validate_successful(context):
-    client = boto3.client('lambda')
-
-    response = client.invoke(
+# -------------------------------------------------------------------
+# Status callbacks
+# -------------------------------------------------------------------
+def _invoke_status_lambda(context, status):
+    boto3.client("lambda").invoke(
         FunctionName=LAMBDA_FUNCTION_NAME,
-        InvocationType='Event',
+        InvocationType="Event",
         Payload=json.dumps({
             "productsList": context["dag_run"].conf["list_of_product_labels_to_process"],
             "pdsNode": context["dag_run"].conf["pds_node_name"],
-            "processingStatus": "validate_successful",
+            "processingStatus": status,
             "batchNumber": context["dag_run"].conf["batch_number"],
         }),
     )
 
-    print(response)
+def validate_success(context):
+    _invoke_status_lambda(context, "validate_successful")
 
-# Save product processing status validate_failed
-def save_product_processing_status_validate_failed(context):
-    client = boto3.client('lambda')
+def validate_failure(context):
+    _invoke_status_lambda(context, "validate_failed")
 
-    response = client.invoke(
-        FunctionName=LAMBDA_FUNCTION_NAME,
-        InvocationType='Event',
-        Payload=json.dumps({
-            "productsList": context["dag_run"].conf["list_of_product_labels_to_process"],
-            "pdsNode": context["dag_run"].conf["pds_node_name"],
-            "processingStatus": "validate_failed",
-            "batchNumber": context["dag_run"].conf["batch_number"],
-        }),
-    )
+def harvest_success(context):
+    _invoke_status_lambda(context, "harvest_successful")
 
-    print(response)
+def harvest_failure(context):
+    _invoke_status_lambda(context, "harvest_failed")
 
-# Save product processing status harvest_successful
-def save_product_processing_status_harvest_successful(context):
-    client = boto3.client('lambda')
-
-    response = client.invoke(
-        FunctionName=LAMBDA_FUNCTION_NAME,
-        InvocationType='Event',
-        Payload=json.dumps({
-            "productsList": context["dag_run"].conf["list_of_product_labels_to_process"],
-            "pdsNode": context["dag_run"].conf["pds_node_name"],
-            "processingStatus": "harvest_successful",
-            "batchNumber": context["dag_run"].conf["batch_number"],
-        }),
-    )
-
-    print(response)
-
-
-# Save product processing status harvest_failed
-def save_product_processing_status_harvest_failed(context):
-    client = boto3.client('lambda')
-
-    response = client.invoke(
-        FunctionName=LAMBDA_FUNCTION_NAME,
-        InvocationType='Event',
-        Payload=json.dumps({
-            "productsList": context["dag_run"].conf["list_of_product_labels_to_process"],
-            "pdsNode": context["dag_run"].conf["pds_node_name"],
-            "processingStatus": "harvest_failed",
-            "batchNumber": context["dag_run"].conf["batch_number"],
-        }),
-    )
-
-    print(response)
-
-
-
-##################################################################################
-# DAG and Tasks Definitions
-##################################################################################
-
+# -------------------------------------------------------------------
+# DAG definition
+# -------------------------------------------------------------------
 dag = DAG(
-        dag_id="${pds_nucleus_basic_registry_dag_id}",
-        schedule_interval=None,
-        catchup=False,
-        start_date=days_ago(1),
-        default_args={
+    dag_id="${pds_nucleus_basic_registry_dag_id}",
+    schedule=None,
+    catchup=False,
+    start_date=datetime(2024, 1, 1),
+    default_args={
         "retries": 3,
-        "retry_delay": timedelta(seconds=2)
+        "retry_delay": timedelta(seconds=2),
     },
 )
 
-# Print start time
+# -------------------------------------------------------------------
+# Utility tasks
+# -------------------------------------------------------------------
 print_start_time = BashOperator(
-    task_id='Print_Start_Time',
+    task_id="Print_Start_Time",
+    bash_command="date",
     dag=dag,
-    bash_command='date'
 )
 
-# PDS Validate Task
+print_end_time = BashOperator(
+    task_id="Print_End_Time",
+    bash_command="date",
+    trigger_rule=TriggerRule.ALL_DONE,
+    dag=dag,
+)
+
+# -------------------------------------------------------------------
+# CONFIG INIT
+# -------------------------------------------------------------------
+config_init = EcsRunTaskOperator(
+    task_id="Config_Init",
+    cluster=ECS_CLUSTER_NAME,
+    task_definition="pds-nucleus-config-init-task-definition-${pds_node_name}",
+    launch_type=ECS_LAUNCH_TYPE,
+    network_configuration={
+        "awsvpcConfiguration": {
+            "securityGroups": ECS_SECURITY_GROUPS,
+            "subnets": ECS_SUBNETS,
+        }
+    },
+    overrides={
+        "containerOverrides": [
+            {
+                "name": "pds-nucleus-config-init",
+                "command": [
+                    "{{ dag_run.conf['s3_config_dir'] }}",
+                    "{{ dag_run.conf['efs_config_dir'] }}",
+                ],
+            }
+        ]
+    },
+    dag=dag,
+)
+
+config_s3_to_efs_copy = EcsRunTaskOperator(
+    task_id="Config_S3_to_EFS_Copy",
+    cluster=ECS_CLUSTER_NAME,
+    task_definition="pds-nucleus-s3-to-efs-copy-task-definition-${pds_node_name}",
+    launch_type=ECS_LAUNCH_TYPE,
+    network_configuration={
+        "awsvpcConfiguration": {
+            "securityGroups": ECS_SECURITY_GROUPS,
+            "subnets": ECS_SUBNETS,
+        }
+    },
+    overrides={
+        "containerOverrides": [
+            {
+                "name": "pds-nucleus-s3-to-efs-copy",
+                "command": [
+                    "{{ dag_run.conf['efs_config_dir'] }}",
+                    "COPY",
+                ],
+            }
+        ]
+    },
+    dag=dag,
+)
+
+# -------------------------------------------------------------------
+# VALIDATE
+# -------------------------------------------------------------------
 validate = EcsRunTaskOperator(
     task_id="Validate_Products",
-    dag=dag,
     cluster=ECS_CLUSTER_NAME,
     task_definition="pds-validate-task-definition-${pds_node_name}",
     launch_type=ECS_LAUNCH_TYPE,
     network_configuration={
-            "awsvpcConfiguration": {
-                "securityGroups": ECS_SECURITY_GROUPS,
-                "subnets": ECS_SUBNETS,
-            },
+        "awsvpcConfiguration": {
+            "securityGroups": ECS_SECURITY_GROUPS,
+            "subnets": ECS_SUBNETS,
+        }
     },
     overrides={
         "containerOverrides": [
             {
                 "name": "pds-validate",
-                "command": ['{{ dag_run.conf["list_of_product_labels_to_process"] }}'],
-            },
-        ],
+                "environment": [
+                    {
+                        "name": "PRODUCT_LABELS",
+                        "value": "{{ dag_run.conf['list_of_product_labels_to_process'] | tojson }}",
+                    }
+                ],
+            }
+        ]
     },
-    awslogs_group="/pds/ecs/validate-${pds_node_name}",
-    awslogs_stream_prefix="ecs/pds-validate",
-    awslogs_fetch_interval=timedelta(seconds=1),
-    number_logs_exception=500,
-    on_success_callback=save_product_processing_status_validate_successful,
-    on_failure_callback=save_product_processing_status_validate_failed,
+    on_success_callback=validate_success,
+    on_failure_callback=validate_failure,
+    dag=dag,
 )
 
-# PDS Harvest Task
+# -------------------------------------------------------------------
+# HARVEST
+# -------------------------------------------------------------------
 harvest = EcsRunTaskOperator(
     task_id="Harvest_Data",
-    dag=dag,
     cluster=ECS_CLUSTER_NAME,
     task_definition="pds-registry-loader-harvest-task-definition-${pds_node_name}",
     launch_type=ECS_LAUNCH_TYPE,
     network_configuration={
-            "awsvpcConfiguration": {
-                "securityGroups": ECS_SECURITY_GROUPS,
-                "subnets": ECS_SUBNETS,
-            },
+        "awsvpcConfiguration": {
+            "securityGroups": ECS_SECURITY_GROUPS,
+            "subnets": ECS_SUBNETS,
+        }
     },
     overrides={
-            "containerOverrides": [
-                {
-                    "name": "pds-registry-loader-harvest",
-                    "environment": [
-                        {
-                            "name": "HARVEST_CFG",
-                            "value": "{{ dag_run.conf['efs_config_dir'] }}/harvest.cfg"
-                        }
-                    ]
-                },
-            ],
+        "containerOverrides": [
+            {
+                "name": "pds-registry-loader-harvest",
+                "environment": [
+                    {
+                        "name": "HARVEST_CFG",
+                        "value": "{{ dag_run.conf['efs_config_dir'] }}/harvest.cfg",
+                    }
+                ],
+            }
+        ]
     },
-    awslogs_group="/pds/ecs/harvest-${pds_node_name}",
-    awslogs_stream_prefix="ecs/pds-registry-loader-harvest",
-    awslogs_fetch_interval=timedelta(seconds=1),
-    number_logs_exception=500,
     trigger_rule=TriggerRule.ALL_DONE,
-    on_success_callback=save_product_processing_status_harvest_successful,
-    on_failure_callback=save_product_processing_status_harvest_failed,
-)
-
-# PDS Nucleus Config Init Task
-config_init = EcsRunTaskOperator(
-    task_id="Config_Init",
+    on_success_callback=harvest_success,
+    on_failure_callback=harvest_failure,
     dag=dag,
-    cluster=ECS_CLUSTER_NAME,
-    task_definition="pds-nucleus-config-init-task-definition-${pds_node_name}",
-    launch_type=ECS_LAUNCH_TYPE,
-    network_configuration={
-            "awsvpcConfiguration": {
-                "securityGroups": ECS_SECURITY_GROUPS,
-                "subnets": ECS_SUBNETS,
-            },
-    },
-    overrides={
-        "containerOverrides": [
-            {
-                "name": "pds-nucleus-config-init",
-                "command": ['{{ dag_run.conf["s3_config_dir"] }}','{{ dag_run.conf["efs_config_dir"] }}'],
-            },
-        ],
-    },
-    awslogs_group="/pds/ecs/pds-nucleus-config-init-${pds_node_name}",
-    awslogs_stream_prefix="ecs/pds-nucleus-config-init",
-    awslogs_fetch_interval=timedelta(seconds=1),
-    number_logs_exception=500
 )
 
-# PDS Nucleus S3 to EFS Copy Task
-config_s3_to_efs_copy = EcsRunTaskOperator(
-    task_id="Config_S3_to_EFS_Copy",
-    dag=dag,
-    cluster=ECS_CLUSTER_NAME,
-    task_definition="pds-nucleus-s3-to-efs-copy-task-definition-${pds_node_name}",
-    launch_type=ECS_LAUNCH_TYPE,
-    network_configuration={
-            "awsvpcConfiguration": {
-                "securityGroups": ECS_SECURITY_GROUPS,
-                "subnets": ECS_SUBNETS,
-            },
-    },
-    overrides={
-        "containerOverrides": [
-            {
-                "name": "pds-nucleus-s3-to-efs-copy",
-                "command": ['{{ dag_run.conf["efs_config_dir"] }}','COPY'],
-
-            },
-        ],
-    },
-    awslogs_group="/pds/ecs/pds-nucleus-s3-to-efs-copy-${pds_node_name}",
-    awslogs_stream_prefix="ecs/pds-nucleus-s3-to-efs-copy",
-    awslogs_fetch_interval=timedelta(seconds=1),
-    number_logs_exception=500
-)
-
-# PDS Nucleus Config Init Cleanup Task
-config_init_cleanup = EcsRunTaskOperator(
-    task_id="Config_Init_Cleanup",
-    dag=dag,
-    cluster=ECS_CLUSTER_NAME,
-    task_definition="pds-nucleus-config-init-task-definition-${pds_node_name}",
-    launch_type=ECS_LAUNCH_TYPE,
-    network_configuration={
-            "awsvpcConfiguration": {
-                "securityGroups": ECS_SECURITY_GROUPS,
-                "subnets": ECS_SUBNETS,
-            },
-    },
-    overrides={
-        "containerOverrides": [
-            {
-                "name": "pds-nucleus-config-init",
-                "command": ['{{ dag_run.conf["s3_config_dir"] }}','{{ dag_run.conf["efs_config_dir"] }}','DELETE'],
-            },
-        ],
-    },
-    awslogs_group="/pds/ecs/pds-nucleus-config-init-${pds_node_name}",
-    awslogs_stream_prefix="ecs/pds-nucleus-config-init",
-    awslogs_fetch_interval=timedelta(seconds=1),
-    number_logs_exception=500,
-    trigger_rule=TriggerRule.ALL_DONE
-)
-
-
-# PDS Nucleus Archive Task
+# -------------------------------------------------------------------
+# ARCHIVE + CLEANUP
+# -------------------------------------------------------------------
 data_archive = EcsRunTaskOperator(
     task_id="Data_Archive",
-    dag=dag,
     cluster=ECS_CLUSTER_NAME,
     task_definition="pds-nucleus-s3-to-efs-copy-task-definition-${pds_node_name}",
     launch_type=ECS_LAUNCH_TYPE,
     network_configuration={
-            "awsvpcConfiguration": {
-                "securityGroups": ECS_SECURITY_GROUPS,
-                "subnets": ECS_SUBNETS,
-            },
+        "awsvpcConfiguration": {
+            "securityGroups": ECS_SECURITY_GROUPS,
+            "subnets": ECS_SUBNETS,
+        }
     },
     overrides={
         "containerOverrides": [
             {
                 "name": "pds-nucleus-s3-to-efs-copy",
-                "command": ['{{ dag_run.conf["efs_config_dir"] }}','ARCHIVE','{{ dag_run.conf["pds_hot_archive_bucket_name"] }}'],
-            },
-        ],
+                "command": [
+                    "{{ dag_run.conf['efs_config_dir'] }}",
+                    "ARCHIVE",
+                    "{{ dag_run.conf['pds_hot_archive_bucket_name'] }}",
+                ],
+            }
+        ]
     },
-    awslogs_group="/pds/ecs/pds-nucleus-s3-to-efs-copy-${pds_node_name}",
-    awslogs_stream_prefix="ecs/pds-nucleus-s3-to-efs-copy",
-    awslogs_fetch_interval=timedelta(seconds=1),
-    number_logs_exception=500,
-    trigger_rule=TriggerRule.ALL_DONE
+    trigger_rule=TriggerRule.ALL_DONE,
+    dag=dag,
 )
 
-
-
-# PDS Nucleus S3 to EFS Copy Cleanup Task
 config_s3_to_efs_copy_cleanup = EcsRunTaskOperator(
     task_id="Config_S3_to_EFS_Copy_Cleanup",
-    dag=dag,
     cluster=ECS_CLUSTER_NAME,
     task_definition="pds-nucleus-s3-to-efs-copy-task-definition-${pds_node_name}",
     launch_type=ECS_LAUNCH_TYPE,
     network_configuration={
-            "awsvpcConfiguration": {
-                "securityGroups": ECS_SECURITY_GROUPS,
-                "subnets": ECS_SUBNETS,
-            },
+        "awsvpcConfiguration": {
+            "securityGroups": ECS_SECURITY_GROUPS,
+            "subnets": ECS_SUBNETS,
+        }
     },
     overrides={
         "containerOverrides": [
             {
                 "name": "pds-nucleus-s3-to-efs-copy",
-                "command": ['{{ dag_run.conf["efs_config_dir"] }}','DELETE'],
-
-            },
-        ],
+                "command": [
+                    "{{ dag_run.conf['efs_config_dir'] }}",
+                    "DELETE",
+                ],
+            }
+        ]
     },
-    awslogs_group="/pds/ecs/pds-nucleus-s3-to-efs-copy-${pds_node_name}",
-    awslogs_stream_prefix="ecs/pds-nucleus-s3-to-efs-copy",
-    awslogs_fetch_interval=timedelta(seconds=1),
-    number_logs_exception=500,
-    trigger_rule=TriggerRule.ALL_DONE
-)
-
-
-# Print end time
-print_end_time = BashOperator(
-    task_id='Print_End_Time',
+    trigger_rule=TriggerRule.ALL_DONE,
     dag=dag,
-    bash_command='date',
-    trigger_rule=TriggerRule.ALL_DONE
 )
 
-# Workflow
-print_start_time >> config_init  >> config_s3_to_efs_copy >> validate  >> harvest >> data_archive >> config_s3_to_efs_copy_cleanup >> config_init_cleanup >> print_end_time
+config_init_cleanup = EcsRunTaskOperator(
+    task_id="Config_Init_Cleanup",
+    cluster=ECS_CLUSTER_NAME,
+    task_definition="pds-nucleus-config-init-task-definition-${pds_node_name}",
+    launch_type=ECS_LAUNCH_TYPE,
+    network_configuration={
+        "awsvpcConfiguration": {
+            "securityGroups": ECS_SECURITY_GROUPS,
+            "subnets": ECS_SUBNETS,
+        }
+    },
+    overrides={
+        "containerOverrides": [
+            {
+                "name": "pds-nucleus-config-init",
+                "command": [
+                    "{{ dag_run.conf['s3_config_dir'] }}",
+                    "{{ dag_run.conf['efs_config_dir'] }}",
+                    "DELETE",
+                ],
+            }
+        ]
+    },
+    trigger_rule=TriggerRule.ALL_DONE,
+    dag=dag,
+)
 
+# -------------------------------------------------------------------
+# WORKFLOW
+# -------------------------------------------------------------------
+(
+        print_start_time
+        >> config_init
+        >> config_s3_to_efs_copy
+        >> validate
+        >> harvest
+        >> data_archive
+        >> config_s3_to_efs_copy_cleanup
+        >> config_init_cleanup
+        >> print_end_time
+)
