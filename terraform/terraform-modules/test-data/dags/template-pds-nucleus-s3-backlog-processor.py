@@ -57,7 +57,7 @@ dag = DAG(
             pattern="^https:\\/\\/sqs\\.us-west-2\\.amazonaws\\.com\\/\\d+\\/pds-nucleus.*$",
         ),
         "aws_region": Param(
-            default="<aws_region>",
+            default="us-west-2",
             type="string",
             pattern="^(us|eu|ap|ca|sa|af|me)-[a-z]+-\\d{1}$",
         ),

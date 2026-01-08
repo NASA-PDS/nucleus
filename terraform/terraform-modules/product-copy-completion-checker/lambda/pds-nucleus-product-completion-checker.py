@@ -4,31 +4,43 @@ pds-nucleus-product-completion-checker.py
 (Airflow 3 / MWAA compatible)
 ============================================================
 """
-
 import os
 import json
 import time
 import uuid
-import base64
 import http.client
+import base64
 import logging
-from datetime import datetime
-
 import boto3
+from datetime import datetime, timezone
+from botocore.exceptions import ClientError
+from botocore.config import Config
 
 # -------------------------------------------------------------------
 # AWS Clients
 # -------------------------------------------------------------------
-s3 = boto3.client("s3")
-mwaa = boto3.client("mwaa")
-rds = boto3.client("rds-data")
+
+# Boto2 client configs with different timeout settings
+fast_cfg = Config(connect_timeout=2, read_timeout=5, retries={'mode': 'standard'})
+std_cfg  = Config(connect_timeout=5, read_timeout=15, retries={'mode': 'standard'})
+heavy_cfg = Config(connect_timeout=5, read_timeout=50, retries={'mode': 'standard'})
+
+# Boto2 clients with suitable configs
+sts = boto3.client('sts', config=fast_cfg)
+mwaa = boto3.client('mwaa', config=fast_cfg)
+s3 = boto3.client('s3', config=std_cfg)
+rds = boto3.client('rds-data', config=heavy_cfg)
+
 
 # -------------------------------------------------------------------
 # Logger
 # -------------------------------------------------------------------
 logger = logging.getLogger("pds-nucleus-product-completion-checker")
-logger.setLevel(logging.INFO)
-logger.addHandler(logging.StreamHandler())
+logger.setLevel(getattr(logging, os.environ.get("LOG_LEVEL", "INFO").upper(), logging.INFO))
+logger.propagate = False
+if not logger.handlers:
+    logger.addHandler(logging.StreamHandler())
+
 
 # -------------------------------------------------------------------
 # Env Vars
@@ -48,15 +60,34 @@ REPLACE_PREFIX_WITH = os.environ["REPLACE_PREFIX_WITH"]
 
 PRODUCT_BATCH_SIZE = int(os.environ.get("PRODUCT_BATCH_SIZE", "25"))
 
+# -------------------------------------------------------------------
+# Constants
+# -------------------------------------------------------------------
+S3_PREFIX = "s3://"
 EFS_MOUNT = "/mnt/data"
 MWAA_CMD = "dags trigger"
+
+# -------------------------------------------------------------------
+# Global Vars
+# -------------------------------------------------------------------
+expected_bucket_owner = None
+
+try:
+    expected_bucket_owner = sts.get_caller_identity()["Account"]
+except ClientError as e:
+    logger.error(f"Critical: Failed to retrieve AWS Account ID from STS: {e}")
+    raise e
+except Exception as e:
+    logger.error(f"Unexpected error during initialization: {e}")
+    raise e
+
 
 # -------------------------------------------------------------------
 # Helpers
 # -------------------------------------------------------------------
 
 def generate_batch_name() -> str:
-    ts = datetime.utcnow().strftime("%Y-%m-%d-%H-%M-%S")
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H-%M-%S")
     return f"{ts}{uuid.uuid4().hex}"
 
 
@@ -65,7 +96,7 @@ def s3_to_efs_path(s3_url: str) -> str:
     s3://pds-sbn-staging-dev/sbn/999/file.xml
     -> /mnt/data/pds-sbn-staging-dev/sbn/999/file.xml
     """
-    return s3_url.replace("s3://", f"{EFS_MOUNT}/", 1)
+    return s3_url.replace(S3_PREFIX, f"{EFS_MOUNT}/", 1)
 
 
 # -------------------------------------------------------------------
@@ -80,12 +111,17 @@ def lambda_handler(event, context):
 
     if not products:
         logger.info("No completed products found")
-        return {"status": "NOOP"}
+
+        return {
+            "status": "NOOP",
+            "reason": "no_completed_products",
+            "count": 0,
+        }
 
     batch = generate_batch_name()
     logger.info(f"Preparing batch artifacts: {batch}")
 
-    s3_config_dir = f"s3://{CONFIG_BUCKET}/dag-data/{batch}"
+    s3_config_dir = f"{S3_PREFIX}{CONFIG_BUCKET}/dag-data/{batch}"
     efs_config_dir = f"{EFS_MOUNT}/dag-data/{batch}"
 
     prepare_harvest_files(
@@ -94,9 +130,8 @@ def lambda_handler(event, context):
         s3_config_dir=s3_config_dir,
     )
 
-    mark_products_complete(products)
-
     trigger_airflow(batch, products, s3_config_dir, efs_config_dir)
+    mark_products_complete(products)
 
     return {
         "status": "SUCCESS",
@@ -244,13 +279,14 @@ def fetch_data_files(product_label):
 
 
 def upload_text(s3_dir, name, content):
-    bucket = s3_dir.replace("s3://", "").split("/")[0]
-    key = "/".join(s3_dir.replace("s3://", "").split("/")[1:] + [name])
+    bucket = s3_dir.replace(S3_PREFIX, "").split("/")[0]
+    key = "/".join(s3_dir.replace(S3_PREFIX, "").split("/")[1:] + [name])
 
     s3.put_object(
         Bucket=bucket,
         Key=key,
         Body=content.encode("utf-8"),
+        ExpectedBucketOwner=expected_bucket_owner,
     )
 
 
@@ -273,22 +309,30 @@ def trigger_airflow(batch, products, s3_config_dir, efs_config_dir):
     logger.info(f"Triggering DAG {DAG_NAME} batch={batch}")
 
     token = mwaa.create_cli_token(Name=MWAA_ENV_NAME)
-    conn = http.client.HTTPSConnection(token["WebServerHostname"])
+    conn = http.client.HTTPSConnection(token["WebServerHostname"], timeout=10)
 
-    cmd = f"dags trigger {DAG_NAME} -c '{json.dumps(payload)}'"
+    conf = json.dumps(payload).replace('"', '\\"')
+    cmd = f'{MWAA_CMD} {DAG_NAME} -c "{conf}"'
 
-    conn.request(
-        "POST",
-        "/aws_mwaa/cli/",
-        cmd,
-        headers={
-            "Authorization": f"Bearer {token['CliToken']}",
-            "Content-Type": "text/plain",
-        },
-    )
+    try:
+        conn.request(
+            "POST",
+            "/aws_mwaa/cli/",
+            cmd,
+            headers={
+                "Authorization": f"Bearer {token['CliToken']}",
+                "Content-Type": "text/plain",
+            },
+        )
 
-    resp = conn.getresponse()
-    body = base64.b64decode(resp.read()).decode("utf-8", errors="replace")
+        resp = conn.getresponse()
+        body = base64.b64decode(resp.read()).decode("utf-8", errors="replace")
 
-    logger.info(f"MWAA status={resp.status}")
-    logger.debug(body)
+        logger.info(f"MWAA status={resp.status}")
+        logger.debug(body)
+
+        if resp.status >= 300 or "Error" in body or "Traceback" in body:
+            raise RuntimeError(f"MWAA trigger failed: status={resp.status} body={body}")
+
+    finally:
+        conn.close()
