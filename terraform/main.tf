@@ -1,10 +1,22 @@
 # Terraform module to create the common resources for PDS Nucleus
 
+# Configure default tags for all resources
+locals {
+  default_tags = {
+    Tenant     = var.tag_tenant
+    Venue      = var.tag_venue
+    Component  = var.tag_component
+    CICD       = var.tag_cicd
+    ManagedBy  = var.tag_managedby
+  }
+}
+
 module "security-groups" {
   source = "./terraform-modules/security-groups"
 
   auth_alb_listener_port = var.auth_alb_listener_port
   vpc_id                 = var.vpc_id
+  tags                  = local.default_tags
 }
 
 module "common" {
@@ -15,6 +27,7 @@ module "common" {
   mwaa_dag_s3_bucket_name     = var.mwaa_dag_s3_bucket_name
   nucleus_security_group_id   = module.security-groups.nucleus_security_group_id
   pds_shared_logs_bucket_name = var.pds_shared_logs_bucket_name
+  tags                        = local.default_tags
 }
 
 module "iam" {
@@ -31,6 +44,7 @@ module "iam" {
   pds_node_names                                   = var.pds_node_names
   pds_nucleus_opensearch_collection_arns           = var.pds_nucleus_opensearch_collection_arns
   pds_nucleus_opensearch_cognito_identity_pool_ids = var.pds_nucleus_opensearch_cognito_identity_pool_ids
+  tags                                             = local.default_tags
 }
 
 # The Terraform module to create the PDS Nucleus Baseline System (without any project specific components)
@@ -46,6 +60,7 @@ module "mwaa-env" {
   airflow_env_name                    = var.airflow_env_name
   airflow_version                     = var.airflow_version
   pds_nucleus_mwaa_execution_role_arn = module.iam.pds_nucleus_mwaa_execution_role_arn
+  tags                                = local.default_tags
 
   depends_on = [module.security-groups, module.iam, module.common]
 }
@@ -84,6 +99,7 @@ module "ecs_ecr" {
   subnet_ids = var.subnet_ids
 
   nucleus_security_group_id = module.security-groups.nucleus_security_group_id
+  tags                      = local.default_tags
 
   depends_on = [module.common, module.iam]
 
@@ -116,6 +132,7 @@ module "product-copy-completion-checker" {
   rds_cluster_id                         = var.rds_cluster_id
   database_name                          = var.database_name
   lambda_runtime                         = var.lambda_runtime
+  tags                                   = local.default_tags
 
   depends_on = [module.security-groups, module.iam]
 
@@ -131,6 +148,7 @@ module "test-data" {
   pds_nucleus_default_airflow_dag_id      = var.pds_nucleus_default_airflow_dag_id
   pds_nucleus_s3_backlog_processor_dag_id = var.pds_nucleus_s3_backlog_processor_dag_id
   pds_node_names                          = var.pds_node_names
+  tags                                    = local.default_tags
 
   depends_on = [module.common, module.ecs_ecr]
 }
@@ -163,6 +181,7 @@ module "cognito-auth" {
   nucleus_auth_alb_security_group_id             = module.security-groups.nucleus_alb_security_group_id
   pds_shared_logs_bucket_name                    = var.pds_shared_logs_bucket_name
   lambda_runtime                                 = var.lambda_runtime
+  tags                                           = local.default_tags
 }
 
 # Output the ALB URL for Airflow UI

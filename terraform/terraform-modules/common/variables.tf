@@ -35,9 +35,9 @@ variable "region" {
 }
 
 variable "tags" {
-  description = "Default tags"
-  default     = { "env" : "dev" }
+  description = "Resource tags"
   type        = map(string)
+  default     = {}
 }
 
 variable "vpc_id" {

@@ -120,3 +120,9 @@ variable "nucleus_security_group_id" {
   type        = string
   sensitive   = true
 }
+
+variable "tags" {
+  description = "Resource tags"
+  type        = map(string)
+  default     = {}
+}

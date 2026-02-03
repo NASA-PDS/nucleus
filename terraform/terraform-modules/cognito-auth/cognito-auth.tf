@@ -17,6 +17,8 @@ resource "aws_lb" "pds_nucleus_auth_alb" {
   load_balancer_type = "application"
   security_groups    = [var.nucleus_auth_alb_security_group_id]
   subnets            = var.auth_alb_subnet_ids
+  
+  tags = var.tags
 
   access_logs {
     enabled = true
@@ -29,12 +31,16 @@ resource "aws_ssm_parameter" "pds_nucleus_auth_alb_dns_name" {
   name  = var.auth_alb_dns_name_ssm_param
   type  = "String"
   value = aws_lb.pds_nucleus_auth_alb.dns_name
+  
+  tags = var.tags
 }
 
 resource "aws_lb_target_group" "mwaa_auth_alb_lambda_tg" {
   name                               = "pds-nucleus-auth-alb-lambda-tg"
   lambda_multi_value_headers_enabled = true
   target_type                        = "lambda"
+  
+  tags = var.tags
 }
 
 data "aws_caller_identity" "current" {}
@@ -111,6 +117,8 @@ resource "aws_lambda_function" "pds_nucleus_auth_alb_function" {
   runtime          = var.lambda_runtime
   handler          = "pds_nucleus_alb_auth.lambda_handler"
   timeout          = 10
+  
+  tags = var.tags
 
   environment {
     variables = {
@@ -126,6 +134,8 @@ resource "aws_lambda_function" "pds_nucleus_auth_alb_function" {
 resource "aws_cloudwatch_log_group" "pds_nucleus_auth_alb" {
   name              = "/aws/lambda/${var.pds_nucleus_auth_alb_function_name}"
   retention_in_days = 30
+  
+  tags = var.tags
 }
 
 resource "aws_lambda_permission" "lambda_permissions_auth_alb" {

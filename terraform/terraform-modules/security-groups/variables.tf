@@ -22,3 +22,9 @@ variable "vpc_id" {
   type        = string
   sensitive   = true
 }
+
+variable "tags" {
+  description = "Resource tags"
+  type        = map(string)
+  default     = {}
+}

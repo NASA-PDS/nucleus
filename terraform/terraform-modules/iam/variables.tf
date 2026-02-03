@@ -56,3 +56,9 @@ variable "pds_nucleus_opensearch_cognito_identity_pool_ids" {
   type        = list(string)
   sensitive   = true
 }
+
+variable "tags" {
+  description = "Resource tags"
+  type        = map(string)
+  default     = {}
+}

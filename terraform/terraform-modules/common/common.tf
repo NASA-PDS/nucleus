@@ -3,6 +3,8 @@
 resource "aws_s3_bucket" "pds_nucleus_airflow_dags_bucket" {
   bucket        = var.mwaa_dag_s3_bucket_name
   force_destroy = true
+  
+  tags = var.tags
 }
 
 #  PDS shared logs bucket for pds_nucleus_airflow_dags_bucket
