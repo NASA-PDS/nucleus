@@ -96,8 +96,7 @@ resource "null_resource" "archive_lambda_package" {
     build_hash = join("-", [
       filemd5("${path.module}/lambda/requirements.txt"),
       filemd5("${path.module}/lambda/pds_nucleus_alb_auth.py"),
-      filemd5("${path.module}/lambda/build-lambda.sh"),
-        fileexists("${path.module}/lambda/package/pds_nucleus_alb_auth.py") ? "yes" : "no"
+      filemd5("${path.module}/lambda/build-lambda.sh")
     ])
   }
 }
@@ -162,6 +161,8 @@ resource "aws_lb_listener" "front_end" {
   protocol          = "HTTPS"
   ssl_policy        = "ELBSecurityPolicy-2016-08"
   certificate_arn   = var.auth_alb_listener_certificate_arn
+  
+  tags = var.tags
 
   default_action {
     type = "authenticate-cognito"
@@ -181,6 +182,8 @@ resource "aws_lb_listener" "front_end" {
 resource "aws_lb_listener_rule" "aws_console_sso_rule" {
   listener_arn = aws_lb_listener.front_end.arn
   priority     = 100
+  
+  tags = var.tags
 
   action {
     type = "authenticate-cognito"
