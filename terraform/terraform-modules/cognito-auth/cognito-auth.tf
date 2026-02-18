@@ -159,7 +159,7 @@ resource "aws_lb_listener" "front_end" {
   load_balancer_arn = aws_lb.pds_nucleus_auth_alb.arn
   port              = var.auth_alb_listener_port
   protocol          = "HTTPS"
-  ssl_policy        = "ELBSecurityPolicy-2016-08"
+  ssl_policy        = "ELBSecurityPolicy-TLS-1-2-2017-01"
   certificate_arn   = var.auth_alb_listener_certificate_arn
   
   tags = var.tags
