@@ -2,6 +2,7 @@
 
 resource "aws_ecs_cluster" "pds_nucleus_ecs_cluster" {
   name = var.pds_nucleus_ecs_cluster_name
+  tags = var.tags
 }
 
 # The Policy for Permission Boundary
@@ -40,9 +41,9 @@ resource "aws_efs_file_system" "nucleus_efs" {
 
   creation_token = "pds-nucleus-efs-${var.pds_node_names[count.index]}"
   encrypted      = true
-  tags = {
+  tags = merge(var.tags, {
     Name = "pds-nucleus-efs-${var.pds_node_names[count.index]}"
-  }
+  })
 }
 
 resource "aws_efs_mount_target" "pds_nucleus_efs_mount_target_0" {
@@ -78,9 +79,9 @@ resource "aws_efs_access_point" "pds-data" {
   }
 
 
-  tags = {
+  tags = merge(var.tags, {
     Name = "PDS Data access point"
-  }
+  })
 }
 
 
@@ -97,6 +98,8 @@ resource "aws_ecr_repository" "pds_nucleus_config_init" {
   image_scanning_configuration {
     scan_on_push = true
   }
+  
+  tags = var.tags
 }
 
 resource "aws_ecr_repository" "pds_nucleus_s3_to_efs_copy" {
@@ -107,6 +110,8 @@ resource "aws_ecr_repository" "pds_nucleus_s3_to_efs_copy" {
   image_scanning_configuration {
     scan_on_push = true
   }
+  
+  tags = var.tags
 }
 
 resource "aws_ecr_repository" "pds_registry_loader_harvest" {
@@ -117,6 +122,8 @@ resource "aws_ecr_repository" "pds_registry_loader_harvest" {
   image_scanning_configuration {
     scan_on_push = true
   }
+  
+  tags = var.tags
 }
 
 resource "aws_ecr_repository" "pds_validate" {
@@ -127,6 +134,8 @@ resource "aws_ecr_repository" "pds_validate" {
   image_scanning_configuration {
     scan_on_push = true
   }
+  
+  tags = var.tags
 }
 
 resource "aws_ecr_repository" "pds_nucleus_tools_java" {
@@ -137,6 +146,8 @@ resource "aws_ecr_repository" "pds_nucleus_tools_java" {
   image_scanning_configuration {
     scan_on_push = true
   }
+  
+  tags = var.tags
 }
 
 
@@ -149,6 +160,7 @@ resource "aws_ecr_repository" "pds_nucleus_tools_java" {
 resource "aws_cloudwatch_log_group" "pds-registry-loader-harvest-log-group" {
   count = length(var.pds_node_names)
   name  = "${var.pds_registry_loader_harvest_cloudwatch_logs_group}-${var.pds_node_names[count.index]}"
+  tags  = var.tags
 }
 
 # Create secrets to keep usernames for each PDS Node
@@ -157,6 +169,7 @@ resource "aws_secretsmanager_secret" "opensearch_user" {
   name                    = "pds/nucleus/opensearch/creds/${var.pds_node_names[count.index]}/user"
   description             = "PDS Nucleus Opensearch username for ${var.pds_node_names[count.index]}"
   recovery_window_in_days = 0
+  tags                    = var.tags
 }
 
 resource "aws_secretsmanager_secret_version" "opensearch_user_version" {
@@ -171,6 +184,7 @@ resource "aws_secretsmanager_secret" "opensearch_password" {
   name                    = "pds/nucleus/opensearch/creds/${var.pds_node_names[count.index]}/password"
   description             = "PDS Nucleus Opensearch password for ${var.pds_node_names[count.index]}"
   recovery_window_in_days = 0
+  tags                    = var.tags
 }
 
 resource "aws_secretsmanager_secret_version" "opensearch_password_version" {
@@ -223,6 +237,8 @@ resource "aws_ecs_task_definition" "pds-registry-loader-harvest" {
   task_role_arn         = var.pds_nucleus_harvest_ecs_task_role_arns[count.index]
   execution_role_arn    = var.pds_nucleus_ecs_task_execution_role_arn
 
+  tags = var.tags
+
   depends_on = [data.template_file.pds-validate-containers-json-template]
 
 }
@@ -236,6 +252,7 @@ resource "aws_ecs_task_definition" "pds-registry-loader-harvest" {
 resource "aws_cloudwatch_log_group" "pds-validate-log-group" {
   count    = length(var.pds_node_names)
   name = "${var.pds_validate_cloudwatch_logs_group}-${var.pds_node_names[count.index]}"
+  tags = var.tags
 }
 
 # Replace PDS Validate ECR Image Path in pds-validate-containers.json
@@ -279,6 +296,8 @@ resource "aws_ecs_task_definition" "pds-validate-task-definition" {
   task_role_arn         = var.pds_nucleus_ecs_task_role_arns[count.index]
   execution_role_arn    = var.pds_nucleus_ecs_task_execution_role_arn
 
+  tags = var.tags
+
   depends_on = [data.template_file.pds-validate-containers-json-template]
 }
 
@@ -291,6 +310,7 @@ resource "aws_ecs_task_definition" "pds-validate-task-definition" {
 resource "aws_cloudwatch_log_group" "pds-validate-ref-log-group" {
   count    = length(var.pds_node_names)
   name = "${var.pds_validate_ref_cloudwatch_logs_group}-${var.pds_node_names[count.index]}"
+  tags = var.tags
 }
 
 # Replace PDS Validate Ref ECR Image Path in pds-validate-refs-containers.json
@@ -315,6 +335,7 @@ data "template_file" "pds-validate-ref-containers-json-template" {
 resource "aws_cloudwatch_log_group" "pds-nucleus-config-init-log-group" {
   count = length(var.pds_node_names)
   name = "${var.pds_nucleus_config_init_cloudwatch_logs_group}-${var.pds_node_names[count.index]}"
+  tags = var.tags
 }
 
 # Replace PDS Nucleus Config Init ECR Image Path in pds-nucleus-config-init-containers.json
@@ -358,6 +379,8 @@ resource "aws_ecs_task_definition" "pds-nucleus-config-init-task-definition" {
   container_definitions = data.template_file.pds-nucleus-config-init-containers-json-template[count.index].rendered
   task_role_arn         = var.pds_nucleus_ecs_task_role_arns[count.index]
   execution_role_arn    = var.pds_nucleus_ecs_task_execution_role_arn
+
+  tags = var.tags
 
   depends_on = [data.template_file.pds-nucleus-config-init-containers-json-template]
 }
@@ -408,6 +431,8 @@ resource "aws_ecs_task_definition" "pds-nucleus-s3-to-efs-copy-task-definition" 
   task_role_arn         = var.pds_nucleus_ecs_task_role_arns[count.index]
   execution_role_arn    = var.pds_nucleus_ecs_task_execution_role_arn
 
+  tags = var.tags
+
   depends_on = [data.template_file.pds-nucleus-s3-to-efs-copy-containers-json-template]
 }
 
@@ -421,6 +446,7 @@ resource "aws_cloudwatch_log_group" "pds-nucleus-s3-backlog-processor-log-group"
   count             = length(var.pds_node_names)
   name              = "${var.pds_nucleus_s3_backlog_processor_cloudwatch_logs_group}-${var.pds_node_names[count.index]}"
   retention_in_days = 30
+  tags             = var.tags
 }
 
 # Replace PDS Nucleus S3 Backlog Processor Image Path in pds-nucleus-s3-backlog-processor-containers.json
@@ -450,6 +476,8 @@ resource "aws_ecs_task_definition" "pds-nucleus-s3-backlog-processor-task-defini
   container_definitions = data.template_file.pds-nucleus-s3-backlog-processor-containers-json-template[count.index].rendered
   task_role_arn         = var.pds_nucleus_ecs_task_role_arns[count.index]
   execution_role_arn    = var.pds_nucleus_ecs_task_execution_role_arn
+
+  tags = var.tags
 
   depends_on = [data.template_file.pds-nucleus-s3-backlog-processor-containers-json-template]
 }

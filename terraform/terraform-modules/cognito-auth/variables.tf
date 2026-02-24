@@ -125,3 +125,9 @@ variable "lambda_runtime" {
   description = "Lambda runtime"
   type        = string
 }
+
+variable "tags" {
+  description = "Resource tags"
+  type        = map(string)
+  default     = {}
+}

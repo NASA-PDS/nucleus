@@ -17,6 +17,8 @@ resource "aws_lb" "pds_nucleus_auth_alb" {
   load_balancer_type = "application"
   security_groups    = [var.nucleus_auth_alb_security_group_id]
   subnets            = var.auth_alb_subnet_ids
+  
+  tags = var.tags
 
   access_logs {
     enabled = true
@@ -29,12 +31,16 @@ resource "aws_ssm_parameter" "pds_nucleus_auth_alb_dns_name" {
   name  = var.auth_alb_dns_name_ssm_param
   type  = "String"
   value = aws_lb.pds_nucleus_auth_alb.dns_name
+  
+  tags = var.tags
 }
 
 resource "aws_lb_target_group" "mwaa_auth_alb_lambda_tg" {
   name                               = "pds-nucleus-auth-alb-lambda-tg"
   lambda_multi_value_headers_enabled = true
   target_type                        = "lambda"
+  
+  tags = var.tags
 }
 
 data "aws_caller_identity" "current" {}
@@ -90,8 +96,7 @@ resource "null_resource" "archive_lambda_package" {
     build_hash = join("-", [
       filemd5("${path.module}/lambda/requirements.txt"),
       filemd5("${path.module}/lambda/pds_nucleus_alb_auth.py"),
-      filemd5("${path.module}/lambda/build-lambda.sh"),
-        fileexists("${path.module}/lambda/package/pds_nucleus_alb_auth.py") ? "yes" : "no"
+      filemd5("${path.module}/lambda/build-lambda.sh")
     ])
   }
 }
@@ -111,6 +116,8 @@ resource "aws_lambda_function" "pds_nucleus_auth_alb_function" {
   runtime          = var.lambda_runtime
   handler          = "pds_nucleus_alb_auth.lambda_handler"
   timeout          = 10
+  
+  tags = var.tags
 
   environment {
     variables = {
@@ -126,6 +133,8 @@ resource "aws_lambda_function" "pds_nucleus_auth_alb_function" {
 resource "aws_cloudwatch_log_group" "pds_nucleus_auth_alb" {
   name              = "/aws/lambda/${var.pds_nucleus_auth_alb_function_name}"
   retention_in_days = 30
+  
+  tags = var.tags
 }
 
 resource "aws_lambda_permission" "lambda_permissions_auth_alb" {
@@ -150,8 +159,10 @@ resource "aws_lb_listener" "front_end" {
   load_balancer_arn = aws_lb.pds_nucleus_auth_alb.arn
   port              = var.auth_alb_listener_port
   protocol          = "HTTPS"
-  ssl_policy        = "ELBSecurityPolicy-2016-08"
+  ssl_policy        = "ELBSecurityPolicy-TLS-1-2-2017-01"
   certificate_arn   = var.auth_alb_listener_certificate_arn
+  
+  tags = var.tags
 
   default_action {
     type = "authenticate-cognito"
@@ -171,6 +182,8 @@ resource "aws_lb_listener" "front_end" {
 resource "aws_lb_listener_rule" "aws_console_sso_rule" {
   listener_arn = aws_lb_listener.front_end.arn
   priority     = 100
+  
+  tags = var.tags
 
   action {
     type = "authenticate-cognito"

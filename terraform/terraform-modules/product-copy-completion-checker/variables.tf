@@ -138,6 +138,12 @@ variable "lambda_runtime" {
   type        = string
 }
 
+variable "tags" {
+  description = "Resource tags"
+  type        = map(string)
+  default     = {}
+}
+
 variable "aws_rds_cluster_engine_version" {
   description = "RDS Cluster Engine Version"
   default     = "8.0.mysql_aurora.3.10.1"

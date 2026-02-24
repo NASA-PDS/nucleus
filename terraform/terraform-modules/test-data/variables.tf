@@ -52,3 +52,9 @@ variable "pds_node_names" {
   type        = list(string)
   sensitive   = true
 }
+
+variable "tags" {
+  description = "Resource tags"
+  type        = map(string)
+  default     = {}
+}

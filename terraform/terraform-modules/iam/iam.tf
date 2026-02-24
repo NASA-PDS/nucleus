@@ -55,6 +55,8 @@ resource "aws_iam_role" "pds_nucleus_alb_auth_lambda_execution_role" {
   }
   assume_role_policy   = data.aws_iam_policy_document.assume_role_lambda.json
   permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
+  
+  tags = var.tags
 }
 
 # Common assume role policy
@@ -94,6 +96,8 @@ resource "aws_iam_role" "pds_nucleus_admin_role" {
   }
   assume_role_policy   = data.aws_iam_policy_document.pds_nucleus_airflow_assume_role.json
   permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
+  
+  tags = var.tags
 }
 
 
@@ -119,6 +123,8 @@ resource "aws_iam_role" "pds_nucleus_op_role" {
   }
   assume_role_policy   = data.aws_iam_policy_document.pds_nucleus_airflow_assume_role.json
   permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
+  
+  tags = var.tags
 }
 
 
@@ -145,6 +151,8 @@ resource "aws_iam_role" "pds_nucleus_user_role" {
   }
   assume_role_policy   = data.aws_iam_policy_document.pds_nucleus_airflow_assume_role.json
   permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
+  
+  tags = var.tags
 }
 
 
@@ -171,6 +179,8 @@ resource "aws_iam_role" "pds_nucleus_viewer_role" {
   }
   assume_role_policy   = data.aws_iam_policy_document.pds_nucleus_airflow_assume_role.json
   permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
+  
+  tags = var.tags
 }
 
 
@@ -300,6 +310,8 @@ resource "aws_iam_role" "pds_nucleus_ecs_task_role" {
   }
   assume_role_policy   = data.aws_iam_policy_document.ecs_task_role_assume_role.json
   permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
+  
+  tags = var.tags
 }
 
 
@@ -405,6 +417,8 @@ resource "aws_iam_role" "pds_nucleus_harvest_ecs_task_role" {
   }
   assume_role_policy   = data.aws_iam_policy_document.harvest_ecs_task_role_assume_role[count.index].json
   permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
+  
+  tags = var.tags
 }
 
 
@@ -492,6 +506,8 @@ resource "aws_iam_role" "pds_nucleus_ecs_task_execution_role" {
   }
   assume_role_policy   = data.aws_iam_policy_document.ecs_task_role_assume_role.json
   permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
+  
+  tags = var.tags
 }
 
 
@@ -662,6 +678,8 @@ resource "aws_iam_role" "pds_nucleus_mwaa_execution_role" {
   }
   assume_role_policy   = data.aws_iam_policy_document.assume_role.json
   permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
+  
+  tags = var.tags
 }
 
 
@@ -774,6 +792,8 @@ resource "aws_iam_role" "pds_nucleus_lambda_execution_role" {
   }
   assume_role_policy   = data.aws_iam_policy_document.assume_role_lambda.json
   permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
+  
+  tags = var.tags
 }
 
 

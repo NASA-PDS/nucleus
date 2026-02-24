@@ -71,3 +71,9 @@ variable "pds_nucleus_mwaa_execution_role_arn" {
   type      = string
   sensitive = true
 }
+
+variable "tags" {
+  description = "Resource tags"
+  type        = map(string)
+  default     = {}
+}

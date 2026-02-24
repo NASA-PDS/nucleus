@@ -8,6 +8,8 @@ resource "random_password" "pds_nucleus_rds_password" {
 resource "aws_db_subnet_group" "default" {
   name       = "main"
   subnet_ids = var.subnet_ids
+  
+  tags = var.tags
 }
 
 resource "random_string" "random_secret_postfix" {
@@ -19,6 +21,7 @@ resource "aws_secretsmanager_secret" "pds_nucleus_rds_password" {
   name                    = "pds/nucleus/rds/password/${random_string.random_secret_postfix.result}"
   description             = "PDS Nucleus Database Password"
   recovery_window_in_days = 0
+  tags                    = var.tags
 }
 
 resource "aws_secretsmanager_secret_version" "pds_nucleus_rds_password" {
@@ -53,6 +56,8 @@ resource "aws_rds_cluster" "default" {
   lifecycle {
     ignore_changes = [availability_zones]
   }
+  
+  tags = var.tags
 }
 
 resource "aws_rds_cluster_instance" "rds_cluster_instance" {
@@ -61,12 +66,15 @@ resource "aws_rds_cluster_instance" "rds_cluster_instance" {
   instance_class     = "db.serverless"
   engine             = aws_rds_cluster.default.engine
   engine_version     = aws_rds_cluster.default.engine_version
+  
+  tags = var.tags
 }
 
 resource "aws_secretsmanager_secret" "pds_nucleus_rds_credentials" {
   name                    = "pds/nucleus/rds/creds/${random_string.random_secret_postfix.result}"
   description             = "PDS Nucleus Database Credentials"
   recovery_window_in_days = 0
+  tags                    = var.tags
 }
 
 resource "aws_secretsmanager_secret_version" "rds_credentials" {
@@ -118,12 +126,16 @@ resource "aws_lambda_function" "pds_nucleus_init_function" {
       DB_SECRET_ARN  = aws_secretsmanager_secret.pds_nucleus_rds_credentials.arn
     }
   }
+  
+  tags = var.tags
 }
 
 resource "aws_s3_bucket" "pds_nucleus_s3_config_bucket" {
   count         = length(var.pds_node_names)
   bucket        = "${lower(replace(var.pds_node_names[count.index], "_", "-"))}-${var.pds_nucleus_config_bucket_name_postfix}"
   force_destroy = true
+  
+  tags = var.tags
 }
 
 # This data source is added to access existing S3 buckets, bcause an S3 staging bucket is already available in MCP Prod environment.
@@ -176,6 +188,8 @@ resource "aws_lambda_function" "pds_nucleus_s3_file_file_event_processor_functio
       PDS_NODE_NAME  = var.pds_node_names[count.index]
     }
   }
+  
+  tags = var.tags
 }
 
 # Create SQS queue event source for pds_nucleus_s3_file_file_event_processor_function for each PDS Node
@@ -217,12 +231,16 @@ resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function"
       PRODUCT_BATCH_SIZE                 = var.product_batch_size
     }
   }
+  
+  tags = var.tags
 }
 
 resource "aws_cloudwatch_event_rule" "every_one_minute" {
   name                = "pds-nucleus-every-one-minutes"
   description         = "Fires every one minute"
   schedule_expression = "rate(1 minute)"
+  
+  tags = var.tags
 }
 
 resource "aws_cloudwatch_event_target" "check_product_completion_event_target" {
@@ -262,6 +280,8 @@ resource "aws_sqs_queue" "pds_nucleus_files_to_save_in_database_sqs_queue" {
   message_retention_seconds  = 345600
   receive_wait_time_seconds  = 0
   sqs_managed_sse_enabled    = true
+  
+  tags = var.tags
 }
 
 # Create an SQS policy document for SQS queue of each Node
@@ -338,9 +358,12 @@ resource "aws_lambda_function" "pds_nucleus_product_processing_status_tracker_fu
       DB_SECRET_ARN  = aws_secretsmanager_secret.pds_nucleus_rds_credentials.arn
     }
   }
+  
+  tags = var.tags
 }
 
 # Create CloudWatch Log Group for pds_nucleus_s3_file_file_event_processor_function for each PDS Node
 resource "aws_cloudwatch_log_group" "pds_nucleus_product_processing_status_tracker_function_log_group" {
   name = "/aws/lambda/pds_nucleus_product_processing_status_tracker"
+  tags = var.tags
 }

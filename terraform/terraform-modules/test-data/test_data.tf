@@ -37,6 +37,8 @@ resource "aws_s3_object" "pds_basic_registry_data_load_dag_file" {
   source      = local_file.pds-basic-registry-load-use-case-dag-file[count.index].filename
   # FIX: Use md5() on the template content, not filemd5() on the local resource filename.
   source_hash = md5(data.template_file.pds-basic-registry-load-use-case-dag-template[count.index].rendered)
+  
+  tags = var.tags
 
   depends_on = [
     local_file.pds-basic-registry-load-use-case-dag-file,
@@ -76,6 +78,8 @@ resource "aws_s3_object" "pds_nucleus_s3_backlog_processor_dag_file" {
   source      = local_file.pds-nucleus-s3-backlog-processor-dag-file[count.index].filename
   # FIX: Apply the same fix here to prevent a future failure
   source_hash = md5(data.template_file.pds-nucleus-s3-backlog-processor-dag-template[count.index].rendered)
+  
+  tags = var.tags
 
   depends_on = [
     local_file.pds-nucleus-s3-backlog-processor-dag-file,

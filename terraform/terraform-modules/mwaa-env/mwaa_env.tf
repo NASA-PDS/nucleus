@@ -5,6 +5,8 @@ resource "aws_mwaa_environment" "pds_nucleus_airflow_env" {
   name              = var.airflow_env_name
   airflow_version   = var.airflow_version
   environment_class = var.airflow_env_class
+  
+  tags = var.tags
 
   dag_s3_path        = var.airflow_dags_path
   execution_role_arn = var.pds_nucleus_mwaa_execution_role_arn
