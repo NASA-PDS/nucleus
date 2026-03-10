@@ -655,7 +655,8 @@ data "aws_iam_policy_document" "mwaa_inline_policy" {
     resources = [
       "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/pds_nucleus_ecs_task_role-*",
       "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/pds_nucleus_harvest_ecs_task_role-*",
-      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/pds_nucleus_ecs_task_execution_role"
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/pds_nucleus_ecs_task_execution_role",
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/pds-registry-task-execution-role"
     ]
   }
 
