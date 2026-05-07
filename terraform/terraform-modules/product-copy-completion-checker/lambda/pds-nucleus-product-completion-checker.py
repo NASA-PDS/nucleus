@@ -223,7 +223,7 @@ def prepare_harvest_files(batch, products, s3_config_dir):
     upload_text(
         s3_config_dir,
         "data_file_list.txt",
-        "\n".join(s3_files),
+        "\n".join(s3_files) + "\n",
     )
 
     harvest_cfg = f"""<?xml version="1.0" encoding="UTF-8"?>
