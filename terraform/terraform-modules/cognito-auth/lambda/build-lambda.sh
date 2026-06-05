@@ -1,39 +1,46 @@
 #!/bin/bash
-# Exit on error, undefined var, or failed pipe; ensures safe script execution
+# Exit on error, undefined var, or failed pipe; standard production guardrails
 set -euo pipefail
+
+# Safe local cleanup — no sudo required
 trap 'echo "Build failed — cleaning up..."; rm -rf package' ERR
 
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Building Lambda package..."
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting Lambda package build..."
 
-# Move to script directory
+# Navigate to the script's directory regardless of where it was invoked
 cd "$(dirname "$0")"
 
-# Clean old build and create package folder
-rm -rf package && mkdir -p package
+# Wipe the old directory cleanly
+rm -rf package
+mkdir -p package
 
-# Use AWS SAM build image for Python 3.13 (x86_64)
+# Get the absolute physical path to guarantee volume mount stability across OS types
+ABS_PATH=$(pwd -P)
+
+# Run the AWS SAM Docker image natively. 
+# Explicitly matching current host user UID/GID solves permissions across Linux, macOS, and WSL.
 docker run \
   --rm \
+  --user "$(id -u):$(id -g)" \
   --platform linux/amd64 \
-  --volume "$PWD":/var/task \
+  --volume "${ABS_PATH}":/var/task \
   --workdir /var/task \
+  --env HOME=/tmp \
   public.ecr.aws/sam/build-python3.13 \
-  bash --login -c "
-    set -euo pipefail
-    echo 'Installing dependencies...'
-    pip install --requirement requirements.txt --target /var/task/package
-    echo 'Copying handler...'
-    cp --verbose /var/task/pds_nucleus_alb_auth.py /var/task/package/
-  "
+  pip install --no-cache-dir --requirement requirements.txt --target /var/task/package
 
-# Validate that package directory exists and is not empty
+# Copy the handler script into the newly populated package directory
+echo "Copying handler script..."
+cp pds_nucleus_alb_auth.py package/
+
+# Final validation before packing
 if [[ ! -d "package" ]] || [[ -z "$(ls -A package)" ]]; then
-  echo 'ERROR: package directory is empty or missing.' >&2
+  echo "ERROR: Package directory is empty or missing after build phase." >&2
   exit 1
 fi
 
-# Zip the Lambda package
+# Package into a deployment zip
+echo "Archiving dependencies into deployment package..."
 (cd package && zip -qr ../lambda_package.zip .)
 
-# Build complete
-echo "Lambda package built successfully at $(pwd)/lambda_package.zip"
+echo "Lambda package successfully built at: ${ABS_PATH}/lambda_package.zip"
