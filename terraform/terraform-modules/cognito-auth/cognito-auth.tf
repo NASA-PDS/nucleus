@@ -57,7 +57,7 @@ resource "null_resource" "install_dependencies" {
   provisioner "local-exec" {
     # Using explicit interpreter array prevents /bin/sh fallback inconsistencies
     interpreter = ["/bin/bash", "-c"]
-    command     = "cd ${path.module}/lambda && ./build-lambda.sh"
+    command     = "cd '${path.module}/lambda' && ./build-lambda.sh"
   }
 }
 

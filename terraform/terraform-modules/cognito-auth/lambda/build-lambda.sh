@@ -10,8 +10,8 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting Lambda package build..."
 # Navigate to the script's directory regardless of where it was invoked
 cd "$(dirname "$0")"
 
-# Wipe the old directory cleanly
-rm -rf package
+# Wipe the old directory and zip file cleanly
+rm -rf package lambda_package.zip
 mkdir -p package
 
 # Get the absolute physical path to guarantee volume mount stability across OS types
