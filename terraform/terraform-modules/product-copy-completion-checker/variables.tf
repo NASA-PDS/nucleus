@@ -146,6 +146,6 @@ variable "tags" {
 
 variable "aws_rds_cluster_engine_version" {
   description = "RDS Cluster Engine Version"
-  default     = "8.0.mysql_aurora.3.10.1"
+  default     = "8.0.mysql_aurora.3.10.3"
   type        = string
 }

@@ -48,28 +48,16 @@ data "aws_region" "current" {}
 
 # Automatically build Lambda package before zipping
 resource "null_resource" "install_dependencies" {
-  provisioner "local-exec" {
-    command = <<EOT
-      set -e
-      echo "Building Lambda package automatically..."
-      cd "${path.module}/lambda"
-      rm -rf package
-      mkdir -p package
-      bash build-lambda.sh
-
-      if [ ! -d "package" ] || [ -z "$(ls -A package)" ]; then
-        echo "Lambda package directory not found or empty after build!"
-        exit 1
-      fi
-
-      echo "Lambda package built at ${path.module}/lambda/package"
-    EOT
+  triggers = {
+    requirements_hash = filemd5("${path.module}/lambda/requirements.txt")
+    handler_hash      = filemd5("${path.module}/lambda/pds_nucleus_alb_auth.py")
+    build_script_hash = filemd5("${path.module}/lambda/build-lambda.sh")
   }
 
-  triggers = {
-    dependencies_versions = filemd5("${path.module}/lambda/requirements.txt")
-    source_versions       = filemd5("${path.module}/lambda/pds_nucleus_alb_auth.py")
-    build_script_version  = filemd5("${path.module}/lambda/build-lambda.sh")
+  provisioner "local-exec" {
+    # Using explicit interpreter array prevents /bin/sh fallback inconsistencies
+    interpreter = ["/bin/bash", "-c"]
+    command     = "cd '${path.module}/lambda' && ./build-lambda.sh"
   }
 }
 

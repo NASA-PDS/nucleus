@@ -23,6 +23,9 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 ALB_COOKIE_NAME = os.getenv('ALB_COOKIE_NAME','AWSELBAuthSessionCookie').strip()
 
+ALLOWED_ALGORITHMS_OIDC_DATA = ['ES256']
+ALLOWED_ALGORITHMS_ACCESS_TOKEN = ['RS256']
+
 AWS_REGION = os.getenv("AWS_REGION")
 AWS_ACCOUNT_ID = os.getenv("AWS_ACCOUNT_ID")
 COGNITO_USER_POOL_ID = os.getenv("COGNITO_USER_POOL_ID")
@@ -184,22 +187,29 @@ def validate_jwt_and_get_jwt_claims(encoded_jwt, token_type):
 
         headers = jwt.get_unverified_headers(encoded_jwt)
         kid = headers['kid']
-        alg = headers['alg']
-
+        alg = headers.get('alg')
 
         if token_type == 'oidc-data':
+            if alg not in ALLOWED_ALGORITHMS_OIDC_DATA:
+                raise ValueError(f"Unexpected algorithm for oidc-data: {alg}. Expected one of {ALLOWED_ALGORITHMS_OIDC_DATA}")
             url = 'https://public-keys.auth.elb.' + AWS_REGION + '.amazonaws.com/' + kid
             req = requests.get(url)
             pub_key = req.text
+            allowed_algorithms = ALLOWED_ALGORITHMS_OIDC_DATA
 
-        if token_type == 'oidc-accesstoken':
+        elif token_type == 'oidc-accesstoken':
+            if alg not in ALLOWED_ALGORITHMS_ACCESS_TOKEN:
+                raise ValueError(f"Unexpected algorithm for oidc-accesstoken: {alg}. Expected one of {ALLOWED_ALGORITHMS_ACCESS_TOKEN}")
             pub_key = get_json_webkey_with_kid(kid)
+            allowed_algorithms = ALLOWED_ALGORITHMS_ACCESS_TOKEN
+        else:
+            raise ValueError(f"Unknown token_type: {token_type}")
 
         # Verify the token and get the payload
         payload = jwt.decode(
             encoded_jwt,
             pub_key,
-            algorithms=[alg],
+            algorithms=allowed_algorithms,
             issuer=f"https://cognito-idp.{AWS_REGION}.amazonaws.com/{COGNITO_USER_POOL_ID}",
             options={
                 "verify_aud": True,
