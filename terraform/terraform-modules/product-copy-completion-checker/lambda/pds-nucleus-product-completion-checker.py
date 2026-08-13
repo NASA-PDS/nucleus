@@ -228,9 +228,7 @@ def prepare_harvest_files(batch, products, s3_config_dir):
 
     harvest_cfg = f"""<?xml version="1.0" encoding="UTF-8"?>
 <harvest>
-  <registry auth="/etc/es-auth.cfg">
-    file:///mnt/data/dag-data/{batch}/connection.xml
-  </registry>
+  <registry auth="/etc/es-auth.cfg">file:///mnt/data/dag-data/{batch}/connection.xml</registry>
 
   <load>
     <files>
@@ -249,9 +247,7 @@ def prepare_harvest_files(batch, products, s3_config_dir):
 
     connection_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <registry_connection index="{OPENSEARCH_REGISTRY}">
-  <ec2_credential_url endpoint="{OPENSEARCH_ENDPOINT}">
-    {OPENSEARCH_CRED_URL}
-  </ec2_credential_url>
+  <ec2_credential_url endpoint="{OPENSEARCH_ENDPOINT}">{OPENSEARCH_CRED_URL}</ec2_credential_url>
 </registry_connection>
 """
 

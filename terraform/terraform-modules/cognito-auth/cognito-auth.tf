@@ -86,6 +86,8 @@ resource "null_resource" "archive_lambda_package" {
       filemd5("${path.module}/lambda/pds_nucleus_alb_auth.py"),
       filemd5("${path.module}/lambda/build-lambda.sh")
     ])
+    # Force rebuild if package dir was deleted (e.g. git clean, fresh clone)
+    package_exists = fileexists("${path.module}/lambda/package/pds_nucleus_alb_auth.py") ? "exists" : "missing"
   }
 }
 

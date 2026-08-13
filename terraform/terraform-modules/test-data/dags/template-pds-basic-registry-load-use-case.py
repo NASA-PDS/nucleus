@@ -96,6 +96,7 @@ config_init = EcsRunTaskOperator(
                 "command": [
                     "{{ dag_run.conf['s3_config_dir'] }}",
                     "{{ dag_run.conf['efs_config_dir'] }}",
+                    "COPY",
                 ],
             }
         ]
