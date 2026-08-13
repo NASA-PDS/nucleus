@@ -30,14 +30,14 @@ cd - > /dev/null
 
 # Deploy pds-registry-loader-harvest ECR image
 echo "Pulling nasapds/registry-loader and pushing to ECR repo pds-registry-loader-harvest..."
-docker image pull --platform linux/amd64 nasapds/registry-loader
-docker tag nasapds/registry-loader:latest "${ecs_registry}/pds-registry-loader-harvest:latest"
+docker image pull --platform linux/amd64 nasapds/registry-loader:${registry_loader_version}
+docker tag nasapds/registry-loader:${registry_loader_version} "${ecs_registry}/pds-registry-loader-harvest:latest"
 docker push "${ecs_registry}/pds-registry-loader-harvest:latest"
 
 # Deploy pds-validate ECR image
 echo "Pulling nasapds/validate and pushing to ECR repo pds-validate..."
-docker image pull --platform linux/amd64 nasapds/validate
-docker tag nasapds/validate:latest "${ecs_registry}/pds-validate:latest"
+docker image pull --platform linux/amd64 nasapds/validate:${validate_version}
+docker tag nasapds/validate:${validate_version} "${ecs_registry}/pds-validate:latest"
 docker push "${ecs_registry}/pds-validate:latest"
 
 # Deploy pds-nucleus-tools-java ECR image

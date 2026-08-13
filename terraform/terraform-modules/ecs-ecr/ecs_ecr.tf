@@ -17,8 +17,10 @@ data "aws_caller_identity" "current" {}
 data "template_file" "deploy_ecr_images_script_template" {
   template = file("terraform-modules/ecs-ecr/docker/template-deploy-ecr-images.sh")
   vars = {
-    aws_region = var.region
-    ecs_registry = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.region}.amazonaws.com"
+    aws_region               = var.region
+    ecs_registry             = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.region}.amazonaws.com"
+    registry_loader_version  = var.pds_registry_loader_harvest_version
+    validate_version         = var.pds_validate_version
   }
   depends_on = [data.aws_caller_identity.current]
 }

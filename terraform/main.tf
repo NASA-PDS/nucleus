@@ -76,6 +76,9 @@ module "ecs_ecr" {
 
   pds_registry_loader_harvest_cloudwatch_logs_group  = var.pds_registry_loader_harvest_cloudwatch_logs_group
   pds_registry_loader_harvest_cloudwatch_logs_region = var.region
+  pds_registry_loader_harvest_version                = var.pds_registry_loader_harvest_version
+
+  pds_validate_version = var.pds_validate_version
 
   pds_validate_cloudwatch_logs_group      = var.pds_validate_cloudwatch_logs_group
   pds_validate_cloudwatch_logs_region     = var.region

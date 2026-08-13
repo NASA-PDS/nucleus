@@ -167,6 +167,18 @@ variable "pds_registry_loader_harvest_cloudwatch_logs_group" {
   default     = "/pds/ecs/harvest"
 }
 
+variable "pds_registry_loader_harvest_version" {
+  description = "Docker image version tag for nasapds/registry-loader"
+  type        = string
+  default     = "latest"
+}
+
+variable "pds_validate_version" {
+  description = "Docker image version tag for nasapds/validate"
+  type        = string
+  default     = "latest"
+}
+
 variable "pds_validate_cloudwatch_logs_group" {
   description = "PDS Validate Cloudwatch Logs Group"
   type        = string
