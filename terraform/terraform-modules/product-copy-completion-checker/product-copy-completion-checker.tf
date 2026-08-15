@@ -17,18 +17,6 @@ resource "random_string" "random_secret_postfix" {
   special = false
 }
 
-resource "aws_secretsmanager_secret" "pds_nucleus_rds_password" {
-  name                    = "pds/nucleus/rds/password/${random_string.random_secret_postfix.result}"
-  description             = "PDS Nucleus Database Password"
-  recovery_window_in_days = 0
-  tags                    = var.tags
-}
-
-resource "aws_secretsmanager_secret_version" "pds_nucleus_rds_password" {
-  secret_id     = aws_secretsmanager_secret.pds_nucleus_rds_password.id
-  secret_string = random_password.pds_nucleus_rds_password.result
-}
-
 resource "aws_rds_cluster" "default" {
   cluster_identifier           = var.rds_cluster_id
   engine                       = "aurora-mysql"
@@ -36,9 +24,12 @@ resource "aws_rds_cluster" "default" {
   engine_version               = var.aws_rds_cluster_engine_version
   availability_zones           = var.database_availability_zones
   db_subnet_group_name         = aws_db_subnet_group.default.id
+  # Bootstrap default database required by Aurora at cluster creation time.
+  # Lambdas do not use this database — each PDS node has its own dedicated
+  # database (pds_nucleus_<node>) created by pds-nucleus-init at deploy time.
   database_name                = var.database_name
   master_username              = var.database_user
-  master_password              = aws_secretsmanager_secret_version.pds_nucleus_rds_password.secret_string
+  master_password              = random_password.pds_nucleus_rds_password.result
   backup_retention_period      = 5
   preferred_backup_window      = "07:00-09:00"
   preferred_maintenance_window = "Mon:00:00-Mon:02:00"
@@ -184,21 +175,23 @@ resource "aws_lambda_function" "pds_nucleus_s3_file_file_event_processor_functio
     variables = {
       DB_CLUSTER_ARN = aws_rds_cluster.default.arn
       DB_SECRET_ARN  = aws_secretsmanager_secret.pds_nucleus_rds_credentials.arn
+      DB_NAME        = "pds_nucleus_${lower(var.pds_node_names[count.index])}"
       EFS_MOUNT_PATH = "/mnt/data/"
       PDS_NODE_NAME  = var.pds_node_names[count.index]
     }
   }
-  
+
   tags = var.tags
 }
 
 # Create SQS queue event source for pds_nucleus_s3_file_file_event_processor_function for each PDS Node
 resource "aws_lambda_event_source_mapping" "event_source_mapping" {
-  count            = length(var.pds_node_names)
-  event_source_arn = aws_sqs_queue.pds_nucleus_files_to_save_in_database_sqs_queue[count.index].arn
-  enabled          = true
-  function_name    = aws_lambda_function.pds_nucleus_s3_file_file_event_processor_function[count.index].function_name
-  batch_size       = 1
+  count                    = length(var.pds_node_names)
+  event_source_arn         = aws_sqs_queue.pds_nucleus_files_to_save_in_database_sqs_queue[count.index].arn
+  enabled                  = true
+  function_name            = aws_lambda_function.pds_nucleus_s3_file_file_event_processor_function[count.index].function_name
+  batch_size               = 10
+  function_response_types  = ["ReportBatchItemFailures"]
 }
 
 # Create pds_nucleus_product_completion_checker_function for each PDS Node
@@ -218,6 +211,7 @@ resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function"
       AIRFLOW_DAG_NAME                   = "${var.pds_node_names[count.index]}-${var.pds_nucleus_default_airflow_dag_id}"
       DB_CLUSTER_ARN                     = aws_rds_cluster.default.arn
       DB_SECRET_ARN                      = aws_secretsmanager_secret.pds_nucleus_rds_credentials.arn
+      DB_NAME                            = "pds_nucleus_${lower(var.pds_node_names[count.index])}"
       EFS_MOUNT_PATH                     = "/mnt/data"
       ES_AUTH_CONFIG_FILE_PATH           = "/etc/es-auth.cfg"
       OPENSEARCH_ENDPOINT                = var.pds_nucleus_opensearch_url
@@ -321,9 +315,10 @@ resource "time_sleep" "wait_for_database" {
 }
 
 resource "aws_lambda_invocation" "invoke_pds_nucleus_init_function" {
+  count         = length(var.pds_node_names)
   function_name = aws_lambda_function.pds_nucleus_init_function.function_name
 
-  input = ""
+  input = jsonencode({ pds_node_name = var.pds_node_names[count.index] })
 
   lifecycle {
     replace_triggered_by = [

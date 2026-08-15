@@ -12,6 +12,7 @@ import http.client
 import base64
 import logging
 import boto3
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from botocore.exceptions import ClientError
 from botocore.config import Config
@@ -49,6 +50,7 @@ DAG_NAME = os.environ["AIRFLOW_DAG_NAME"]
 PDS_NODE = os.environ["PDS_NODE_NAME"]
 DB_CLUSTER_ARN = os.environ["DB_CLUSTER_ARN"]
 DB_SECRET_ARN = os.environ["DB_SECRET_ARN"]
+DB_NAME = os.environ["DB_NAME"]
 MWAA_ENV_NAME = os.environ["PDS_MWAA_ENV_NAME"]
 CONFIG_BUCKET = os.environ["PDS_NUCLEUS_CONFIG_BUCKET_NAME"]
 HOT_ARCHIVE_BUCKET = os.environ["PDS_HOT_ARCHIVE_S3_BUCKET_NAME"]
@@ -58,7 +60,7 @@ OPENSEARCH_REGISTRY = os.environ["OPENSEARCH_REGISTRY_NAME"]
 OPENSEARCH_CRED_URL = os.environ["OPENSEARCH_CREDENTIAL_RELATIVE_URL"]
 REPLACE_PREFIX_WITH = os.environ["REPLACE_PREFIX_WITH"]
 
-PRODUCT_BATCH_SIZE = int(os.environ.get("PRODUCT_BATCH_SIZE", "25"))
+PRODUCT_BATCH_SIZE = int(os.environ.get("PRODUCT_BATCH_SIZE", "200"))
 
 # -------------------------------------------------------------------
 # Constants
@@ -107,36 +109,50 @@ def lambda_handler(event, context):
     logger.info(f"Lambda Request ID: {context.aws_request_id}")
     logger.info(f"PDS_NODE_NAME: {PDS_NODE}")
 
-    products = fetch_completed_products()
+    total_dispatched = 0
 
-    if not products:
-        logger.info("No completed products found")
+    # Keep processing until the queue is drained or 30 s remain on the clock
+    while context.get_remaining_time_in_millis() > 30_000:
+        products = fetch_completed_products()
 
-        return {
-            "status": "NOOP",
-            "reason": "no_completed_products",
-            "count": 0,
-        }
+        if not products:
+            logger.info("No completed products found")
+            break
 
-    batch = generate_batch_name()
-    logger.info(f"Preparing batch artifacts: {batch}")
+        batch          = generate_batch_name()
+        s3_config_dir  = f"{S3_PREFIX}{CONFIG_BUCKET}/dag-data/{batch}"
+        efs_config_dir = f"{EFS_MOUNT}/dag-data/{batch}"
 
-    s3_config_dir = f"{S3_PREFIX}{CONFIG_BUCKET}/dag-data/{batch}"
-    efs_config_dir = f"{EFS_MOUNT}/dag-data/{batch}"
+        logger.info(f"Preparing batch {batch} ({len(products)} products)")
+        mark_products_dispatching(products)
 
-    prepare_harvest_files(
-        batch=batch,
-        products=products,
-        s3_config_dir=s3_config_dir,
-    )
+        try:
+            prepare_harvest_files(
+                batch=batch,
+                products=products,
+                s3_config_dir=s3_config_dir,
+            )
+            trigger_airflow(batch, products, s3_config_dir, efs_config_dir)
+            mark_products_complete(products)
+        except Exception:
+            mark_products_incomplete(products)
+            raise
 
-    trigger_airflow(batch, products, s3_config_dir, efs_config_dir)
-    mark_products_complete(products)
+        # Archive is best-effort: DAG is already triggered so a failure here
+        # must not roll back to INCOMPLETE (that would cause a duplicate DAG run).
+        try:
+            archive_completed_products(products)
+        except Exception as e:
+            logger.error(f"Archive step failed for batch {batch}, rows remain in active table: {e}")
+
+        total_dispatched += len(products)
+
+        if len(products) < PRODUCT_BATCH_SIZE:
+            break  # fewer than limit → queue is drained
 
     return {
         "status": "SUCCESS",
-        "batch": batch,
-        "count": len(products),
+        "count": total_dispatched,
     }
 
 
@@ -149,7 +165,6 @@ def fetch_completed_products():
         SELECT DISTINCT p.s3_url_of_product_label
         FROM product p
         WHERE p.completion_status = 'INCOMPLETE'
-          AND p.pds_node = :pds_node
           AND EXISTS (
               SELECT 1 FROM product_data_file_mapping m
               WHERE m.s3_url_of_product_label = p.s3_url_of_product_label
@@ -168,10 +183,9 @@ def fetch_completed_products():
     resp = rds.execute_statement(
         resourceArn=DB_CLUSTER_ARN,
         secretArn=DB_SECRET_ARN,
-        database="pds_nucleus",
+        database=DB_NAME,
         sql=sql,
         parameters=[
-            {"name": "pds_node", "value": {"stringValue": PDS_NODE}},
             {"name": "limit", "value": {"longValue": PRODUCT_BATCH_SIZE}},
         ],
     )
@@ -181,52 +195,90 @@ def fetch_completed_products():
     return products
 
 
-def mark_products_complete(products):
-    for p in products:
+def _build_url_params(products):
+    return [{"name": f"p{i}", "value": {"stringValue": p}} for i, p in enumerate(products)]
+
+
+def _set_product_status(products, status, with_timestamp=True):
+    placeholders = ", ".join(f":p{i}" for i in range(len(products)))
+    params = _build_url_params(products)
+    if with_timestamp:
+        params.append({"name": "ts", "value": {"longValue": int(time.time() * 1000)}})
+        set_clause = "completion_status = :status, last_updated_epoch_time = :ts"
+    else:
+        set_clause = "completion_status = :status"
+    params.append({"name": "status", "value": {"stringValue": status}})
+    rds.execute_statement(
+        resourceArn=DB_CLUSTER_ARN,
+        secretArn=DB_SECRET_ARN,
+        database=DB_NAME,
+        sql=f"UPDATE product SET {set_clause} WHERE s3_url_of_product_label IN ({placeholders})",
+        parameters=params,
+    )
+
+
+def mark_products_complete(products):    _set_product_status(products, 'COMPLETE')
+def mark_products_dispatching(products): _set_product_status(products, 'DISPATCHING')
+def mark_products_incomplete(products):  _set_product_status(products, 'INCOMPLETE', with_timestamp=False)
+
+
+def archive_completed_products(products):
+    """
+    Move COMPLETE product rows and their mappings out of the active tables into
+    archive tables so the completion checker always scans a small hot set.
+
+    Order: INSERT (idempotent with IGNORE) before DELETE, mappings before product,
+    so a crash at any point leaves data in at least one table.
+    """
+    placeholders = ", ".join(f":p{i}" for i in range(len(products)))
+    params = _build_url_params(products)
+    params.append({"name": "ts", "value": {"longValue": int(time.time() * 1000)}})
+
+    steps = [
+        # 1. archive product rows
+        f"""
+            INSERT IGNORE INTO product_archive
+                (s3_url_of_product_label, completion_status, last_updated_epoch_time,
+                 pds_node, archived_epoch_time)
+            SELECT s3_url_of_product_label, completion_status, last_updated_epoch_time,
+                   pds_node, :ts
+            FROM product
+            WHERE s3_url_of_product_label IN ({placeholders})
+        """,
+        # 2. archive mapping rows
+        f"""
+            INSERT IGNORE INTO product_data_file_mapping_archive
+                (s3_url_of_product_label, s3_url_of_data_file, last_updated_epoch_time,
+                 pds_node, archived_epoch_time)
+            SELECT s3_url_of_product_label, s3_url_of_data_file, last_updated_epoch_time,
+                   pds_node, :ts
+            FROM product_data_file_mapping
+            WHERE s3_url_of_product_label IN ({placeholders})
+        """,
+        # 3. delete active mappings
+        f"DELETE FROM product_data_file_mapping WHERE s3_url_of_product_label IN ({placeholders})",
+        # 4. delete active product rows last
+        f"DELETE FROM product WHERE s3_url_of_product_label IN ({placeholders})",
+    ]
+
+    for sql in steps:
         rds.execute_statement(
             resourceArn=DB_CLUSTER_ARN,
             secretArn=DB_SECRET_ARN,
-            database="pds_nucleus",
-            sql="""
-                UPDATE product
-                SET completion_status = 'COMPLETE',
-                    last_updated_epoch_time = :ts
-                WHERE s3_url_of_product_label = :p
-            """,
-            parameters=[
-                {"name": "ts", "value": {"longValue": int(time.time() * 1000)}},
-                {"name": "p", "value": {"stringValue": p}},
-            ],
+            database=DB_NAME,
+            sql=sql,
+            parameters=params,
         )
+
+    logger.info(f"Archived {len(products)} completed products")
 
 
 # -------------------------------------------------------------------
 # Harvest File Preparation (S3 ONLY)
 # -------------------------------------------------------------------
 
-def prepare_harvest_files(batch, products, s3_config_dir):
-    manifest = ""
-    s3_files = []
-
-    for p in products:
-        efs_path = s3_to_efs_path(p)
-        manifest += f"{efs_path}\n"
-        s3_files.append(p)
-        s3_files.extend(fetch_data_files(p))
-
-    upload_text(
-        s3_config_dir,
-        "harvest_manifest.txt",
-        manifest,
-    )
-
-    upload_text(
-        s3_config_dir,
-        "data_file_list.txt",
-        "\n".join(s3_files),
-    )
-
-    harvest_cfg = f"""<?xml version="1.0" encoding="UTF-8"?>
+def _build_harvest_cfg(batch):
+    return f"""<?xml version="1.0" encoding="UTF-8"?>
 <harvest>
   <registry auth="/etc/es-auth.cfg">file:///mnt/data/dag-data/{batch}/connection.xml</registry>
 
@@ -243,15 +295,34 @@ def prepare_harvest_files(batch, products, s3_config_dir):
 </harvest>
 """
 
-    upload_text(s3_config_dir, "harvest.cfg", harvest_cfg)
 
-    connection_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+def _build_connection_xml():
+    return f"""<?xml version="1.0" encoding="UTF-8"?>
 <registry_connection index="{OPENSEARCH_REGISTRY}">
   <ec2_credential_url endpoint="{OPENSEARCH_ENDPOINT}">{OPENSEARCH_CRED_URL}</ec2_credential_url>
 </registry_connection>
 """
 
-    upload_text(s3_config_dir, "connection.xml", connection_xml)
+
+def prepare_harvest_files(batch, products, s3_config_dir):
+    # Phase 1: static files and DB fetches run fully in parallel
+    with ThreadPoolExecutor(max_workers=min(12, len(products) + 2)) as pool:
+        f_cfg  = pool.submit(upload_text, s3_config_dir, "harvest.cfg",   _build_harvest_cfg(batch))
+        f_conn = pool.submit(upload_text, s3_config_dir, "connection.xml", _build_connection_xml())
+        data_futures = {pool.submit(fetch_data_files, p): p for p in products}
+        data_files_by_product = {data_futures[f]: f.result() for f in as_completed(data_futures)}
+        f_cfg.result()
+        f_conn.result()
+
+    # Phase 2: assemble content that depends on DB results, upload in parallel
+    manifest  = "\n".join(s3_to_efs_path(p) for p in products) + "\n"
+    all_files = [url for p in products for url in [p] + data_files_by_product[p]]
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        f_manifest = pool.submit(upload_text, s3_config_dir, "harvest_manifest.txt", manifest)
+        f_list     = pool.submit(upload_text, s3_config_dir, "data_file_list.txt",   "\n".join(all_files))
+        f_manifest.result()
+        f_list.result()
 
 
 def fetch_data_files(product_label):
@@ -266,7 +337,7 @@ def fetch_data_files(product_label):
     resp = rds.execute_statement(
         resourceArn=DB_CLUSTER_ARN,
         secretArn=DB_SECRET_ARN,
-        database="pds_nucleus",
+        database=DB_NAME,
         sql=sql,
         parameters=[{"name": "p", "value": {"stringValue": product_label}}],
     )

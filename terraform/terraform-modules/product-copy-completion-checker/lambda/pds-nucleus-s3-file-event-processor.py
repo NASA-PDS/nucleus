@@ -7,52 +7,53 @@ import logging
 import json
 import os
 import time
-from xml.dom import minidom
+import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor
 
 logger = logging.getLogger("pds-nucleus-datasync-completion")
 logger.setLevel(logging.DEBUG)
 logger.addHandler(logging.StreamHandler())
 
-s3 = boto3.resource('s3')
 s3_client = boto3.client('s3')
 
-s3_bucket_name = "pds-nucleus-staging"
-db_clust_arn = os.environ.get('DB_CLUSTER_ARN')
+db_clust_arn  = os.environ.get('DB_CLUSTER_ARN')
 db_secret_arn = os.environ.get('DB_SECRET_ARN')
-efs_mount_path = os.environ.get('EFS_MOUNT_PATH')
-pds_node = os.environ.get('PDS_NODE_NAME')
+pds_node      = os.environ.get('PDS_NODE_NAME')
+db_name       = os.environ.get('DB_NAME')
 
 rds_data = boto3.client('rds-data')
 
-def lambda_handler(event, context):
-
-    logger.info(f"event: {event}")
-
-    s3_key = None
-    s3_bucket = None
-
-    s3_event = json.loads(event['Records'][0].get("body"))
-
+def _process_record(record):
+    s3_event = json.loads(record.get("body"))
     logger.info(f"s3_event: {s3_event}")
 
-    is_backlog = s3_event.get("backlog")
-
-    if  is_backlog == 'true':
-        logger.info(f"backlog: {is_backlog}")
+    if s3_event.get("backlog") == 'true':
         s3_bucket = s3_event.get("s3_bucket")
-        s3_key = s3_event.get("s3_key")
+        s3_key    = s3_event.get("s3_key")
     else:
-        s3_bucket = s3_event['Records'][0].get("s3").get("bucket").get("name")
-        s3_key = s3_event['Records'][0].get("s3").get("object").get("key")
+        s3_bucket = s3_event['Records'][0]["s3"]["bucket"]["name"]
+        s3_key    = s3_event['Records'][0]["s3"]["object"]["key"]
 
-    logger.info(f"s3_bucket: {s3_bucket}")
-    logger.info(f"s3_key: {s3_key}")
-
-    s3_url_of_file = "s3://" + s3_bucket + "/" + s3_key
-
-    logger.info(f"s3_url_of_file: {s3_url_of_file}")
-
+    logger.info(f"s3_bucket: {s3_bucket}, s3_key: {s3_key}")
+    s3_url_of_file = f"s3://{s3_bucket}/{s3_key}"
     handle_file_types(s3_url_of_file, s3_bucket, s3_key)
+
+
+def lambda_handler(event, context):
+    logger.info(f"event: {event}")
+    records = event['Records']
+
+    failures = []
+    with ThreadPoolExecutor(max_workers=len(records)) as pool:
+        futures = {pool.submit(_process_record, r): r['messageId'] for r in records}
+        for future, msg_id in futures.items():
+            try:
+                future.result()
+            except Exception as e:
+                logger.error(f"Failed to process message {msg_id}: {e}")
+                failures.append({'itemIdentifier': msg_id})
+
+    return {'batchItemFailures': failures}
 
 
 def handle_file_types(s3_url_of_file, s3_bucket, s3_key):
@@ -88,12 +89,15 @@ def extract_file(file_to_extract):
         raise e
 
 
-def save_product_data_file_mapping_in_database(s3_url_of_product_label, s3_url_of_data_file):
-    """ Creates a mapping record in the database for product and relevant files """
+def save_product_data_file_mappings_in_database(s3_url_of_product_label, file_names, s3_base_dir):
+    """ Inserts all product-to-data-file mappings in a single batch call """
 
-    logger.info(f"Saving product data file mapping {s3_url_of_product_label} --> {s3_url_of_data_file} in database")
+    if not file_names:
+        return
+
+    logger.info(f"Saving {len(file_names)} mappings for {s3_url_of_product_label}")
     sql = """
-            REPLACE INTO product_data_file_mapping
+            INSERT INTO product_data_file_mapping
             (
                 s3_url_of_product_label,
                 s3_url_of_data_file,
@@ -105,28 +109,30 @@ def save_product_data_file_mapping_in_database(s3_url_of_product_label, s3_url_o
                 :pds_node_param,
                 :last_updated_epoch_time_param
                 )
+            ON DUPLICATE KEY UPDATE
+                last_updated_epoch_time = VALUES(last_updated_epoch_time)
             """
 
-    s3_url_of_product_label_param = {'name': 's3_url_of_product_label_param',
-                                     'value': {'stringValue': s3_url_of_product_label}}
-    s3_url_of_data_file_param = {'name': 's3_url_of_data_file_param', 'value': {'stringValue': s3_url_of_data_file}}
-    last_updated_epoch_time_param = {'name': 'last_updated_epoch_time_param',
-                                     'value': {'longValue': round(time.time() * 1000)}}
-    pds_node_param = {'name': 'pds_node_param', 'value': {'stringValue': pds_node}}
-
-    param_set = [s3_url_of_product_label_param, s3_url_of_data_file_param, last_updated_epoch_time_param, pds_node_param]
+    ts = round(time.time() * 1000)
+    param_sets = [
+        [
+            {'name': 's3_url_of_product_label_param', 'value': {'stringValue': s3_url_of_product_label}},
+            {'name': 's3_url_of_data_file_param',     'value': {'stringValue': f"{s3_base_dir}/{fn}"}},
+            {'name': 'pds_node_param',                'value': {'stringValue': pds_node}},
+            {'name': 'last_updated_epoch_time_param', 'value': {'longValue': ts}},
+        ]
+        for fn in file_names
+    ]
 
     try:
-        response = rds_data.execute_statement(
+        rds_data.batch_execute_statement(
             resourceArn=db_clust_arn,
             secretArn=db_secret_arn,
-            database='pds_nucleus',
+            database=db_name,
             sql=sql,
-            parameters=param_set)
-
-        logger.debug(str(response))
+            parameterSets=param_sets)
     except Exception as e:
-        logger.error(f"Error updating product_data_file_mapping table. Exception: {str(e)}")
+        logger.error(f"Error batch-inserting product_data_file_mapping. Exception: {str(e)}")
         raise e
 
 
@@ -136,7 +142,7 @@ def save_product_completion_status_in_database(s3_url_of_product_label, completi
     logger.debug(f"Saving product processing status for: {s3_url_of_product_label} in database")
 
     sql = """
-            REPLACE INTO product
+            INSERT INTO product
             (
                 s3_url_of_product_label,
                 completion_status,
@@ -148,6 +154,8 @@ def save_product_completion_status_in_database(s3_url_of_product_label, completi
                 :pds_node_param,
                 :last_updated_epoch_time_param
                 )
+            ON DUPLICATE KEY UPDATE
+                last_updated_epoch_time = VALUES(last_updated_epoch_time)
             """
 
     s3_url_of_product_label_param = {'name': 's3_url_of_product_label_param',
@@ -163,7 +171,7 @@ def save_product_completion_status_in_database(s3_url_of_product_label, completi
         response = rds_data.execute_statement(
             resourceArn=db_clust_arn,
             secretArn=db_secret_arn,
-            database='pds_nucleus',
+            database=db_name,
             sql=sql,
             parameters=param_set)
         logger.debug(str(response))
@@ -179,14 +187,14 @@ def save_data_file_in_database(s3_url_of_data_file):
 
     # Handle .fz files
     if s3_url_of_data_file.endswith('.fz'):
-        s3_url_of_data_file = s3_url_of_data_file.rstrip(",.fz")
+        s3_url_of_data_file = s3_url_of_data_file[:-3]
 
     """ Creates a record for data file """
 
     logger.debug(f"Saving data file name in database: {s3_url_of_data_file} in database")
 
     sql = """
-            REPLACE INTO data_file
+            INSERT INTO data_file
             (
                 s3_url_of_data_file,
                 original_s3_url_of_data_file_name,
@@ -198,6 +206,8 @@ def save_data_file_in_database(s3_url_of_data_file):
                 :last_updated_epoch_time_param,
                 :pds_node_param
                 )
+            ON DUPLICATE KEY UPDATE
+                last_updated_epoch_time = VALUES(last_updated_epoch_time)
             """
 
     s3_url_of_data_file_param = {'name': 's3_url_of_data_file_param', 'value': {'stringValue': s3_url_of_data_file}}
@@ -212,7 +222,7 @@ def save_data_file_in_database(s3_url_of_data_file):
         response = rds_data.execute_statement(
             resourceArn=db_clust_arn,
             secretArn=db_secret_arn,
-            database='pds_nucleus',
+            database=db_name,
             sql=sql,
             parameters=param_set)
 
@@ -224,32 +234,24 @@ def save_data_file_in_database(s3_url_of_data_file):
 
 
 def save_files_for_product_label(s3_url_of_product_label, bucket, key):
-    """ Creates a record for product label """
+    """ Parses the product XML label and batch-inserts all data file mappings """
 
     s3_base_dir = s3_url_of_product_label.rsplit('/', 1)[0]
 
     try:
         s3_response = s3_client.get_object(Bucket=bucket, Key=key)
+        content_str = s3_response['Body'].read().decode()
+
+        root = ET.fromstring(content_str)
+        file_names = [
+            el.text.strip()
+            for el in root.iter()
+            if el.tag.split('}')[-1] == 'file_name' and el.text and el.text.strip()
+        ]
+
+        logger.debug(f"Found {len(file_names)} file references in {s3_url_of_product_label}")
+        save_product_data_file_mappings_in_database(s3_url_of_product_label, file_names, s3_base_dir)
 
     except Exception as e:
-        logger.error(f"Error getting S3 object: for bucker: {bucket} and key: {key}. Exception: {str(e)}")
-        raise e
-
-    try:
-        # Get the Body object in the S3 get_object() response
-        s3_object_body = s3_response.get('Body')
-
-        # Read the data in bytes format and convert it to string
-        content_str = s3_object_body.read().decode()
-
-        # parse xml
-        xmldoc = minidom.parseString(content_str)
-        expected_files_from_product_label = xmldoc.getElementsByTagName('file_name')
-
-        for x in expected_files_from_product_label:
-            s3_url_of_data_file = s3_base_dir + "/" + x.firstChild.nodeValue
-            save_product_data_file_mapping_in_database(s3_url_of_product_label, s3_url_of_data_file)
-
-    except Exception as e:
-        logger.error(f"Error handling  missing files for product label: {s3_url_of_product_label}. Exception: {str(e)}")
+        logger.error(f"Error handling missing files for product label: {s3_url_of_product_label}. Exception: {str(e)}")
         raise e

@@ -720,7 +720,8 @@ data "aws_iam_policy_document" "lambda_inline_policy" {
   statement {
     effect = "Allow"
     actions = [
-      "rds-data:ExecuteStatement"
+      "rds-data:ExecuteStatement",
+      "rds-data:BatchExecuteStatement"
     ]
     resources = [
       "arn:aws:rds:*:${data.aws_caller_identity.current.account_id}:cluster:${var.rds_cluster_id}"
