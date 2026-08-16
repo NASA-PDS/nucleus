@@ -58,3 +58,9 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "pds_validate_and_harvest_dag_file_name" {
+  description = "PDS Validate and Harvest DAG file name (no archive task)"
+  type        = string
+  default     = "pds-validate-and-harvest.py"
+}
