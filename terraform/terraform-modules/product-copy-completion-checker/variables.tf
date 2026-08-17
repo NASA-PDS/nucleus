@@ -96,6 +96,11 @@ variable "pds_nucleus_harvest_replace_prefix_with_list" {
   type        = list(string)
 }
 
+variable "pds_nucleus_harvest_replace_prefix_list" {
+  description = "List of EFS path prefixes to replace in harvest config, one per PDS node (e.g. /mnt/data/pds-img-staging-dev/lroc)"
+  type        = list(string)
+}
+
 variable "pds_nucleus_staging_bucket_name_postfix" {
   description = "The postfix of the name of the S3 staging bucket to receive data to be processed"
   default     = "staging-<venue-name>"

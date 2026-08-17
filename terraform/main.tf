@@ -127,6 +127,7 @@ module "product-copy-completion-checker" {
   pds_nucleus_opensearch_registry_names          = var.pds_nucleus_opensearch_registry_names
   pds_nucleus_opensearch_credential_relative_url = var.pds_nucleus_opensearch_credential_relative_url
   pds_nucleus_harvest_replace_prefix_with_list   = var.pds_nucleus_harvest_replace_prefix_with_list
+  pds_nucleus_harvest_replace_prefix_list        = var.pds_nucleus_harvest_replace_prefix_list
 
   database_availability_zones            = var.database_availability_zones
   airflow_env_name                       = var.airflow_env_name

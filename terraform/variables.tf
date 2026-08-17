@@ -139,6 +139,12 @@ variable "pds_nucleus_harvest_replace_prefix_with_list" {
   default     = ["s3://pds-nucleus-staging-sbn", "s3://pds-nucleus-staging-img"]
 }
 
+variable "pds_nucleus_harvest_replace_prefix_list" {
+  description = "List of EFS path prefixes to replace in harvest config, one per PDS node (e.g. /mnt/data/pds-img-staging-dev/lroc)"
+  type        = list(string)
+  default     = []
+}
+
 variable "aws_secretmanager_key_arn" {
   description = "The ARN of aws/secretsmanager key"
   type        = string
