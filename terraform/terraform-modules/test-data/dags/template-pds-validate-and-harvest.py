@@ -16,6 +16,7 @@ ECS_CLUSTER_NAME    = "${pds_nucleus_ecs_cluster_name}"
 ECS_LAUNCH_TYPE     = "FARGATE"
 ECS_SUBNETS         = ${pds_nucleus_ecs_subnets}
 ECS_SECURITY_GROUPS = ${pds_nucleus_ecs_security_groups}
+AWS_REGION          = "${aws_region}"
 
 LAMBDA_FUNCTION_NAME = "pds_nucleus_product_processing_status_tracker"
 
@@ -27,10 +28,10 @@ def _invoke_status_lambda(context, status):
         FunctionName=LAMBDA_FUNCTION_NAME,
         InvocationType="Event",
         Payload=json.dumps({
-            "productsList":  context["dag_run"].conf["list_of_product_labels_to_process"],
-            "pdsNode":        context["dag_run"].conf["pds_node_name"],
+            "productsList":     context["dag_run"].conf["list_of_product_labels_to_process"],
+            "pdsNode":          context["dag_run"].conf["pds_node_name"],
             "processingStatus": status,
-            "batchNumber":    context["dag_run"].conf["batch_number"],
+            "batchNumber":      context["dag_run"].conf["batch_number"],
         }),
     )
 
@@ -95,6 +96,11 @@ config_init = EcsRunTaskOperator(
             }
         ]
     },
+    awslogs_group="/pds/ecs/pds-nucleus-config-init-${pds_node_name}",
+    awslogs_stream_prefix="ecs/pds-nucleus-config-init",
+    awslogs_region=AWS_REGION,
+    awslogs_fetch_interval=timedelta(seconds=1),
+    number_logs_exception=500,
     dag=dag,
 )
 
@@ -120,6 +126,11 @@ config_s3_to_efs_copy = EcsRunTaskOperator(
             }
         ]
     },
+    awslogs_group="/pds/ecs/pds-nucleus-s3-to-efs-copy-${pds_node_name}",
+    awslogs_stream_prefix="ecs/pds-nucleus-s3-to-efs-copy",
+    awslogs_region=AWS_REGION,
+    awslogs_fetch_interval=timedelta(seconds=1),
+    number_logs_exception=500,
     dag=dag,
 )
 
@@ -150,6 +161,11 @@ validate = EcsRunTaskOperator(
             }
         ]
     },
+    awslogs_group="/pds/ecs/validate-${pds_node_name}",
+    awslogs_stream_prefix="ecs/pds-validate",
+    awslogs_region=AWS_REGION,
+    awslogs_fetch_interval=timedelta(seconds=1),
+    number_logs_exception=500,
     on_success_callback=validate_success,
     on_failure_callback=validate_failure,
     dag=dag,
@@ -182,6 +198,11 @@ harvest = EcsRunTaskOperator(
             }
         ]
     },
+    awslogs_group="/pds/ecs/harvest-${pds_node_name}",
+    awslogs_stream_prefix="ecs/pds-registry-loader-harvest",
+    awslogs_region=AWS_REGION,
+    awslogs_fetch_interval=timedelta(seconds=1),
+    number_logs_exception=500,
     trigger_rule=TriggerRule.ALL_DONE,
     on_success_callback=harvest_success,
     on_failure_callback=harvest_failure,
@@ -213,6 +234,11 @@ config_s3_to_efs_copy_cleanup = EcsRunTaskOperator(
             }
         ]
     },
+    awslogs_group="/pds/ecs/pds-nucleus-s3-to-efs-copy-${pds_node_name}",
+    awslogs_stream_prefix="ecs/pds-nucleus-s3-to-efs-copy",
+    awslogs_region=AWS_REGION,
+    awslogs_fetch_interval=timedelta(seconds=1),
+    number_logs_exception=500,
     trigger_rule=TriggerRule.ALL_DONE,
     dag=dag,
 )
@@ -240,6 +266,11 @@ config_init_cleanup = EcsRunTaskOperator(
             }
         ]
     },
+    awslogs_group="/pds/ecs/pds-nucleus-config-init-${pds_node_name}",
+    awslogs_stream_prefix="ecs/pds-nucleus-config-init",
+    awslogs_region=AWS_REGION,
+    awslogs_fetch_interval=timedelta(seconds=1),
+    number_logs_exception=500,
     trigger_rule=TriggerRule.ALL_DONE,
     dag=dag,
 )

@@ -99,6 +99,7 @@ data "template_file" "pds-validate-and-harvest-dag-template" {
     pds_nucleus_ecs_subnets            = jsonencode(var.pds_nucleus_ecs_subnets)
     pds_nucleus_ecs_security_groups    = jsonencode([var.pds_nucleus_security_group_id])
     pds_validate_and_harvest_dag_id    = "${var.pds_node_names[count.index]}-pds-validate-and-harvest"
+    aws_region                         = var.region
   }
 }
 

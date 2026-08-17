@@ -64,3 +64,8 @@ variable "pds_validate_and_harvest_dag_file_name" {
   type        = string
   default     = "pds-validate-and-harvest.py"
 }
+
+variable "region" {
+  description = "AWS Region"
+  type        = string
+}
