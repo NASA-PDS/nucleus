@@ -747,7 +747,9 @@ data "aws_iam_policy_document" "lambda_inline_policy" {
     ]
     resources = [
       "arn:aws:s3:::pds-*-staging*",
-      "arn:aws:s3:::pds-*-staging*/*"
+      "arn:aws:s3:::pds-*-staging*/*",
+      "arn:aws:s3:::pds-*-archive*",
+      "arn:aws:s3:::pds-*-archive*/*"
     ]
   }
 
