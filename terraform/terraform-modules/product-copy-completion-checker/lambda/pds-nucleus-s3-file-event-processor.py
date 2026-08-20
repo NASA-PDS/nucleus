@@ -44,7 +44,7 @@ def lambda_handler(event, context):
     records = event['Records']
 
     failures = []
-    with ThreadPoolExecutor(max_workers=len(records)) as pool:
+    with ThreadPoolExecutor(max_workers=min(len(records), 20)) as pool:
         futures = {pool.submit(_process_record, r): r['messageId'] for r in records}
         for future, msg_id in futures.items():
             try:
@@ -73,19 +73,6 @@ def handle_file_types(s3_url_of_file, s3_bucket, s3_key):
 
     except Exception as e:
         logger.error(f"Error processing . Exception: {str(e)}")
-        raise e
-
-
-def extract_file(file_to_extract):
-    """ Extracts .fz to files to .fits """
-
-    logger.debug(f"Extraction file {file_to_extract}...")
-
-    try:
-        os.system(f'funpack {os.path.normpath(file_to_extract)}')
-        logger.info(f'Unpacked file: {os.path.normpath(file_to_extract)}')
-    except Exception as e:
-        logger.error(f"Error extracting file: {file_to_extract}. Exception: {str(e)}")
         raise e
 
 

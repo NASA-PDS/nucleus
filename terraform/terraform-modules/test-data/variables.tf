@@ -23,15 +23,28 @@ variable "mwaa_dag_s3_bucket_name" {
   sensitive   = true
 }
 
+variable "pds_validate_and_harvest_dag_file_name" {
+  description = "PDS Validate and Harvest DAG file name (no archive task)"
+  default     = "pds-validate-and-harvest.py"
+  type        = string
+}
+
+variable "pds_validate_and_harvest_dag_id" {
+  description = "PDS Validate and Harvest DAG ID (no archive task)"
+  default     = "pds-validate-and-harvest"
+  type        = string
+}
+
 variable "pds_basic_registry_data_load_dag_file_name" {
   description = "PDS Basic Registry Data Load DAG File Name"
   type        = string
-  default     = "pds-basic-registry-load-use-case.py"
+  default     = "pds-basic-registry-load.py"
   sensitive   = true
 }
 
-variable "pds_nucleus_default_airflow_dag_id" {
-  description = "PDS Nucleus Default DAG ID"
+variable "pds_basic_registry_data_load_dag_id" {
+  description = "PDS Basic Registry Data Load DAG ID"
+  default     = "pds-basic-registry-load"
   type        = string
 }
 
@@ -44,6 +57,13 @@ variable "pds_nucleus_s3_backlog_processor_dag_file_name" {
 
 variable "pds_nucleus_s3_backlog_processor_dag_id" {
   description = "PDS Nucleus S3 Backlog Processor DAG ID"
+  default     = "pds-nucleus-s3-backlog-processor"
+  type        = string
+}
+
+variable "pds_nucleus_default_airflow_dag_id" {
+  description = "PDS Nucleus Default DAG ID"
+  default     = "pds-validate-and-harvest"
   type        = string
 }
 
@@ -57,12 +77,6 @@ variable "tags" {
   description = "Resource tags"
   type        = map(string)
   default     = {}
-}
-
-variable "pds_validate_and_harvest_dag_file_name" {
-  description = "PDS Validate and Harvest DAG file name (no archive task)"
-  type        = string
-  default     = "pds-validate-and-harvest.py"
 }
 
 variable "region" {

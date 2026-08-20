@@ -123,7 +123,7 @@ variable "airflow_env_name" {
 
 variable "product_batch_size" {
   description = "Size of the product batch to send to Nuclees DAG top process per given DAG invocation"
-  default     = 50
+  default     = 500
   type        = number
 }
 

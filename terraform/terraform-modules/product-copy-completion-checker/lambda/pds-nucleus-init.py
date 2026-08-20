@@ -91,8 +91,10 @@ def create_product_table(db_name):
             completion_status       VARCHAR(50),
             last_updated_epoch_time BIGINT,
             pds_node                VARCHAR(10),
+            dispatch_claim          VARCHAR(36) NULL,
             PRIMARY KEY (s3_url_of_product_label),
-            INDEX idx_node_status (pds_node, completion_status)
+            INDEX idx_node_status (pds_node, completion_status),
+            INDEX idx_dispatch_claim (dispatch_claim)
         );
     """
     response = _execute(sql, db_name)

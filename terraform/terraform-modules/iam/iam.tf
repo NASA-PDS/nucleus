@@ -630,6 +630,24 @@ data "aws_iam_policy_document" "mwaa_inline_policy" {
     ]
   }
 
+  # Per-node config buckets (e.g. pds-img-config-dev) hold dag-data
+  # artifacts (product_list.txt, harvest_manifest.txt, etc.) that DAG
+  # tasks read directly via boto3 from within the MWAA execution role.
+  # This bucket has no restrictive bucket policy (unlike the data/
+  # archive buckets, which only allow the Lambda/ECS task roles).
+  statement {
+    effect = "Allow"
+    actions = [
+      "s3:GetBucket*",
+      "s3:GetObject*",
+      "s3:List*"
+    ]
+    resources = [
+      "arn:aws:s3:::pds-*-config*",
+      "arn:aws:s3:::pds-*-config*/*"
+    ]
+  }
+
   statement {
     effect = "Allow"
     actions = [

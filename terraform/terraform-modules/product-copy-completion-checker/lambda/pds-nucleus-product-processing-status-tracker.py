@@ -17,7 +17,7 @@ rds_data = boto3.client('rds-data')
 
 def lambda_handler(event, context):
 
-    print(event)
+    logger.info(f"event: {event}")
 
     s3_url_of_product_label_list = event['productsList']
     processing_status = event['processingStatus']
@@ -25,7 +25,10 @@ def lambda_handler(event, context):
     batch_number      = event['batchNumber']
     db_name           = f"pds_nucleus_{pds_node.lower()}"
 
-    for s3_url_of_product_label in s3_url_of_product_label_list.split(','):
+    if isinstance(s3_url_of_product_label_list, str):
+        s3_url_of_product_label_list = s3_url_of_product_label_list.split(',')
+
+    for s3_url_of_product_label in s3_url_of_product_label_list:
         print(f'Saving the processing status of {s3_url_of_product_label} as {processing_status}')
         save_product_processing_status_in_database(
             s3_url_of_product_label, processing_status, pds_node, batch_number, db_name)

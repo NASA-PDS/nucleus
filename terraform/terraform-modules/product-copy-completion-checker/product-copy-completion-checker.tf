@@ -108,7 +108,7 @@ resource "aws_lambda_function" "pds_nucleus_init_function" {
   role             = var.pds_nucleus_lambda_execution_role_arns[0]
   runtime          = var.lambda_runtime
   handler          = "pds-nucleus-init.lambda_handler"
-  timeout          = 10
+  timeout          = 60
   depends_on       = [data.archive_file.pds_nucleus_init_zip]
 
   environment {
@@ -323,7 +323,8 @@ resource "aws_lambda_invocation" "invoke_pds_nucleus_init_function" {
 
   lifecycle {
     replace_triggered_by = [
-      aws_rds_cluster.default.id
+      aws_rds_cluster.default.id,
+      aws_lambda_function.pds_nucleus_init_function
     ]
   }
 

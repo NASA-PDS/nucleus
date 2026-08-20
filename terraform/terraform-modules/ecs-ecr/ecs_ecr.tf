@@ -489,6 +489,12 @@ resource "aws_ecs_task_definition" "pds-nucleus-s3-backlog-processor-task-defini
 
 # Deploy ECR images
 resource "null_resource" "deploy_ecr_images" {
+  triggers = {
+    s3_to_efs_copy_hash = filemd5("terraform-modules/ecs-ecr/docker/s3-to-efs-copy/entrypoint.sh")
+    config_init_hash    = filemd5("terraform-modules/ecs-ecr/docker/config-init/entrypoint.sh")
+    deploy_script_hash  = filemd5("terraform-modules/ecs-ecr/docker/template-deploy-ecr-images.sh")
+  }
+
   provisioner "local-exec" {
     command = "./terraform-modules/ecs-ecr/docker/deploy-ecr-images.sh"
   }
