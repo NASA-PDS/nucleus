@@ -21,12 +21,18 @@ LAMBDA_FUNCTION_NAME = "pds_nucleus_product_processing_status_tracker"
 # -------------------------------------------------------------------
 # Status callbacks
 # -------------------------------------------------------------------
+def _read_product_list(s3_config_dir):
+    bucket = s3_config_dir.replace("s3://", "").split("/")[0]
+    key = "/".join(s3_config_dir.replace("s3://", "").split("/")[1:] + ["product_list.txt"])
+    body = boto3.client("s3").get_object(Bucket=bucket, Key=key)["Body"].read()
+    return [line for line in body.decode("utf-8").splitlines() if line]
+
 def _invoke_status_lambda(context, status):
     boto3.client("lambda").invoke(
         FunctionName=LAMBDA_FUNCTION_NAME,
         InvocationType="Event",
         Payload=json.dumps({
-            "productsList": context["dag_run"].conf["list_of_product_labels_to_process"],
+            "productsList": _read_product_list(context["dag_run"].conf["s3_config_dir"]),
             "pdsNode": context["dag_run"].conf["pds_node_name"],
             "processingStatus": status,
             "batchNumber": context["dag_run"].conf["batch_number"],
@@ -54,8 +60,10 @@ dag = DAG(
     catchup=False,
     start_date=datetime(2024, 1, 1),
     default_args={
-        "retries": 3,
-        "retry_delay": timedelta(seconds=2),
+        "retries": 5,
+        "retry_delay": timedelta(minutes=2),
+        "retry_exponential_backoff": True,
+        "max_retry_delay": timedelta(minutes=15),
     },
 )
 
@@ -147,11 +155,9 @@ validate = EcsRunTaskOperator(
         "containerOverrides": [
             {
                 "name": "pds-validate",
-                "environment": [
-                    {
-                        "name": "PRODUCT_LABELS",
-                        "value": "{{ dag_run.conf['list_of_product_labels_to_process'] | tojson }}",
-                    }
+                "command": [
+                    "--target-manifest",
+                    "{{ dag_run.conf['efs_config_dir'] }}/harvest_manifest.txt",
                 ],
             }
         ]
