@@ -80,7 +80,9 @@ Note: A sample `terraform.tfvars` file with placeholder values is available at [
     - region     : AWS Region
     - vpc_id     : VPC ID of your AWS VPC
     - subnet_ids : List of Private Subnet IDs to be used for the MWAA
+    - auth_alb_subnet_ids : List of Subnet IDs to be used for the Auth ALB
     - vpc_cidr   : VPC CIDR for MWAA (E.g.: "10.1.0.0/16")
+    - permission_boundary_for_iam_roles : The name of the permission boundary to be used when creating IAM roles, can be obtained from the MCP System Admins or PDS Engineering Node team
     - permission_boundary_for_iam_roles_arn : The ARN of the permission boundary for IAM roles can be obtained from the MCP System Admins or PDS Engineering Node team
     - database_availability_zones : RDS database availability zones (E.g.: ["us-west-2a"])
     - aws_secretmanager_key_arn : The ARN of aws/secretmanager key obtained from KMS -> AWS managed keys (E.g.: "arn:aws:kms:us-west-2:12345678:key/12345-1234-1234-1234-12345abcd")
@@ -91,9 +93,9 @@ Note: A sample `terraform.tfvars` file with placeholder values is available at [
           - Please check https://nasa-pds.github.io/registry/user/harvest_job_configuration.html for PDS Node name descriptions.
 
       - pds_archive_bucket_names : List of Node specific archive bucket names, usualy in another AWS account (E.g.: ["pds-sbn-archive-dev", "pds-img-archive-dev"])
-            - The archive buckets should have S3 bucket permissions to allow the each Node specific `pds_nucleus_ecs_task_role-NODE_NAME` to write data.
+            - The archive buckets should have S3 bucket permissions to allow the each Node specific `pds_nucleus_ecs_task_role-NODE_NAME` to write data, and the Node specific `pds_nucleus_lambda_execution_role-NODE_NAME` to read data (used by the completion-detection Lambda to determine when a PDS data product has finished being written to the archive bucket).
 
-            The following S3 bucket policy is an example to allow pds_nucleus_ecs_task_role-PDS_SBN role to write to the PDS_SBN archive bucket.
+            The following S3 bucket policy is an example to allow the `pds_nucleus_ecs_task_role-NODE_NAME` role to write to, and the `pds_nucleus_lambda_execution_role-NODE_NAME` role to read from, the NODE_NAME archive bucket. Replace `<account_id_of_aws_account_with_nucleus>`, `NODE_NAME` and `<node-archive-bucket-name>` with the actual values for your environment.
          
    ```json
                     {
@@ -103,45 +105,70 @@ Note: A sample `terraform.tfvars` file with placeholder values is available at [
                               "Sid": "AllowECSAccountToPutObjects",
                               "Effect": "Allow",
                               "Principal": {
-                                  "AWS": "arn:aws:iam::<account_id_of_aws_account_with_nucleus>:role/pds_nucleus_ecs_task_role-PDS_SBN"
+                                  "AWS": "arn:aws:iam::<account_id_of_aws_account_with_nucleus>:role/pds_nucleus_ecs_task_role-NODE_NAME"
                               },
                               "Action": "s3:PutObject",
-                              "Resource": "arn:aws:s3:::pds-sbn-archive-test/*"
+                              "Resource": "arn:aws:s3:::<node-archive-bucket-name>/*"
                           },
                           {
                               "Sid": "AllowECSAccountToAbortMultipartUploads",
                               "Effect": "Allow",
                               "Principal": {
-                                  "AWS": "arn:aws:iam::<account_id_of_aws_account_with_nucleus>:role/pds_nucleus_ecs_task_role-PDS_SBN"
+                                  "AWS": "arn:aws:iam::<account_id_of_aws_account_with_nucleus>:role/pds_nucleus_ecs_task_role-NODE_NAME"
                               },
                               "Action": "s3:AbortMultipartUpload",
-                              "Resource": "arn:aws:s3:::pds-sbn-archive-test/*"
+                              "Resource": "arn:aws:s3:::<node-archive-bucket-name>/*"
+                          },
+                          {
+                              "Sid": "AllowLambdaAccountToReadObjects",
+                              "Effect": "Allow",
+                              "Principal": {
+                                  "AWS": "arn:aws:iam::<account_id_of_aws_account_with_nucleus>:role/pds_nucleus_lambda_execution_role-NODE_NAME"
+                              },
+                              "Action": [
+                                  "s3:GetObject",
+                                  "s3:ListBucket"
+                              ],
+                              "Resource": [
+                                  "arn:aws:s3:::<node-archive-bucket-name>",
+                                  "arn:aws:s3:::<node-archive-bucket-name>/*"
+                              ]
                           }
                       ]
                   }
    ```
 
       - pds_nucleus_opensearch_url : OpenSearch URL to be used with Harvest tool
-      - pds_nucleus_opensearch_registry_names : List of Node specific OpenSearch registry names (E.g.: ["pds-nucleus-sbn-registry"", "pds-nucleus-img-registry"])
-      - pds_nucleus_opensearch_urls : List of Node specific OpenSearch URLs (E.g.: ["https://abcdef.us-west-2.aoss.amazonaws.com", "https://opqrst.us-west-2.aoss.amazonaws.com"])
+      - pds_nucleus_opensearch_registry_names : List of Node specific OpenSearch registry names (E.g.: ["pds-nucleus-sbn-registry", "pds-nucleus-img-registry"])
       - pds_nucleus_opensearch_credential_relative_url : Opensearch Credential URL (E.g.: "http://<IP ADDRESS>/AWS_CONTAINER_CREDENTIALS_RELATIVE_URI")
-      - pds_nucleus_harvest_replace_prefix_with_list : List of harvest replace with strings (E.g.: ["s3://pds-sbn-nucleus-staging","s3://pds-img-nucleus-staging"])
-      
-    - pds_nucleus_harvest_replace_prefix_with : Prefix to replace in PDS Harvest tool
+      - pds_nucleus_opensearch_collection_arns : List of Node specific OpenSearch Collection ARNs (E.g.: ["arn:aws:aoss:us-west-2:12345678:collection/abcdefgh", "arn:aws:aoss:us-west-2:12345678:collection/abcdefgh"])
+      - pds_nucleus_opensearch_cognito_identity_pool_ids : List of Node specific OpenSearch Cognito Identity Pool IDs (E.g.: ["us-west-2:12345-abcd-abcd-abcd-1234abcdef", "us-west-2:12345-abcd-abcd-abcd-1234abcdef"])
+      - pds_nucleus_harvest_replace_prefix_with_list : List of Node specific harvest replace-with strings (E.g.: ["s3://pds-sbn-nucleus-staging","s3://pds-img-nucleus-staging"])
+      - pds_nucleus_harvest_replace_prefix_list : List of Node specific EFS path prefixes to replace in harvest config (E.g.: ["/mnt/data/pds-sbn-staging-dev", "/mnt/data/pds-img-staging-dev"])
+
+    - pds_registry_loader_harvest_version : Docker image version tag for nasapds/registry-loader (E.g.: "1.3.2", "latest")
+    - pds_validate_version : Docker image version tag for nasapds/validate (E.g.: "latest")
     - airflow_env_name: Name of the Nucleus Airflow environment (E.g.: "pds-nucleus-airflow-env")
     - mwaa_dag_s3_bucket_name : S3 Bucket name to keep Airflow DAG files (E.g.: pds-nucleus-airflow-dags-bucket-mcp-test)
     - pds_nucleus_staging_bucket_name_postfix : Postfix of the S3 Bucket name to keep PDS staging data files (E.g.: staging-mcp-dev)
     - pds_nucleus_config_bucket_name_postfix : Postfix of the S3 Bucket name to keep temporary configurations (E.g.: pds-nucleus-config-mcp-test)
-    - pds_shared_logs_bucket_name : Name of the shared PDS logs S# bucket (E.g.: pds-logs-dev, pds-logs-prod)
+    - pds_shared_logs_bucket_name : Name of the shared PDS logs S3 bucket (E.g.: pds-logs-dev, pds-logs-prod)
 
     - pds_nucleus_default_airflow_dag_id : The default example DAG to be included for testing (E.g.: pds-basic-registry-load-use-case)
     - pds_nucleus_s3_backlog_processor_dag_id : The DAG ID of the S3 Backlog Processer DAG (E.g: pds-nucleus-s3-backlog-processor)
 
-    - cognito_user_pool_id : The ID of the Cognito user pool which is used to create Nuclues user accounts
-    - cognito_user_pool_domain : Cognitp domain name of the Cognito user pool which is sued to create Nuclues user accounts
+    - cognito_user_pool_id : The ID of the Cognito user pool which is used to create Nucleus user accounts
+    - cognito_user_pool_domain : Cognito domain name of the Cognito user pool which is used to create Nucleus user accounts
     - auth_alb_listener_certificate_arn : ARN of the certificate to be used for the ALB Listener facing Airflow UI
     - nucleus_cloudfront_origin_hostname : Hostname of the Nucleus Cloudfront origin (E.g: pds-sit.mcp.nasa.gov)
     - aws_elb_account_id_for_the_region : The standard ELB account ID for the AWS region. For US West (Oregon), this is  797873946194. Read more at https://docs.aws.amazon.com/elasticloadbalancing/latest/application/enable-access-logging.html)
+
+    - Mandatory tag variables
+      - tag_tenant : Owner Discipline Node (E.g.: en, sbn, img, atm etc.)
+      - tag_venue : Environment (E.g.: pds-cds-dev, pds-cds-prod)
+      - tag_component : Component name (E.g.: nucleus)
+      - tag_cicd : Deployment method (E.g.: iac, cd, etc.)
+      - tag_managedby : PDS Team email address responsible for managing the deployment
 
 
 > Note: `terraform.tfvars` is only used to test with your configuration with the actual values in your AWS account. This file will not be uploaded to GitHub as it's ignored by Git. Once testing is completed successfully work with your admin to get the values for these tested variables updated via GitHub secrets, which are dynamically passed in during runtime.
