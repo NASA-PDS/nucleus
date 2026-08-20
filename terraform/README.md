@@ -74,7 +74,7 @@ cd nucleus/terraform
 
 4. Create a `terraform.tfvars` file locally under `./terraform/terraform.tfvars` and enter the value for variables specified in `variables.tf` file at `nucleus/terraform/terraform-modules/mwaa-env/variables.tf`. Ensure these values match with your AWS Setup and also the variable value types (ex: string `" "`, number `1`, list(string)`[" "]`, etc). Most of the below values can be obtained by the system admin team of your AWS account.
 
-Note:  Examples of `terraform.tfvars` files are available at `terraform/variables` directory for your reference.
+Note: A sample `terraform.tfvars` file with placeholder values is available at [`terraform/terraform.tfvars.example`](./terraform.tfvars.example) for your reference.
 
     - venue      : Name of the Cloud venue to deploy PDS Nucleus (E.g: "dev", "test")
     - region     : AWS Region
@@ -146,46 +146,12 @@ Note:  Examples of `terraform.tfvars` files are available at `terraform/variable
 
 > Note: `terraform.tfvars` is only used to test with your configuration with the actual values in your AWS account. This file will not be uploaded to GitHub as it's ignored by Git. Once testing is completed successfully work with your admin to get the values for these tested variables updated via GitHub secrets, which are dynamically passed in during runtime.
 
-```
-# Example terraform.tfvars
+A sample file with placeholder values for all of the above variables is checked into the repository at
+[`terraform/terraform.tfvars.example`](./terraform.tfvars.example). Copy it to `terraform.tfvars` and replace the
+placeholder values with the actual values for your AWS environment:
 
-venue                                 = "dev"
-region                                = "us-west-2"
-vpc_id                                = "vpc-12345678"
-subnet_ids                            = ["subnet-123456789", "subnet-987654321"]
-vpc_cidr                              = "10.2.0.0/16"
-permission_boundary_for_iam_roles_arn = "arn:aws:iam::1234567890:policy/example-permission-boundary"
-database_availability_zones           = ["us-west-2a"]
-aws_secretmanager_key_arn             = "arn:aws:kms:us-west-2:12345678:key/12345-1234-1234-1234-12345abcd"
-
-
-# Set node specific values the following lists in correct order. For the list of node names
-# the following node name format should be used.
-# (PDS_ATM, PDS_ENG, PDS_GEO, PDS_IMG, PDS_NAIF, PDS_RMS, PDS_SBN, PSA, JAXA, ROSCOSMOS)
-# Please check https://nasa-pds.github.io/registry/user/harvest_job_configuration.html for PDS Node name descriptions.
-
-pds_node_names                                 = ["PDS_SBN", "PDS_IMG"]
-pds_archive_bucket_names                       = ["pds-sbn-archive-dev", "pds-img-archive-dev"]
-pds_nucleus_opensearch_url                     = "https://abcdef.us-west-2.aoss.amazonaws.com"
-pds_nucleus_opensearch_registry_names          = ["pds-nucleus-sbn-registry"", "pds-nucleus-img-registry"]
-pds_nucleus_opensearch_credential_relative_url = "http://<IP ADDRESS>/AWS_CONTAINER_CREDENTIALS_RELATIVE_URI"
-pds_nucleus_harvest_replace_prefix_with_list   = ["s3://pds-sbn-nucleus-staging", "s3://pds-img-nucleus-staging"]
-
-airflow_env_name                             = "pds-nucleus-airflow-env"
-mwaa_dag_s3_bucket_name                      = "pds-nucleus-airflow-dags-bucket-dev"
-pds_nucleus_staging_bucket_name_postfix      = "staging-dev"
-pds_nucleus_config_bucket_name_postfix       = "config-dev"
-pds_shared_logs_bucket_name                  = "pds-logs-dev"
- 
-pds_nucleus_default_airflow_dag_id      = "pds-basic-registry-load-use-case"
-pds_nucleus_s3_backlog_processor_dag_id = "pds-nucleus-s3-backlog-processor"
- 
-cognito_user_pool_id               = "us-west-2_ABCDEFG"
-cognito_user_pool_domain           = "pds-registry"
-auth_alb_listener_certificate_arn  = "arn:aws:acm:us-west-2:123456789:certificate/ca123456-abcd-abcd-1234-abcdefghi"
-nucleus_cloudfront_origin_hostname = "pds-sit.mcp.nasa.gov"
-aws_elb_account_id_for_the_region  = "797873946194"
-
+```shell
+cp terraform.tfvars.example terraform.tfvars
 ```
 
 
