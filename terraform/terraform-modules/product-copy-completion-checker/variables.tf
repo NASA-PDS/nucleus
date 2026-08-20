@@ -122,8 +122,8 @@ variable "airflow_env_name" {
 }
 
 variable "product_batch_size" {
-  description = "Size of the product batch to send to Nuclees DAG top process per given DAG invocation"
-  default     = 500
+  description = "Size of the product batch to send to Nucleus DAG to process per given DAG invocation. Kept in sync with the PRODUCT_BATCH_SIZE fallback default in pds-nucleus-product-completion-checker.py. Increasing this significantly may hit RDS Data API response size (~1 MiB) and statement/parameter size limits used by the IN (:p0 ... :pN) clauses in mark_products_* and archive_completed_products; load-test before raising."
+  default     = 200
   type        = number
 }
 

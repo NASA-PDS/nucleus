@@ -128,9 +128,13 @@ variable "pds_nucleus_harvest_replace_prefix_with_list" {
 }
 
 variable "pds_nucleus_harvest_replace_prefix_list" {
-  description = "List of EFS path prefixes to replace in harvest config, one per PDS node (e.g. /mnt/data/pds-img-staging-dev/lroc)"
+  description = "List of EFS path prefixes to replace in harvest config, one per PDS node (e.g. /mnt/data/pds-img-staging-dev/lroc). Required: must have one entry per pds_node_names entry, or the product-copy-completion-checker Lambda will fail with an index-out-of-range error at apply/runtime."
   type        = list(string)
-  default     = []
+
+  validation {
+    condition     = length(var.pds_nucleus_harvest_replace_prefix_list) == length(var.pds_node_names)
+    error_message = "pds_nucleus_harvest_replace_prefix_list must have exactly one entry per pds_node_names entry."
+  }
 }
 
 variable "aws_secretmanager_key_arn" {
