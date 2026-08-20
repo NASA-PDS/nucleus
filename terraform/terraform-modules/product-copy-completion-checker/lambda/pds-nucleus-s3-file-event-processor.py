@@ -50,7 +50,7 @@ def lambda_handler(event, context):
             try:
                 future.result()
             except Exception as e:
-                logger.error(f"Failed to process message {msg_id}: {e}")
+                logger.exception(f"Failed to process message {msg_id}: {e}")
                 failures.append({'itemIdentifier': msg_id})
 
     return {'batchItemFailures': failures}
@@ -119,7 +119,7 @@ def save_product_data_file_mappings_in_database(s3_url_of_product_label, file_na
             sql=sql,
             parameterSets=param_sets)
     except Exception as e:
-        logger.error(f"Error batch-inserting product_data_file_mapping. Exception: {str(e)}")
+        logger.exception(f"Error batch-inserting product_data_file_mapping. Exception: {str(e)}")
         raise e
 
 

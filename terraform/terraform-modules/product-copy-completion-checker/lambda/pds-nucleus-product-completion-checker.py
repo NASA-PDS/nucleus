@@ -135,7 +135,7 @@ def lambda_handler(event, context):
                 products=products,
                 s3_config_dir=s3_config_dir,
             )
-            trigger_airflow(batch, products, s3_config_dir, efs_config_dir)
+            trigger_airflow(batch, s3_config_dir, efs_config_dir)
             mark_products_complete(products)
         except Exception:
             mark_products_incomplete(products)
@@ -146,7 +146,7 @@ def lambda_handler(event, context):
         try:
             archive_completed_products(products)
         except Exception as e:
-            logger.error(f"Archive step failed for batch {batch}, rows remain in active table: {e}")
+            logger.exception(f"Archive step failed for batch {batch}, rows remain in active table: {e}")
 
         total_dispatched += len(products)
 
@@ -417,7 +417,7 @@ def upload_text(s3_dir, name, content):
 # MWAA Trigger
 # -------------------------------------------------------------------
 
-def trigger_airflow(batch, products, s3_config_dir, efs_config_dir):
+def trigger_airflow(batch, s3_config_dir, efs_config_dir):
     payload = {
         "batch_number": batch,
         "pds_node_name": PDS_NODE,

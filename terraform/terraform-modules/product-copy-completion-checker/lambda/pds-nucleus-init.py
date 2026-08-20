@@ -60,12 +60,12 @@ def lambda_handler(event, context):
 
         return f"Processed lambda request ID: {context.aws_request_id}"
     except Exception as e:
-        logger.error(f"Error initialising database {db_name}. Exception: {str(e)}")
+        logger.exception(f"Error initialising database {db_name}. Exception: {str(e)}")
         raise e
 
 
 def _execute(sql, database=None):
-    kwargs = dict(resourceArn=db_clust_arn, secretArn=db_secret_arn, sql=sql)
+    kwargs = {'resourceArn': db_clust_arn, 'secretArn': db_secret_arn, 'sql': sql}
     if database:
         kwargs['database'] = database
     return rds_data.execute_statement(**kwargs)

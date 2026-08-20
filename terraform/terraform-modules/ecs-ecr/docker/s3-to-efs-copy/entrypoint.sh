@@ -44,7 +44,7 @@ then
 
   filename="$EFS_CONFIG_DIR/files_created.txt"
 
-  if [ ! -f "$filename" ]; then
+  if [[ ! -f "$filename" ]]; then
     echo "files_created.txt not found in $EFS_CONFIG_DIR — nothing to delete"
   else
     echo "Removing data files listed in $filename"
@@ -81,7 +81,7 @@ then
           sleep $RETRY_DELAY
       done
 
-      if [ "$copied" = false ]; then
+      if [[ "$copied" = false ]]; then
           echo "ERROR: Failed to copy $s3_url_of_file after $MAX_RETRIES attempts" >&2
           exit 1
       fi
@@ -110,7 +110,7 @@ fi
 if [ "$OPERATION" = "ARCHIVE" ]
 then
 
-  if [ -z "$HOT_ARCHIVE_S3_BUCKET_NAME" ]; then
+  if [[ -z "$HOT_ARCHIVE_S3_BUCKET_NAME" ]]; then
       echo "Error: HOT_ARCHIVE_S3_BUCKET_NAME (arg 3) is required for ARCHIVE operation" >&2
       exit 1
   fi
@@ -142,7 +142,7 @@ then
           sleep $RETRY_DELAY
       done
 
-      if [ "$archived" = false ]; then
+      if [[ "$archived" = false ]]; then
           echo "ERROR: Failed to archive $s3_url_of_file after $MAX_RETRIES attempts" >&2
           exit 1
       fi

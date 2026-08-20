@@ -17,13 +17,17 @@ rds_data = boto3.client('rds-data')
 
 def lambda_handler(event, context):
 
-    logger.info(f"event: {event}")
-
     s3_url_of_product_label_list = event['productsList']
     processing_status = event['processingStatus']
     pds_node          = event['pdsNode']
     batch_number      = event['batchNumber']
     db_name           = f"pds_nucleus_{pds_node.lower()}"
+
+    logger.info(
+        f"Processing status update: pdsNode={pds_node}, batchNumber={batch_number}, "
+        f"processingStatus={processing_status}, productCount="
+        f"{len(s3_url_of_product_label_list) if isinstance(s3_url_of_product_label_list, list) else 'n/a'}"
+    )
 
     if isinstance(s3_url_of_product_label_list, str):
         s3_url_of_product_label_list = s3_url_of_product_label_list.split(',')
