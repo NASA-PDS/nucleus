@@ -12,7 +12,7 @@ echo "Login successful."
 echo "Building and pushing pds-nucleus-config-init..."
 cd ./terraform-modules/ecs-ecr/docker/config-init
 # Explicitly build for the linux/amd64 platform
-docker buildx build --platform linux/amd64 --load -t pds-nucleus-config-init .
+docker build --platform linux/amd64 -t pds-nucleus-config-init .
 docker tag pds-nucleus-config-init:latest "${ecs_registry}/pds-nucleus-config-init:latest"
 docker push "${ecs_registry}/pds-nucleus-config-init:latest"
 cd - > /dev/null
@@ -21,7 +21,7 @@ cd - > /dev/null
 echo "Building and pushing pds-nucleus-s3-to-efs-copy..."
 cd ./terraform-modules/ecs-ecr/docker/s3-to-efs-copy
 # Explicitly build for the linux/amd64 platform
-docker buildx build --platform linux/amd64 --load -t pds-nucleus-s3-to-efs-copy .
+docker build --platform linux/amd64 -t pds-nucleus-s3-to-efs-copy .
 docker tag pds-nucleus-s3-to-efs-copy:latest "${ecs_registry}/pds-nucleus-s3-to-efs-copy:latest"
 docker push "${ecs_registry}/pds-nucleus-s3-to-efs-copy:latest"
 cd - > /dev/null
@@ -30,14 +30,14 @@ cd - > /dev/null
 
 # Deploy pds-registry-loader-harvest ECR image
 echo "Pulling nasapds/registry-loader and pushing to ECR repo pds-registry-loader-harvest..."
-docker image pull --platform linux/amd64 nasapds/registry-loader
-docker tag nasapds/registry-loader:latest "${ecs_registry}/pds-registry-loader-harvest:latest"
+docker image pull --platform linux/amd64 nasapds/registry-loader:${registry_loader_version}
+docker tag nasapds/registry-loader:${registry_loader_version} "${ecs_registry}/pds-registry-loader-harvest:latest"
 docker push "${ecs_registry}/pds-registry-loader-harvest:latest"
 
 # Deploy pds-validate ECR image
 echo "Pulling nasapds/validate and pushing to ECR repo pds-validate..."
-docker image pull --platform linux/amd64 nasapds/validate
-docker tag nasapds/validate:latest "${ecs_registry}/pds-validate:latest"
+docker image pull --platform linux/amd64 nasapds/validate:${validate_version}
+docker tag nasapds/validate:${validate_version} "${ecs_registry}/pds-validate:latest"
 docker push "${ecs_registry}/pds-validate:latest"
 
 # Deploy pds-nucleus-tools-java ECR image

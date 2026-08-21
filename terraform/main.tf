@@ -76,6 +76,9 @@ module "ecs_ecr" {
 
   pds_registry_loader_harvest_cloudwatch_logs_group  = var.pds_registry_loader_harvest_cloudwatch_logs_group
   pds_registry_loader_harvest_cloudwatch_logs_region = var.region
+  pds_registry_loader_harvest_version                = var.pds_registry_loader_harvest_version
+
+  pds_validate_version = var.pds_validate_version
 
   pds_validate_cloudwatch_logs_group      = var.pds_validate_cloudwatch_logs_group
   pds_validate_cloudwatch_logs_region     = var.region
@@ -124,6 +127,7 @@ module "product-copy-completion-checker" {
   pds_nucleus_opensearch_registry_names          = var.pds_nucleus_opensearch_registry_names
   pds_nucleus_opensearch_credential_relative_url = var.pds_nucleus_opensearch_credential_relative_url
   pds_nucleus_harvest_replace_prefix_with_list   = var.pds_nucleus_harvest_replace_prefix_with_list
+  pds_nucleus_harvest_replace_prefix_list        = var.pds_nucleus_harvest_replace_prefix_list
 
   database_availability_zones            = var.database_availability_zones
   airflow_env_name                       = var.airflow_env_name
@@ -148,6 +152,7 @@ module "test-data" {
   pds_nucleus_default_airflow_dag_id      = var.pds_nucleus_default_airflow_dag_id
   pds_nucleus_s3_backlog_processor_dag_id = var.pds_nucleus_s3_backlog_processor_dag_id
   pds_node_names                          = var.pds_node_names
+  region                                  = var.region
   tags                                    = local.default_tags
 
   depends_on = [module.common, module.ecs_ecr]

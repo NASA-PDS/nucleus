@@ -17,7 +17,7 @@ data "template_file" "pds-basic-registry-load-use-case-dag-template" {
     pds_nucleus_ecs_cluster_name      = var.pds_nucleus_ecs_cluster_name
     pds_nucleus_ecs_subnets           = jsonencode(var.pds_nucleus_ecs_subnets)
     pds_nucleus_ecs_security_groups   = jsonencode([var.pds_nucleus_security_group_id])
-    pds_nucleus_basic_registry_dag_id = "${var.pds_node_names[count.index]}-${var.pds_nucleus_default_airflow_dag_id}"
+    pds_nucleus_basic_registry_dag_id = "${var.pds_node_names[count.index]}-${var.pds_basic_registry_data_load_dag_id}"
   }
 }
 
@@ -78,10 +78,48 @@ resource "aws_s3_object" "pds_nucleus_s3_backlog_processor_dag_file" {
   source      = local_file.pds-nucleus-s3-backlog-processor-dag-file[count.index].filename
   # FIX: Apply the same fix here to prevent a future failure
   source_hash = md5(data.template_file.pds-nucleus-s3-backlog-processor-dag-template[count.index].rendered)
-  
+
   tags = var.tags
 
   depends_on = [
     local_file.pds-nucleus-s3-backlog-processor-dag-file,
+  ]
+}
+
+#-----------------------------------------------
+# PDS Validate and Harvest DAG (no archive)
+#-----------------------------------------------
+
+data "template_file" "pds-validate-and-harvest-dag-template" {
+  count    = length(var.pds_node_names)
+  template = file("terraform-modules/test-data/dags/template-${var.pds_validate_and_harvest_dag_file_name}")
+  vars = {
+    pds_node_name                      = var.pds_node_names[count.index]
+    pds_nucleus_ecs_cluster_name       = var.pds_nucleus_ecs_cluster_name
+    pds_nucleus_ecs_subnets            = jsonencode(var.pds_nucleus_ecs_subnets)
+    pds_nucleus_ecs_security_groups    = jsonencode([var.pds_nucleus_security_group_id])
+    pds_validate_and_harvest_dag_id    = "${var.pds_node_names[count.index]}-pds-validate-and-harvest"
+    aws_region                         = var.region
+  }
+}
+
+resource "local_file" "pds-validate-and-harvest-dag-file" {
+  count    = length(var.pds_node_names)
+  content  = data.template_file.pds-validate-and-harvest-dag-template[count.index].rendered
+  filename = "terraform-modules/test-data/dags/${var.pds_node_names[count.index]}-${var.pds_validate_and_harvest_dag_file_name}"
+}
+
+resource "aws_s3_object" "pds_validate_and_harvest_dag_file" {
+  count       = length(var.pds_node_names)
+  bucket      = var.mwaa_dag_s3_bucket_name
+  key         = "dags/${var.pds_node_names[count.index]}/${var.pds_node_names[count.index]}-${var.pds_validate_and_harvest_dag_file_name}"
+  acl         = "private"
+  source      = local_file.pds-validate-and-harvest-dag-file[count.index].filename
+  source_hash = md5(data.template_file.pds-validate-and-harvest-dag-template[count.index].rendered)
+
+  tags = var.tags
+
+  depends_on = [
+    local_file.pds-validate-and-harvest-dag-file,
   ]
 }

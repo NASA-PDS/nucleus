@@ -96,6 +96,11 @@ variable "pds_nucleus_harvest_replace_prefix_with_list" {
   type        = list(string)
 }
 
+variable "pds_nucleus_harvest_replace_prefix_list" {
+  description = "List of EFS path prefixes to replace in harvest config, one per PDS node (e.g. /mnt/data/pds-img-staging-dev/lroc)"
+  type        = list(string)
+}
+
 variable "pds_nucleus_staging_bucket_name_postfix" {
   description = "The postfix of the name of the S3 staging bucket to receive data to be processed"
   default     = "staging-<venue-name>"
@@ -117,8 +122,8 @@ variable "airflow_env_name" {
 }
 
 variable "product_batch_size" {
-  description = "Size of the product batch to send to Nuclees DAG top process per given DAG invocation"
-  default     = 50
+  description = "Size of the product batch to send to Nucleus DAG to process per given DAG invocation. Kept in sync with the PRODUCT_BATCH_SIZE fallback default in pds-nucleus-product-completion-checker.py. Increasing this significantly may hit RDS Data API response size (~1 MiB) and statement/parameter size limits used by the IN (:p0 ... :pN) clauses in mark_products_* and archive_completed_products; load-test before raising."
+  default     = 200
   type        = number
 }
 

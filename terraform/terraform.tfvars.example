@@ -1,0 +1,49 @@
+venue                                 = "dev"
+region                                = "us-west-2"
+vpc_id                                = "vpc-xxxxxxxxxxxxxxxxx"
+subnet_ids                            = ["subnet-xxxxxxxxxxxxxxxxx", "subnet-xxxxxxxxxxxxxxxxx"]
+auth_alb_subnet_ids                   = ["subnet-xxxxxxxxxxxxxxxxx", "subnet-xxxxxxxxxxxxxxxxx"]
+vpc_cidr                              = "10.0.0.0/16"
+permission_boundary_for_iam_roles     = "example-tenantOperator-APIG"
+permission_boundary_for_iam_roles_arn = "arn:aws:iam::000000000000:policy/example-tenantOperator-APIG"
+database_availability_zones           = ["us-west-2a"]
+aws_secretmanager_key_arn             = "arn:aws:kms:us-west-2:000000000000:key/00000000-0000-0000-0000-000000000000"
+
+# Set node specific values the following lists in correct order. For the list of node names
+# the following node name format should be used.
+# (PDS_ATM, PDS_ENG, PDS_GEO, PDS_IMG, PDS_NAIF, PDS_RMS, PDS_SBN, PSA, JAXA, ROSCOSMOS)
+
+pds_node_names                                   = ["pds_node1", "pds_node2"]
+pds_archive_bucket_names                         = ["pds-node1-archive-bucket", "pds-node2-archive-bucket"]
+pds_nucleus_opensearch_url                       = "https://example-opensearch-endpoint.us-west-2.aoss.amazonaws.com"
+pds_nucleus_opensearch_registry_names            = ["pds-node1-registry", "pds-node2-registry"]
+pds_nucleus_opensearch_credential_relative_url   = "http://169.254.170.2/AWS_CONTAINER_CREDENTIALS_RELATIVE_URI"
+pds_nucleus_harvest_replace_prefix_with_list     = ["https://example.pds.nasa.gov/data/store/node1", "https://example.pds.nasa.gov/data/store/node2"]
+pds_nucleus_harvest_replace_prefix_list          = ["/mnt/data/pds-node1-staging", "/mnt/data/pds-node2-staging"]
+pds_registry_loader_harvest_version             = "1.3.2"
+pds_validate_version                            = "latest"
+pds_nucleus_opensearch_collection_arns           = ["arn:aws:aoss:us-west-2:000000000000:collection/example-collection-id", "arn:aws:aoss:us-west-2:000000000000:collection/example-collection-id"]
+pds_nucleus_opensearch_cognito_identity_pool_ids = ["us-west-2:00000000-0000-0000-0000-000000000000", "us-west-2:00000000-0000-0000-0000-000000000000"]
+
+airflow_env_name                             = "pds-nucleus-airflow-env"
+mwaa_dag_s3_bucket_name                      = "example-nucleus-airflow-dags-bucket"
+pds_nucleus_staging_bucket_name_postfix      = "staging-dev"
+pds_nucleus_config_bucket_name_postfix       = "config-dev"
+pds_shared_logs_bucket_name                  = "example-logs-bucket"
+
+# pds_nucleus_default_airflow_dag_id      = "pds-validate-and-harvest"
+# pds_nucleus_s3_backlog_processor_dag_id = "pds-nucleus-s3-backlog-processor"
+
+nucleus_cloudfront_origin_hostname = "example.pds.nasa.gov"
+
+cognito_user_pool_id              = "us-west-2_XXXXXXXXX"
+cognito_user_pool_domain          = "example-registry"
+auth_alb_listener_certificate_arn = "arn:aws:acm:us-west-2:000000000000:certificate/00000000-0000-0000-0000-000000000000"
+aws_elb_account_id_for_the_region = "000000000000"
+
+# Tags
+tag_tenant    = "en"                    # Owner Discipline Node (en, sbn, img, atm etc.)
+tag_venue     = "pds-cds-dev"           # Environment (pds-cds-dev, pds-cds-prod)
+tag_component = "nucleus"               # Component name
+tag_cicd      = "iac"                   # Deployment method (iac, cd, etc.)
+tag_managedby = "example.user@example.com"  # PDS Team Email

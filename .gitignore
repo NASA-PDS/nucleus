@@ -125,3 +125,11 @@ override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
+
+# Rendered files containing environment-specific values (account IDs, subnet IDs, etc.)
+# Templates (template-*.py) are committed; rendered node-specific outputs are not.
+terraform/terraform-modules/ecs-ecr/docker/deploy-ecr-images.sh
+terraform/terraform-modules/test-data/dags/PDS_*-*.py
+
+# Lambda zip build artifacts
+terraform/terraform-modules/**/*.zip

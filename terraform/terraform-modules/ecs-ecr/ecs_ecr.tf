@@ -17,8 +17,10 @@ data "aws_caller_identity" "current" {}
 data "template_file" "deploy_ecr_images_script_template" {
   template = file("terraform-modules/ecs-ecr/docker/template-deploy-ecr-images.sh")
   vars = {
-    aws_region = var.region
-    ecs_registry = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.region}.amazonaws.com"
+    aws_region               = var.region
+    ecs_registry             = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.region}.amazonaws.com"
+    registry_loader_version  = var.pds_registry_loader_harvest_version
+    validate_version         = var.pds_validate_version
   }
   depends_on = [data.aws_caller_identity.current]
 }
@@ -487,6 +489,12 @@ resource "aws_ecs_task_definition" "pds-nucleus-s3-backlog-processor-task-defini
 
 # Deploy ECR images
 resource "null_resource" "deploy_ecr_images" {
+  triggers = {
+    s3_to_efs_copy_hash = filemd5("terraform-modules/ecs-ecr/docker/s3-to-efs-copy/entrypoint.sh")
+    config_init_hash    = filemd5("terraform-modules/ecs-ecr/docker/config-init/entrypoint.sh")
+    deploy_script_hash  = filemd5("terraform-modules/ecs-ecr/docker/template-deploy-ecr-images.sh")
+  }
+
   provisioner "local-exec" {
     command = "./terraform-modules/ecs-ecr/docker/deploy-ecr-images.sh"
   }
