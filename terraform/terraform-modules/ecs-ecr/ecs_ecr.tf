@@ -498,6 +498,8 @@ resource "null_resource" "deploy_ecr_images" {
   provisioner "local-exec" {
     command = "./terraform-modules/ecs-ecr/docker/deploy-ecr-images.sh"
   }
+
+  depends_on = [local_file.deploy_ecr_images_script_file]
 }
 
 output "pds_nucleus_ecs_cluster_name" {

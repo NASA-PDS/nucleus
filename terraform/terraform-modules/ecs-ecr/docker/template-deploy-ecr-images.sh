@@ -4,7 +4,17 @@
 set -e
 
 echo "Logging in to Amazon ECR..."
-aws ecr get-login-password --region "${aws_region}" | docker login --username AWS --password-stdin "${ecs_registry}"
+for attempt in 1 2 3 4 5; do
+  if aws ecr get-login-password --region "${aws_region}" | docker login --username AWS --password-stdin "${ecs_registry}"; then
+    break
+  fi
+  if [ "$attempt" -eq 5 ]; then
+    echo "ECR login failed after $attempt attempts."
+    exit 1
+  fi
+  echo "ECR login attempt $attempt failed (likely transient DNS/VPN issue), retrying in $((attempt * 10))s..."
+  sleep $((attempt * 10))
+done
 
 echo "Login successful."
 
