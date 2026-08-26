@@ -18,6 +18,7 @@ data "template_file" "pds-basic-registry-load-use-case-dag-template" {
     pds_nucleus_ecs_subnets           = jsonencode(var.pds_nucleus_ecs_subnets)
     pds_nucleus_ecs_security_groups   = jsonencode([var.pds_nucleus_security_group_id])
     pds_nucleus_basic_registry_dag_id = "${var.pds_node_names[count.index]}-${var.pds_basic_registry_data_load_dag_id}"
+    aws_region                        = var.region
   }
 }
 
