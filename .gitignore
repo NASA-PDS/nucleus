@@ -133,3 +133,9 @@ terraform/terraform-modules/test-data/dags/PDS_*-*.py
 
 # Lambda zip build artifacts
 terraform/terraform-modules/**/*.zip
+terraform/terraform-modules/**/package/
+
+# Local scratch/session artifacts (not part of the project)
+.claude/
+progress.txt
+download/

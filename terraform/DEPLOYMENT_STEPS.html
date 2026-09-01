@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Nucleus Deployment — Step by Step</title>
+</head>
+<body style="font-family: Arial, Helvetica, sans-serif; line-height: 1.5; max-width: 900px; margin: 20px auto; color: #172B4D;">
+
+<h1 style="border-bottom: 2px solid #dfe1e6; padding-bottom: 8px;">Nucleus Deployment — Step by Step</h1>
+
+<h2 style="margin-top: 32px; border-bottom: 1px solid #dfe1e6; padding-bottom: 4px;">Prerequisites</h2>
+<ol>
+  <li>EC2 instance to run Terraform (Amazon Linux 2023, x86, t2.large recommended).</li>
+
+  <li>Install Terraform on the EC2 instance.
+<pre style="background:#f4f5f7; border:1px solid #dfe1e6; border-radius:3px; padding:10px 14px; overflow-x:auto; font-family: Consolas, 'Liberation Mono', Menlo, monospace; font-size:13px; white-space:pre-wrap;">sudo yum update -y
+sudo yum install -y yum-utils
+sudo yum-config-manager --add-repo https://rpm.releases.hashicorp.com/AmazonLinux/hashicorp.repo
+sudo yum install -y terraform
+terraform -version</pre>
+  </li>
+
+  <li>Install Docker on the EC2 instance, add your user to the <code style="background:#f4f5f7; padding:1px 4px; border-radius:3px; font-family: Consolas, monospace; font-size:13px;">docker</code> group, then logout/login.
+<pre style="background:#f4f5f7; border:1px solid #dfe1e6; border-radius:3px; padding:10px 14px; overflow-x:auto; font-family: Consolas, 'Liberation Mono', Menlo, monospace; font-size:13px; white-space:pre-wrap;">sudo amazon-linux-extras enable docker
+sudo yum install -y docker
+sudo systemctl start docker
+sudo systemctl enable docker
+sudo systemctl status docker
+sudo usermod -aG docker $(whoami)</pre>
+  </li>
+
+  <li>Add <code style="background:#f4f5f7; padding:1px 4px; border-radius:3px; font-family: Consolas, monospace; font-size:13px;">arn:aws:s3:::pds-logs-&lt;venue&gt;/nucleus/*</code> to the <code style="background:#f4f5f7; padding:1px 4px; border-radius:3px; font-family: Consolas, monospace; font-size:13px;">pds-logs-&lt;venue&gt;</code> bucket policy. Do not remove existing statements.
+<pre style="background:#f4f5f7; border:1px solid #dfe1e6; border-radius:3px; padding:10px 14px; overflow-x:auto; font-family: Consolas, 'Liberation Mono', Menlo, monospace; font-size:13px; white-space:pre-wrap;">{
+  "Effect": "Allow",
+  "Principal": { "AWS": "arn:aws:iam::<PDS-LOGGING-ACCOUNT-ID>:root" },
+  "Action": "s3:PutObject",
+  "Resource": ["arn:aws:s3:::pds-logs-&lt;venue&gt;/nucleus/*"]
+}</pre>
+  </li>
+
+  <li>Confirm staging/archive buckets already exist and are accessible by Nucleus's IAM roles. If in a different AWS account, add a bucket policy granting these actions to <code style="background:#f4f5f7; padding:1px 4px; border-radius:3px; font-family: Consolas, monospace; font-size:13px;">pds_nucleus_ecs_task_role-&lt;NODE&gt;</code> / <code style="background:#f4f5f7; padding:1px 4px; border-radius:3px; font-family: Consolas, monospace; font-size:13px;">pds_nucleus_harvest_ecs_task_role-&lt;NODE&gt;</code>:
+<pre style="background:#f4f5f7; border:1px solid #dfe1e6; border-radius:3px; padding:10px 14px; overflow-x:auto; font-family: Consolas, 'Liberation Mono', Menlo, monospace; font-size:13px; white-space:pre-wrap;">s3:GetBucket*, s3:GetObject*, s3:List*, s3:PutObject, s3:PutObjectTagging</pre>
+    <p style="margin:8px 0 0 0;"><strong style="color:#0747A6;">Caveat:</strong> AWS resolves the role ARN in a bucket policy to the role's internal unique ID at save time. If <code style="background:#f4f5f7; padding:1px 4px; border-radius:3px; font-family: Consolas, monospace; font-size:13px;">module.iam</code> is later destroyed/recreated (e.g. <code style="background:#f4f5f7; padding:1px 4px; border-radius:3px; font-family: Consolas, monospace; font-size:13px;">terraform apply -target=module.iam</code> after a role change), the role gets a new unique ID even though the ARN string is unchanged — the old bucket policy statement becomes stale and access silently breaks with <code style="background:#f4f5f7; padding:1px 4px; border-radius:3px; font-family: Consolas, monospace; font-size:13px;">403 ... no resource-based policy allows</code>. If this happens, remove and re-add the same statement in the bucket policy to force AWS to re-resolve the ARN.</p>
+  </li>
+
+  <li>Confirm/create the OpenSearch index for the discipline node. See <a href="https://nasa-pds.github.io/registry/admin/create_reg.html">https://nasa-pds.github.io/registry/admin/create_reg.html</a></li>
+
+  <li>Open this inbound rule on the Nucleus ALB's public subnets (required for Cognito + ALB):
+<pre style="background:#f4f5f7; border:1px solid #dfe1e6; border-radius:3px; padding:10px 14px; overflow-x:auto; font-family: Consolas, 'Liberation Mono', Menlo, monospace; font-size:13px; white-space:pre-wrap;">Type: Custom TCP | Protocol: TCP | Port range: 1024-65535 | Source: 0.0.0.0/0 | Allow</pre>
+  </li>
+
+  <li>Have two AWS identities ready:
+    <ul>
+      <li><strong>Admin identity</strong> — IAM-creation permissions.</li>
+      <li><strong>Developer identity</strong> — see <code style="background:#f4f5f7; padding:1px 4px; border-radius:3px; font-family: Consolas, monospace; font-size:13px;">DEVELOPER_IAM_POLICY.md</code> (no IAM-creation permissions needed).</li>
+    </ul>
+  </li>
+</ol>
+
+<h2 style="margin-top: 32px; border-bottom: 1px solid #dfe1e6; padding-bottom: 4px;">Deploy</h2>
+<ol>
+  <li>Initialize Terraform.
+<pre style="background:#f4f5f7; border:1px solid #dfe1e6; border-radius:3px; padding:10px 14px; overflow-x:auto; font-family: Consolas, 'Liberation Mono', Menlo, monospace; font-size:13px; white-space:pre-wrap;">terraform init</pre>
+  </li>
+
+  <li><strong>Admin identity</strong> — create the <code style="background:#f4f5f7; padding:1px 4px; border-radius:3px; font-family: Consolas, monospace; font-size:13px;">pds_nucleus_*</code> IAM roles (only needed again if <code style="background:#f4f5f7; padding:1px 4px; border-radius:3px; font-family: Consolas, monospace; font-size:13px;">terraform-modules/iam/iam.tf</code> changes).
+<pre style="background:#f4f5f7; border:1px solid #dfe1e6; border-radius:3px; padding:10px 14px; overflow-x:auto; font-family: Consolas, 'Liberation Mono', Menlo, monospace; font-size:13px; white-space:pre-wrap;">terraform apply -target=module.iam</pre>
+  </li>
+
+  <li>Save the correct <code style="background:#f4f5f7; padding:1px 4px; border-radius:3px; font-family: Consolas, monospace; font-size:13px;">terraform.tfvars</code> content (Dev or Prod — see wiki) as <code style="background:#f4f5f7; padding:1px 4px; border-radius:3px; font-family: Consolas, monospace; font-size:13px;">./terraform/terraform.tfvars</code>.</li>
+
+  <li><strong>Developer identity</strong> — deploy everything else.
+<pre style="background:#f4f5f7; border:1px solid #dfe1e6; border-radius:3px; padding:10px 14px; overflow-x:auto; font-family: Consolas, 'Liberation Mono', Menlo, monospace; font-size:13px; white-space:pre-wrap;">terraform apply</pre>
+  </li>
+
+  <li>If <code style="background:#f4f5f7; padding:1px 4px; border-radius:3px; font-family: Consolas, monospace; font-size:13px;">apply</code> fails (network/credential expiry/random errors like <code style="background:#f4f5f7; padding:1px 4px; border-radius:3px; font-family: Consolas, monospace; font-size:13px;">exit status 127</code>), retry a few times before deeper troubleshooting.
+<pre style="background:#f4f5f7; border:1px solid #dfe1e6; border-radius:3px; padding:10px 14px; overflow-x:auto; font-family: Consolas, 'Liberation Mono', Menlo, monospace; font-size:13px; white-space:pre-wrap;">terraform init &amp;&amp; terraform apply</pre>
+  </li>
+
+  <li>Note the <code style="background:#f4f5f7; padding:1px 4px; border-radius:3px; font-family: Consolas, monospace; font-size:13px;">pds_nucleus_airflow_ui_url</code> output and share it with the Dev team.
+<pre style="background:#f4f5f7; border:1px solid #dfe1e6; border-radius:3px; padding:10px 14px; overflow-x:auto; font-family: Consolas, 'Liberation Mono', Menlo, monospace; font-size:13px; white-space:pre-wrap;">pds_nucleus_airflow_ui_url = "https://pds-nucleus-12345678.us-west-2.elb.amazonaws.com:4443/aws_mwaa/aws-console-sso"</pre>
+  </li>
+</ol>
+
+<h2 style="margin-top: 32px; border-bottom: 1px solid #dfe1e6; padding-bottom: 4px;">Post-Deploy: Connect Staging Bucket</h2>
+<ol>
+  <li>Open the staging S3 bucket in AWS Console.</li>
+  <li>Properties &rarr; Event notifications &rarr; Create event notification.</li>
+  <li>Name it (e.g. "File copy event").</li>
+  <li>Event type: <code style="background:#f4f5f7; padding:1px 4px; border-radius:3px; font-family: Consolas, monospace; font-size:13px;">s3:ObjectCreated:*</code>.</li>
+  <li>Destination: SQS queue.</li>
+  <li>Select queue: <code style="background:#f4f5f7; padding:1px 4px; border-radius:3px; font-family: Consolas, monospace; font-size:13px;">pds-nucleus-files-to-save-in-database-&lt;NODE&gt;</code>.</li>
+  <li>Save.</li>
+</ol>
+
+<h2 style="margin-top: 32px; border-bottom: 1px solid #dfe1e6; padding-bottom: 4px;">Post-Deploy: OpenSearch Access</h2>
+<ol>
+  <li>Amazon OpenSearch Service &rarr; Serverless &rarr; Security &rarr; Data access control &rarr; <code style="background:#f4f5f7; padding:1px 4px; border-radius:3px; font-family: Consolas, monospace; font-size:13px;">pds-mcp-&lt;venue&gt;-data-access</code>.</li>
+  <li>Edit.</li>
+  <li>Add <code style="background:#f4f5f7; padding:1px 4px; border-radius:3px; font-family: Consolas, monospace; font-size:13px;">pds_nucleus_harvest_ecs_task_role-&lt;NODE&gt;</code> as Principal under the Read/Write rule.</li>
+  <li>Save.</li>
+</ol>
+
+<h2 style="margin-top: 32px; border-bottom: 1px solid #dfe1e6; padding-bottom: 4px;">Post-Deploy: User Setup</h2>
+<ol>
+  <li>Cognito &rarr; User pools &rarr; <code style="background:#f4f5f7; padding:1px 4px; border-radius:3px; font-family: Consolas, monospace; font-size:13px;">nucleus-dum-cognito-user-pool</code>.</li>
+  <li>Create user, verify email, generate password.</li>
+  <li>Add user to <code style="background:#f4f5f7; padding:1px 4px; border-radius:3px; font-family: Consolas, monospace; font-size:13px;">PDS_NUCLEUS_AIRFLOW_VIEWER</code> group.</li>
+</ol>
+
+<h2 style="margin-top: 32px; border-bottom: 1px solid #dfe1e6; padding-bottom: 4px;">Post-Deploy: Enable Airflow DAG</h2>
+<ol>
+  <li>AWS Console &rarr; Managed Apache Airflow (MWAA).</li>
+  <li>Open the <code style="background:#f4f5f7; padding:1px 4px; border-radius:3px; font-family: Consolas, monospace; font-size:13px;">PDS-Nucleus-Airflow-Env</code> environment &rarr; Open Airflow UI.</li>
+  <li>Enable the DAG if disabled.</li>
+</ol>
+
+<h2 style="margin-top: 32px; border-bottom: 1px solid #dfe1e6; padding-bottom: 4px;">Smoke Test</h2>
+<ol>
+  <li>Open the <code style="background:#f4f5f7; padding:1px 4px; border-radius:3px; font-family: Consolas, monospace; font-size:13px;">pds_nucleus_airflow_ui_url</code> output URL in Chrome.</li>
+  <li>Log in with the Cognito user created above.</li>
+  <li>Download SBN CSS test data.</li>
+  <li>Upload it to the staging bucket (via PDS Data Upload Manager, or directly).</li>
+  <li>Wait 2 minutes, check DAG progress in Airflow UI — all tasks should turn green.</li>
+</ol>
+
+<h2 style="margin-top: 32px; border-bottom: 1px solid #dfe1e6; padding-bottom: 4px;">Uninstall</h2>
+<ol>
+  <li>Copy the correct <code style="background:#f4f5f7; padding:1px 4px; border-radius:3px; font-family: Consolas, monospace; font-size:13px;">terraform.tfvars</code> into <code style="background:#f4f5f7; padding:1px 4px; border-radius:3px; font-family: Consolas, monospace; font-size:13px;">./terraform/terraform.tfvars</code>.</li>
+
+  <li><strong>Developer identity</strong> — destroy everything except IAM roles.
+<pre style="background:#f4f5f7; border:1px solid #dfe1e6; border-radius:3px; padding:10px 14px; overflow-x:auto; font-family: Consolas, 'Liberation Mono', Menlo, monospace; font-size:13px; white-space:pre-wrap;">terraform destroy</pre>
+  </li>
+
+  <li><strong>Admin identity</strong> — remove the IAM roles (developer identity can't do this).
+<pre style="background:#f4f5f7; border:1px solid #dfe1e6; border-radius:3px; padding:10px 14px; overflow-x:auto; font-family: Consolas, 'Liberation Mono', Menlo, monospace; font-size:13px; white-space:pre-wrap;">terraform destroy -target=module.iam</pre>
+  </li>
+</ol>
+
+</body>
+</html>
