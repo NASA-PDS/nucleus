@@ -15,6 +15,7 @@ ECS_CLUSTER_NAME = "${pds_nucleus_ecs_cluster_name}"
 ECS_LAUNCH_TYPE = "FARGATE"
 ECS_SUBNETS = ${pds_nucleus_ecs_subnets}
 ECS_SECURITY_GROUPS = ${pds_nucleus_ecs_security_groups}
+AWS_REGION = "${aws_region}"
 
 LAMBDA_FUNCTION_NAME = "pds_nucleus_product_processing_status_tracker"
 
@@ -109,6 +110,7 @@ config_init = EcsRunTaskOperator(
             }
         ]
     },
+    deferrable=True,
     dag=dag,
 )
 
@@ -134,6 +136,7 @@ config_s3_to_efs_copy = EcsRunTaskOperator(
             }
         ]
     },
+    deferrable=True,
     dag=dag,
 )
 
@@ -226,6 +229,13 @@ data_archive = EcsRunTaskOperator(
             }
         ]
     },
+    awslogs_group="/pds/ecs/pds-nucleus-s3-to-efs-copy-${pds_node_name}",
+    awslogs_stream_prefix="ecs/pds-nucleus-s3-to-efs-copy",
+    awslogs_region=AWS_REGION,
+    awslogs_fetch_interval=timedelta(seconds=1),
+    number_logs_exception=500,
+    deferrable=True,
+    waiter_delay=1,
     trigger_rule=TriggerRule.ALL_DONE,
     dag=dag,
 )
@@ -252,6 +262,7 @@ config_s3_to_efs_copy_cleanup = EcsRunTaskOperator(
             }
         ]
     },
+    deferrable=True,
     trigger_rule=TriggerRule.ALL_DONE,
     dag=dag,
 )
@@ -279,6 +290,7 @@ config_init_cleanup = EcsRunTaskOperator(
             }
         ]
     },
+    deferrable=True,
     trigger_rule=TriggerRule.ALL_DONE,
     dag=dag,
 )

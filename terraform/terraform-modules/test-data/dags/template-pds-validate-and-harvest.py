@@ -161,6 +161,8 @@ config_init = EcsRunTaskOperator(
     awslogs_region=AWS_REGION,
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,
+    deferrable=True,
+    waiter_delay=1,
     dag=dag,
 )
 
@@ -191,6 +193,8 @@ config_s3_to_efs_copy = EcsRunTaskOperator(
     awslogs_region=AWS_REGION,
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,
+    deferrable=True,
+    waiter_delay=1,
     dag=dag,
 )
 
@@ -226,6 +230,8 @@ validate = ValidateEcsRunTaskOperator(
     number_logs_exception=500,
     on_success_callback=validate_success,
     on_failure_callback=validate_failure,
+    deferrable=True,
+    waiter_delay=1,
     # No explicit retries override: ValidateEcsRunTaskOperator already
     # distinguishes real data-validation failures (no retry, fails fast)
     # from genuine infra failures (retried per the DAG-level default).
@@ -267,6 +273,8 @@ harvest = EcsRunTaskOperator(
     trigger_rule=TriggerRule.ALL_DONE,
     on_success_callback=harvest_success,
     on_failure_callback=harvest_failure,
+    deferrable=True,
+    waiter_delay=1,
     dag=dag,
 )
 
@@ -301,6 +309,8 @@ config_s3_to_efs_copy_cleanup = EcsRunTaskOperator(
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,
     trigger_rule=TriggerRule.ALL_DONE,
+    deferrable=True,
+    waiter_delay=1,
     dag=dag,
 )
 
@@ -333,6 +343,8 @@ config_init_cleanup = EcsRunTaskOperator(
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,
     trigger_rule=TriggerRule.ALL_DONE,
+    deferrable=True,
+    waiter_delay=1,
     dag=dag,
 )
 

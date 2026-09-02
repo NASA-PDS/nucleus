@@ -1,46 +1,42 @@
 #!/bin/bash
-# Exit on error, undefined var, or failed pipe; standard production guardrails
+# Exit on error, undefined var, or failed pipe; ensures safe script execution
 set -euo pipefail
 
-# Safe local cleanup — no sudo required
-trap 'echo "Build failed — cleaning up..."; rm -rf package' ERR
+PACKAGE_DIR="package"
 
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting Lambda package build..."
+trap 'echo "Build failed — cleaning up..."; rm -rf "$PACKAGE_DIR"' ERR
 
-# Navigate to the script's directory regardless of where it was invoked
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Building Lambda package..."
+
+# Move to script directory
 cd "$(dirname "$0")"
 
-# Wipe the old directory and zip file cleanly
-rm -rf package lambda_package.zip
-mkdir -p package
+# Clean old build, old zip, and create package folder
+rm -rf "$PACKAGE_DIR" lambda_package.zip
+mkdir -p "$PACKAGE_DIR"
 
-# Get the absolute physical path to guarantee volume mount stability across OS types
-ABS_PATH=$(pwd -P)
-
-# Run the AWS SAM Docker image natively. 
-# Explicitly matching current host user UID/GID solves permissions across Linux, macOS, and WSL.
+# Use AWS SAM build image for Python 3.13 (x86_64)
+# chmod inside the container (as root) so any host user can later rebuild/delete.
 docker run \
   --rm \
-  --user "$(id -u):$(id -g)" \
   --platform linux/amd64 \
-  --volume "${ABS_PATH}":/var/task \
+  --volume "$PWD":/var/task \
   --workdir /var/task \
-  --env HOME=/tmp \
   public.ecr.aws/sam/build-python3.13 \
-  pip install --no-cache-dir --requirement requirements.txt --target /var/task/package
+  bash -c "pip install --no-cache-dir --requirement requirements.txt --target /var/task/$PACKAGE_DIR && chmod -R a+rwX /var/task/$PACKAGE_DIR"
 
 # Copy the handler script into the newly populated package directory
-echo "Copying handler script..."
-cp pds_nucleus_alb_auth.py package/
+echo "Copying handler..."
+cp --verbose pds_nucleus_alb_auth.py "$PACKAGE_DIR/"
 
-# Final validation before packing
-if [[ ! -d "package" ]] || [[ -z "$(ls -A package)" ]]; then
-  echo "ERROR: Package directory is empty or missing after build phase." >&2
+# Validate that package directory exists and is not empty
+if [[ ! -d "$PACKAGE_DIR" ]] || [[ -z "$(ls -A "$PACKAGE_DIR")" ]]; then
+  echo 'ERROR: package directory is empty or missing.' >&2
   exit 1
 fi
 
-# Package into a deployment zip
-echo "Archiving dependencies into deployment package..."
-(cd package && zip -qr ../lambda_package.zip .)
+# Zip the Lambda package
+(cd "$PACKAGE_DIR" && zip -qr "../lambda_package.zip" .)
 
-echo "Lambda package successfully built at: ${ABS_PATH}/lambda_package.zip"
+# Build complete
+echo "Lambda package built successfully at $(pwd)/lambda_package.zip"
