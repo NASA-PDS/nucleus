@@ -16,16 +16,19 @@ rm -rf "$PACKAGE_DIR" lambda_package.zip
 mkdir -p "$PACKAGE_DIR"
 
 # Use AWS SAM build image for Python 3.13 (x86_64)
-# Explicitly matching current host user UID/GID solves permissions across Linux, macOS, and WSL.
+# The container writes as its default root user; only root can relax the
+# permissions on the files it just created, so do it inside the same
+# container invocation (chmod -R a+rwX) before it exits. This lets any host
+# user (WSL, macOS, or the EC2 deploy user) later read/rebuild/delete the
+# package dir, without depending on UID/GID mapping — which fails if the
+# host user doesn't own the mounted directory (e.g. on EC2).
 docker run \
   --rm \
-  --user "$(id -u):$(id -g)" \
   --platform linux/amd64 \
   --volume "$PWD":/var/task \
   --workdir /var/task \
-  --env HOME=/tmp \
   public.ecr.aws/sam/build-python3.13 \
-  pip install --no-cache-dir --requirement requirements.txt --target "/var/task/$PACKAGE_DIR"
+  bash -c "pip install --no-cache-dir --requirement requirements.txt --target /var/task/$PACKAGE_DIR && chmod -R a+rwX /var/task/$PACKAGE_DIR"
 
 # Copy the handler script into the newly populated package directory
 echo "Copying handler..."
