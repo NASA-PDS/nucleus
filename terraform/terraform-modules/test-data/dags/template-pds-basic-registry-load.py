@@ -234,6 +234,7 @@ data_archive = EcsRunTaskOperator(
     awslogs_region=AWS_REGION,
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,
+    deferrable=True,
     trigger_rule=TriggerRule.ALL_DONE,
     dag=dag,
 )
