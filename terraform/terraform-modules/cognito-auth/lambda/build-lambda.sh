@@ -11,25 +11,23 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] Building Lambda package..."
 # Move to script directory
 cd "$(dirname "$0")"
 
-# Clean old build, old zip, and create package folder
-rm -rf "$PACKAGE_DIR" lambda_package.zip
-mkdir -p "$PACKAGE_DIR"
+# Clean old build and create package folder
+rm -rf "$PACKAGE_DIR" && mkdir -p "$PACKAGE_DIR"
 
 # Use AWS SAM build image for Python 3.13 (x86_64)
-# Explicitly matching current host user UID/GID solves permissions across Linux, macOS, and WSL.
 docker run \
   --rm \
-  --user "$(id -u):$(id -g)" \
   --platform linux/amd64 \
   --volume "$PWD":/var/task \
   --workdir /var/task \
-  --env HOME=/tmp \
   public.ecr.aws/sam/build-python3.13 \
-  pip install --no-cache-dir --requirement requirements.txt --target "/var/task/$PACKAGE_DIR"
-
-# Copy the handler script into the newly populated package directory
-echo "Copying handler..."
-cp --verbose pds_nucleus_alb_auth.py "$PACKAGE_DIR/"
+  bash --login -c "
+    set -euo pipefail
+    echo 'Installing dependencies...'
+    pip install --requirement 'requirements.txt' --target '/var/task/$PACKAGE_DIR'
+    echo 'Copying handler...'
+    cp --verbose '/var/task/pds_nucleus_alb_auth.py' '/var/task/$PACKAGE_DIR/'
+  "
 
 # Validate that package directory exists and is not empty
 if [[ ! -d "$PACKAGE_DIR" ]] || [[ -z "$(ls -A "$PACKAGE_DIR")" ]]; then
