@@ -16,12 +16,7 @@ rm -rf "$PACKAGE_DIR" lambda_package.zip
 mkdir -p "$PACKAGE_DIR"
 
 # Use AWS SAM build image for Python 3.13 (x86_64)
-# The container writes as its default root user; only root can relax the
-# permissions on the files it just created, so do it inside the same
-# container invocation (chmod -R a+rwX) before it exits. This lets any host
-# user (WSL, macOS, or the EC2 deploy user) later read/rebuild/delete the
-# package dir, without depending on UID/GID mapping — which fails if the
-# host user doesn't own the mounted directory (e.g. on EC2).
+# chmod inside the container (as root) so any host user can later rebuild/delete.
 docker run \
   --rm \
   --platform linux/amd64 \
