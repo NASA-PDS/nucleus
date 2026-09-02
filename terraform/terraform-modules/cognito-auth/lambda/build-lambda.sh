@@ -11,8 +11,9 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] Building Lambda package..."
 # Move to script directory
 cd "$(dirname "$0")"
 
-# Clean old build and create package folder
-rm -rf "$PACKAGE_DIR" && mkdir -p "$PACKAGE_DIR"
+# Clean old build, old zip, and create package folder
+rm -rf "$PACKAGE_DIR" lambda_package.zip
+mkdir -p "$PACKAGE_DIR"
 
 # Use AWS SAM build image for Python 3.13 (x86_64)
 docker run \
