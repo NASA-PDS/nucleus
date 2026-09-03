@@ -237,7 +237,7 @@ data "aws_iam_policy_document" "ecs_task_role_inline_policy" {
       "arn:aws:s3:::${lower(replace(var.pds_node_names[count.index], "_", "-"))}-staging*/*",
       "arn:aws:s3:::${lower(replace(var.pds_node_names[count.index], "_", "-"))}-archive*",
       "arn:aws:s3:::${lower(replace(var.pds_node_names[count.index], "_", "-"))}-archive*/*",
-      "arn:aws:s3:::${lower(replace(var.pds_node_names[count.index], "_", "-"))}-config*/*"
+      "arn:aws:s3:::${lower(replace(var.pds_node_names[count.index], "_", "-"))}-conf*/*"
     ]
   }
 
@@ -260,7 +260,7 @@ data "aws_iam_policy_document" "ecs_task_role_inline_policy" {
     resources = [
       "arn:aws:s3:::${lower(replace(var.pds_node_names[count.index], "_", "-"))}-archive*",
       "arn:aws:s3:::${lower(replace(var.pds_node_names[count.index], "_", "-"))}-archive*/*",
-      "arn:aws:s3:::${lower(replace(var.pds_node_names[count.index], "_", "-"))}-config*/*",
+      "arn:aws:s3:::${lower(replace(var.pds_node_names[count.index], "_", "-"))}-conf*/*",
     ]
   }
 
@@ -643,8 +643,8 @@ data "aws_iam_policy_document" "mwaa_inline_policy" {
       "s3:List*"
     ]
     resources = [
-      "arn:aws:s3:::pds-*-config*",
-      "arn:aws:s3:::pds-*-config*/*"
+      "arn:aws:s3:::pds-*-conf*",
+      "arn:aws:s3:::pds-*-conf*/*"
     ]
   }
 
@@ -777,7 +777,7 @@ data "aws_iam_policy_document" "lambda_inline_policy" {
       "s3:PutObject"
     ]
     resources = [
-      "arn:aws:s3:::${lower(replace(var.pds_node_names[count.index], "_", "-"))}-config*/*",
+      "arn:aws:s3:::${lower(replace(var.pds_node_names[count.index], "_", "-"))}-conf*/*",
     ]
   }
 
