@@ -47,14 +47,12 @@ def lambda_handler(event, context):
         drop_product_table(db_name)
         drop_datafile_table(db_name)
         drop_product_datafile_mapping_table(db_name)
-        drop_product_processing_status_table(db_name)
         drop_product_archive_table(db_name)
         drop_product_datafile_mapping_archive_table(db_name)
 
         create_product_table(db_name)
         create_datafile_table(db_name)
         create_product_datafile_mapping_table(db_name)
-        create_product_processing_status_table(db_name)
         create_product_archive_table(db_name)
         create_product_datafile_mapping_archive_table(db_name)
 
@@ -140,27 +138,6 @@ def create_product_datafile_mapping_table(db_name):
     """
     response = _execute(sql, db_name)
     logger.debug(f"create_product_datafile_mapping_table: {str(response)}")
-
-
-def drop_product_processing_status_table(db_name):
-    response = _execute("DROP TABLE IF EXISTS product_processing_status;", db_name)
-    logger.debug(f"drop_product_processing_status_table: {str(response)}")
-
-
-def create_product_processing_status_table(db_name):
-    sql = """
-        CREATE TABLE product_processing_status
-        (
-            s3_url_of_product_label VARCHAR(1500) CHARACTER SET latin1,
-            processing_status       VARCHAR(50),
-            last_updated_epoch_time BIGINT,
-            pds_node                VARCHAR(10),
-            batch_number            VARCHAR(100),
-            PRIMARY KEY (s3_url_of_product_label)
-        );
-    """
-    response = _execute(sql, db_name)
-    logger.debug(f"create_product_processing_status_table: {str(response)}")
 
 
 def drop_product_archive_table(db_name):

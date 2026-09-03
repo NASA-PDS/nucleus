@@ -678,15 +678,6 @@ data "aws_iam_policy_document" "mwaa_inline_policy" {
     ]
   }
 
-  statement {
-    effect = "Allow"
-    actions = [
-      "lambda:InvokeFunction"
-    ]
-    resources = [
-      "arn:aws:lambda:${var.region}:${data.aws_caller_identity.current.account_id}:function:pds_nucleus_product_processing_status_tracker"
-    ]
-  }
 }
 
 resource "aws_iam_role" "pds_nucleus_mwaa_execution_role" {
