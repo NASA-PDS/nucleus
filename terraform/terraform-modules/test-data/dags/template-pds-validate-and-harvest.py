@@ -2,7 +2,6 @@
 # Same as pds-basic-registry-load-use-case but without the Data_Archive task.
 
 import boto3
-import json
 from airflow import DAG
 from airflow.decorators import task
 from airflow.exceptions import AirflowFailException
@@ -56,33 +55,14 @@ ECS_SUBNETS         = ${pds_nucleus_ecs_subnets}
 ECS_SECURITY_GROUPS = ${pds_nucleus_ecs_security_groups}
 AWS_REGION          = "${aws_region}"
 
-LAMBDA_FUNCTION_NAME = "pds_nucleus_product_processing_status_tracker"
-
 # -------------------------------------------------------------------
-# Status callbacks
+# Read the batch's product list (used below for the XCom-visible task)
 # -------------------------------------------------------------------
 def _read_product_list(s3_config_dir):
     bucket = s3_config_dir.replace("s3://", "").split("/")[0]
     key = "/".join(s3_config_dir.replace("s3://", "").split("/")[1:] + ["product_list.txt"])
     body = boto3.client("s3").get_object(Bucket=bucket, Key=key)["Body"].read()
     return [line for line in body.decode("utf-8").splitlines() if line]
-
-def _invoke_status_lambda(context, status):
-    boto3.client("lambda").invoke(
-        FunctionName=LAMBDA_FUNCTION_NAME,
-        InvocationType="Event",
-        Payload=json.dumps({
-            "productsList":     _read_product_list(context["dag_run"].conf["s3_config_dir"]),
-            "pdsNode":          context["dag_run"].conf["pds_node_name"],
-            "processingStatus": status,
-            "batchNumber":      context["dag_run"].conf["batch_number"],
-        }),
-    )
-
-def validate_success(context): _invoke_status_lambda(context, "validate_successful")
-def validate_failure(context): _invoke_status_lambda(context, "validate_failed")
-def harvest_success(context):  _invoke_status_lambda(context, "harvest_successful")
-def harvest_failure(context):  _invoke_status_lambda(context, "harvest_failed")
 
 # -------------------------------------------------------------------
 # DAG definition
@@ -228,8 +208,6 @@ validate = ValidateEcsRunTaskOperator(
     awslogs_region=AWS_REGION,
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,
-    on_success_callback=validate_success,
-    on_failure_callback=validate_failure,
     deferrable=True,
     waiter_delay=1,
     # No explicit retries override: ValidateEcsRunTaskOperator already
@@ -271,8 +249,6 @@ harvest = EcsRunTaskOperator(
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,
     trigger_rule=TriggerRule.ALL_DONE,
-    on_success_callback=harvest_success,
-    on_failure_callback=harvest_failure,
     deferrable=True,
     waiter_delay=1,
     dag=dag,
