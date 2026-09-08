@@ -1,5 +1,18 @@
 # Terraform script to setup the PDS Product Copy Completion Checker
 
+# Node-scoped lookup maps, keyed by node name. These reference config that is
+# shared across all data sources of a node (IAM role, DB, OpenSearch, harvest
+# prefixes, archive bucket) WITHOUT creating/modifying any IAM resources —
+# pds_nucleus_lambda_execution_role_arns still comes from the existing IAM
+# module output, indexed by the untouched var.pds_node_names order.
+locals {
+  node_role_arn_map = zipmap(var.pds_node_names, var.pds_nucleus_lambda_execution_role_arns)
+  node_archive_bucket_map = zipmap(var.pds_node_names, var.pds_archive_bucket_names)
+  node_opensearch_registry_map = zipmap(var.pds_node_names, var.pds_nucleus_opensearch_registry_names)
+  # Populated below, after the data.aws_s3_bucket.pds_nucleus_s3_staging_bucket data source is declared.
+  node_staging_bucket_arn_map = zipmap(var.pds_node_names, data.aws_s3_bucket.pds_nucleus_s3_staging_bucket[*].arn)
+}
+
 resource "random_password" "pds_nucleus_rds_password" {
   length  = 16
   special = false
@@ -122,14 +135,15 @@ resource "aws_lambda_function" "pds_nucleus_init_function" {
 }
 
 resource "aws_s3_bucket" "pds_nucleus_s3_config_bucket" {
-  count         = length(var.pds_node_names)
-  bucket        = "${lower(replace(var.pds_node_names[count.index], "_", "-"))}-${var.pds_nucleus_config_bucket_name_postfix}"
+  count         = length(var.pds_data_source_names)
+  bucket        = "${lower(replace(var.pds_data_source_node_names[count.index], "_", "-"))}-${lower(replace(var.pds_data_source_names[count.index], "_", "-"))}-${var.pds_nucleus_config_bucket_name_postfix}"
   force_destroy = true
   
   tags = var.tags
 }
 
-# This data source is added to access existing S3 buckets, bcause an S3 staging bucket is already available in MCP Prod environment.
+# This data source is added to access existing S3 buckets, because an S3 staging bucket is already available in MCP Prod environment.
+# Staging bucket stays per-node (NOT per data source, because data sources can be backlog locations too)
 data "aws_s3_bucket" "pds_nucleus_s3_staging_bucket" {
   count  = length(var.pds_node_names)
   bucket = "${lower(replace(var.pds_node_names[count.index], "_", "-"))}-${var.pds_nucleus_staging_bucket_name_postfix}"
@@ -159,13 +173,13 @@ data "aws_s3_bucket" "pds_nucleus_s3_staging_bucket" {
 # }
 
 
-# Create pds_nucleus_s3_file_file_event_processor_function for each PDS Node
+# Create pds_nucleus_s3_file_file_event_processor_function for each data source (IAM role shared per node via local.node_role_arn_map — no IAM created/modified here)
 resource "aws_lambda_function" "pds_nucleus_s3_file_file_event_processor_function" {
-  count            = length(var.pds_node_names)
-  function_name    = "pds_nucleus_s3_file_event_processor-${var.pds_node_names[count.index]}"
+  count            = length(var.pds_data_source_names)
+  function_name    = "pds_nucleus_s3_file_event_processor-${var.pds_data_source_node_names[count.index]}-${var.pds_data_source_names[count.index]}"
   filename         = "${path.module}/lambda/pds-nucleus-s3-file-event-processor.zip"
   source_code_hash = data.archive_file.pds_nucleus_s3_file_file_event_processor_function_zip.output_base64sha256
-  role             = var.pds_nucleus_lambda_execution_role_arns[count.index]
+  role             = local.node_role_arn_map[var.pds_data_source_node_names[count.index]]
   runtime          = var.lambda_runtime
   handler          = "pds-nucleus-s3-file-event-processor.lambda_handler"
   timeout          = 300
@@ -175,18 +189,19 @@ resource "aws_lambda_function" "pds_nucleus_s3_file_file_event_processor_functio
     variables = {
       DB_CLUSTER_ARN = aws_rds_cluster.default.arn
       DB_SECRET_ARN  = aws_secretsmanager_secret.pds_nucleus_rds_credentials.arn
-      DB_NAME        = "pds_nucleus_${lower(var.pds_node_names[count.index])}"
+      DB_NAME        = "pds_nucleus_${lower(var.pds_data_source_node_names[count.index])}"
       EFS_MOUNT_PATH = "/mnt/data/"
-      PDS_NODE_NAME  = var.pds_node_names[count.index]
+      PDS_NODE_NAME  = var.pds_data_source_node_names[count.index]
+      PDS_DATA_SOURCE_NAME = var.pds_data_source_names[count.index]
     }
   }
 
   tags = var.tags
 }
 
-# Create SQS queue event source for pds_nucleus_s3_file_file_event_processor_function for each PDS Node
+# Create SQS queue event source for pds_nucleus_s3_file_file_event_processor_function for each data source
 resource "aws_lambda_event_source_mapping" "event_source_mapping" {
-  count                    = length(var.pds_node_names)
+  count                    = length(var.pds_data_source_names)
   event_source_arn         = aws_sqs_queue.pds_nucleus_files_to_save_in_database_sqs_queue[count.index].arn
   enabled                  = true
   function_name            = aws_lambda_function.pds_nucleus_s3_file_file_event_processor_function[count.index].function_name
@@ -194,13 +209,13 @@ resource "aws_lambda_event_source_mapping" "event_source_mapping" {
   function_response_types  = ["ReportBatchItemFailures"]
 }
 
-# Create pds_nucleus_product_completion_checker_function for each PDS Node
+# Create pds_nucleus_product_completion_checker_function for each data source (IAM role/DB/OpenSearch/archive bucket shared per node — no IAM created/modified here)
 resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function" {
-  count            = length(var.pds_node_names)
-  function_name    = "pds-nucleus-product-completion-checker-${var.pds_node_names[count.index]}"
+  count            = length(var.pds_data_source_names)
+  function_name    = "pds-nucleus-product-completion-checker-${var.pds_data_source_node_names[count.index]}-${var.pds_data_source_names[count.index]}"
   filename         = "${path.module}/lambda/pds_nucleus_product_completion_checker.zip"
   source_code_hash = data.archive_file.pds_nucleus_product_completion_checker_zip.output_base64sha256
-  role             = var.pds_nucleus_lambda_execution_role_arns[count.index]
+  role             = local.node_role_arn_map[var.pds_data_source_node_names[count.index]]
   runtime          = var.lambda_runtime
   handler          = "pds-nucleus-product-completion-checker.lambda_handler"
   timeout          = 300
@@ -208,21 +223,22 @@ resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function"
 
   environment {
     variables = {
-      AIRFLOW_DAG_NAME                   = "${var.pds_node_names[count.index]}-${var.pds_nucleus_default_airflow_dag_id}"
+      AIRFLOW_DAG_NAME                   = "${var.pds_data_source_node_names[count.index]}-${var.pds_nucleus_default_airflow_dag_id}"
       DB_CLUSTER_ARN                     = aws_rds_cluster.default.arn
       DB_SECRET_ARN                      = aws_secretsmanager_secret.pds_nucleus_rds_credentials.arn
-      DB_NAME                            = "pds_nucleus_${lower(var.pds_node_names[count.index])}"
+      DB_NAME                            = "pds_nucleus_${lower(var.pds_data_source_node_names[count.index])}"
       EFS_MOUNT_PATH                     = "/mnt/data"
       ES_AUTH_CONFIG_FILE_PATH           = "/etc/es-auth.cfg"
       OPENSEARCH_ENDPOINT                = var.pds_nucleus_opensearch_url
-      OPENSEARCH_REGISTRY_NAME           = var.pds_nucleus_opensearch_registry_names[count.index]
+      OPENSEARCH_REGISTRY_NAME           = local.node_opensearch_registry_map[var.pds_data_source_node_names[count.index]]
       OPENSEARCH_CREDENTIAL_RELATIVE_URL = var.pds_nucleus_opensearch_credential_relative_url
-      PDS_NODE_NAME                      = var.pds_node_names[count.index]
-      PDS_NUCLEUS_CONFIG_BUCKET_NAME     = "${lower(replace(var.pds_node_names[count.index], "_", "-"))}-${var.pds_nucleus_config_bucket_name_postfix}"
+      PDS_NODE_NAME                      = var.pds_data_source_node_names[count.index]
+      PDS_DATA_SOURCE_NAME               = var.pds_data_source_names[count.index]
+      PDS_NUCLEUS_CONFIG_BUCKET_NAME     = "${lower(replace(var.pds_data_source_node_names[count.index], "_", "-"))}-${lower(replace(var.pds_data_source_names[count.index], "_", "-"))}-${var.pds_nucleus_config_bucket_name_postfix}"
       REPLACE_PREFIX_WITH                = var.pds_nucleus_harvest_replace_prefix_with_list[count.index]
       HARVEST_REPLACE_PREFIX             = var.pds_nucleus_harvest_replace_prefix_list[count.index]
       PDS_MWAA_ENV_NAME                  = var.airflow_env_name
-      PDS_HOT_ARCHIVE_S3_BUCKET_NAME     = var.pds_archive_bucket_names[count.index]
+      PDS_HOT_ARCHIVE_S3_BUCKET_NAME     = local.node_archive_bucket_map[var.pds_data_source_node_names[count.index]]
       PRODUCT_BATCH_SIZE                 = var.product_batch_size
     }
   }
@@ -239,37 +255,37 @@ resource "aws_cloudwatch_event_rule" "every_one_minute" {
 }
 
 resource "aws_cloudwatch_event_target" "check_product_completion_event_target" {
-  count = length(var.pds_node_names)
+  count = length(var.pds_data_source_names)
 
   rule      = aws_cloudwatch_event_rule.every_one_minute.name
-  target_id = "pds-nucleus-check-product-completion-event-target-${var.pds_node_names[count.index]}"
+  target_id = "pds-nucleus-check-product-completion-event-target-${var.pds_data_source_node_names[count.index]}-${var.pds_data_source_names[count.index]}"
   arn       = aws_lambda_function.pds_nucleus_product_completion_checker_function[count.index].arn
 }
 
 resource "aws_lambda_permission" "allow_cloudwatch_to_call_product_completion_checker_function" {
-  count = length(var.pds_node_names)
+  count = length(var.pds_data_source_names)
 
-  statement_id  = "AllowExecutionFromCloudWatch-${var.pds_node_names[count.index]}"
+  statement_id  = "AllowExecutionFromCloudWatch-${var.pds_data_source_node_names[count.index]}-${var.pds_data_source_names[count.index]}"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.pds_nucleus_product_completion_checker_function[count.index].function_name
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.every_one_minute.arn
 }
 
-# Apply lambda permissions for each pds_nucleus_s3_file_file_event_processor_function of each Node
+# Apply lambda permissions for each pds_nucleus_s3_file_file_event_processor_function of each data source
 resource "aws_lambda_permission" "s3-lambda-permission" {
-  count         = length(var.pds_node_names)
-  statement_id  = "AllowExecutionFromS3Bucket-${var.pds_node_names[count.index]}"
+  count         = length(var.pds_data_source_names)
+  statement_id  = "AllowExecutionFromS3Bucket-${var.pds_data_source_node_names[count.index]}-${var.pds_data_source_names[count.index]}"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.pds_nucleus_s3_file_file_event_processor_function[count.index].function_name
   principal     = "s3.amazonaws.com"
-  source_arn    = data.aws_s3_bucket.pds_nucleus_s3_staging_bucket[count.index].arn
+  source_arn    = local.node_staging_bucket_arn_map[var.pds_data_source_node_names[count.index]]
 }
 
-# Create an SQS queue to receive S3 bucket notifications for each s3 bucket of each Node
+# Create an SQS queue to receive S3 bucket notifications for each s3 bucket of each data source
 resource "aws_sqs_queue" "pds_nucleus_files_to_save_in_database_sqs_queue" {
-  count                      = length(var.pds_node_names)
-  name                       = "pds-nucleus-files-to-save-in-database-${var.pds_node_names[count.index]}"
+  count                      = length(var.pds_data_source_names)
+  name                       = "pds-nucleus-files-to-save-in-database-${var.pds_data_source_node_names[count.index]}-${var.pds_data_source_names[count.index]}"
   delay_seconds              = 0
   visibility_timeout_seconds = 300
   message_retention_seconds  = 345600
@@ -279,9 +295,9 @@ resource "aws_sqs_queue" "pds_nucleus_files_to_save_in_database_sqs_queue" {
   tags = var.tags
 }
 
-# Create an SQS policy document for SQS queue of each Node
+# Create an SQS policy document for SQS queue of each data source
 data "aws_iam_policy_document" "pds_nucleus_files_to_save_in_database_sqs_queue_policy_document" {
-  count = length(var.pds_node_names)
+  count = length(var.pds_data_source_names)
 
   statement {
     effect = "Allow"
@@ -297,14 +313,14 @@ data "aws_iam_policy_document" "pds_nucleus_files_to_save_in_database_sqs_queue_
     condition {
       test     = "StringEquals"
       variable = "aws:SourceArn"
-      values   = [data.aws_s3_bucket.pds_nucleus_s3_staging_bucket[count.index].arn]
+      values   = [local.node_staging_bucket_arn_map[var.pds_data_source_node_names[count.index]]]
     }
   }
 }
 
-# Create an SQS policy for SQS queue of each Node
+# Create an SQS policy for SQS queue of each data source
 resource "aws_sqs_queue_policy" "pds_nucleus_files_to_save_in_database_sqs_queue_policy" {
-  count     = length(var.pds_node_names)
+  count     = length(var.pds_data_source_names)
   queue_url = aws_sqs_queue.pds_nucleus_files_to_save_in_database_sqs_queue[count.index].url
   policy    = data.aws_iam_policy_document.pds_nucleus_files_to_save_in_database_sqs_queue_policy_document[count.index].json
 }

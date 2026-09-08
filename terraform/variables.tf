@@ -79,9 +79,19 @@ variable "pds_shared_logs_bucket_name" {
 }
 
 variable "pds_node_names" {
-  description = "List of PDS Node Names"
+  description = "List of unique PDS Node Names. Drives IAM role creation (module.iam) — DO NOT change ordering/length without coordinating with the IAM module."
   type        = list(string)
   sensitive   = true
+}
+
+variable "pds_data_source_names" {
+  description = "List of data source identifiers, one entry per data source (e.g. 'lroc', 'diviner'). A single PDS node can have multiple data sources, each getting its own S3 config bucket/SQS queue/Lambda pair, while sharing the node's IAM role and staging bucket."
+  type        = list(string)
+}
+
+variable "pds_data_source_node_names" {
+  description = "PDS node name for each data source, parallel array to pds_data_source_names (index i is the node that data source i belongs to)."
+  type        = list(string)
 }
 
 variable "pds_archive_bucket_names" {
@@ -122,18 +132,23 @@ variable "pds_nucleus_opensearch_collection_arns" {
 }
 
 variable "pds_nucleus_harvest_replace_prefix_with_list" {
-  description = "List of PDS Nucleus Harvest Replace Prefix With"
+  description = "List of PDS Nucleus Harvest Replace Prefix With, one entry per data source (parallel to pds_data_source_names)"
   type        = list(string)
   default     = ["s3://pds-nucleus-staging-sbn", "s3://pds-nucleus-staging-img"]
+
+  validation {
+    condition     = length(var.pds_nucleus_harvest_replace_prefix_with_list) == length(var.pds_data_source_names)
+    error_message = "pds_nucleus_harvest_replace_prefix_with_list must have exactly one entry per pds_data_source_names entry."
+  }
 }
 
 variable "pds_nucleus_harvest_replace_prefix_list" {
-  description = "List of EFS path prefixes to replace in harvest config, one per PDS node (e.g. /mnt/data/pds-img-staging-dev/lroc). Required: must have one entry per pds_node_names entry, or the product-copy-completion-checker Lambda will fail with an index-out-of-range error at apply/runtime."
+  description = "List of EFS path prefixes to replace in harvest config, one per data source (e.g. /mnt/data/pds-img-staging-dev/lroc). Required: must have one entry per pds_data_source_names entry, or the product-copy-completion-checker Lambda will fail with an index-out-of-range error at apply/runtime."
   type        = list(string)
 
   validation {
-    condition     = length(var.pds_nucleus_harvest_replace_prefix_list) == length(var.pds_node_names)
-    error_message = "pds_nucleus_harvest_replace_prefix_list must have exactly one entry per pds_node_names entry."
+    condition     = length(var.pds_nucleus_harvest_replace_prefix_list) == length(var.pds_data_source_names)
+    error_message = "pds_nucleus_harvest_replace_prefix_list must have exactly one entry per pds_data_source_names entry."
   }
 }
 
