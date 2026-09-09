@@ -49,6 +49,7 @@ if not logger.handlers:
 # -------------------------------------------------------------------
 DAG_NAME = os.environ["AIRFLOW_DAG_NAME"]
 PDS_NODE = os.environ["PDS_NODE_NAME"]
+PDS_DATA_SOURCE = os.environ["PDS_DATA_SOURCE_NAME"]
 DB_CLUSTER_ARN = os.environ["DB_CLUSTER_ARN"]
 DB_SECRET_ARN = os.environ["DB_SECRET_ARN"]
 DB_NAME = os.environ["DB_NAME"]
@@ -124,8 +125,10 @@ def lambda_handler(event, context):
             break
 
         batch          = generate_batch_name()
-        s3_config_dir  = f"{S3_PREFIX}{CONFIG_BUCKET}/dag-data/{batch}"
-        efs_config_dir = f"{EFS_MOUNT}/dag-data/{batch}"
+        # CONFIG_BUCKET is shared per node (not per data source) to keep the original IAM S3
+        # resource pattern intact, so data sources are isolated by key prefix instead.
+        s3_config_dir  = f"{S3_PREFIX}{CONFIG_BUCKET}/dag-data/{PDS_DATA_SOURCE}/{batch}"
+        efs_config_dir = f"{EFS_MOUNT}/dag-data/{PDS_DATA_SOURCE}/{batch}"
 
         logger.info(f"Preparing batch {batch} ({len(products)} products) claim={claim_id}")
 

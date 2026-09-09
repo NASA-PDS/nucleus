@@ -78,6 +78,16 @@ dag = DAG(
         "retry_exponential_backoff": True,
         "max_retry_delay": timedelta(minutes=15),
     },
+    params={
+        # Extra CLI switches for the `harvest` command (e.g. "-O -f").
+        # Shows up as an editable field in the Airflow UI's "Trigger DAG w/ config" form.
+        # Some supported harvest flags (see harvest -h):
+        #   -O, --overwrite       Overwrite registered products
+        #   -f, --force           Force load products even when namespace schema or attribute
+        #                         type cannot be resolved. Affected fields will not be indexed.
+        #   -a, --archive-status  Set the archive status for all products defaulting to staged
+        "harvest_extra_args": "",
+    },
 )
 
 # -------------------------------------------------------------------
@@ -238,7 +248,13 @@ harvest = EcsRunTaskOperator(
                     {
                         "name": "HARVEST_CFG",
                         "value": "{{ dag_run.conf['efs_config_dir'] }}/harvest.cfg",
-                    }
+                    },
+                    {
+                        # Extra CLI switches for the `harvest` command, editable via the DAG's
+                        # "harvest_extra_args" param (Trigger DAG w/ config UI) or dag_run.conf.
+                        "name": "HARVEST_EXTRA_ARGS",
+                        "value": "{{ params.harvest_extra_args }}",
+                    },
                 ],
             }
         ]

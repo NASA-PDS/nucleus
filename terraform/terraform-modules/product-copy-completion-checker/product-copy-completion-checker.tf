@@ -11,6 +11,9 @@ locals {
   node_opensearch_registry_map = zipmap(var.pds_node_names, var.pds_nucleus_opensearch_registry_names)
   # Populated below, after the data.aws_s3_bucket.pds_nucleus_s3_staging_bucket data source is declared.
   node_staging_bucket_arn_map = zipmap(var.pds_node_names, data.aws_s3_bucket.pds_nucleus_s3_staging_bucket[*].arn)
+  # Populated below, after aws_s3_bucket.pds_nucleus_s3_config_bucket is declared. Config bucket is
+  # shared per node (not per data source) to keep the original IAM S3 resource pattern intact.
+  node_config_bucket_name_map = zipmap(var.pds_node_names, aws_s3_bucket.pds_nucleus_s3_config_bucket[*].bucket)
 }
 
 resource "random_password" "pds_nucleus_rds_password" {
@@ -134,9 +137,12 @@ resource "aws_lambda_function" "pds_nucleus_init_function" {
   tags = var.tags
 }
 
+# Config bucket stays per-node (shared, matches original IAM S3 resource pattern "${node}-conf*") —
+# data sources are isolated via an S3 key prefix ("dag-data/<data_source>/<batch>") instead of a
+# separate bucket, so no IAM policy changes are needed for per-data-source access.
 resource "aws_s3_bucket" "pds_nucleus_s3_config_bucket" {
-  count         = length(var.pds_data_source_names)
-  bucket        = "${lower(replace(var.pds_data_source_node_names[count.index], "_", "-"))}-${lower(replace(var.pds_data_source_names[count.index], "_", "-"))}-${var.pds_nucleus_config_bucket_name_postfix}"
+  count         = length(var.pds_node_names)
+  bucket        = "${lower(replace(var.pds_node_names[count.index], "_", "-"))}-${var.pds_nucleus_config_bucket_name_postfix}"
   force_destroy = true
   
   tags = var.tags
@@ -234,7 +240,7 @@ resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function"
       OPENSEARCH_CREDENTIAL_RELATIVE_URL = var.pds_nucleus_opensearch_credential_relative_url
       PDS_NODE_NAME                      = var.pds_data_source_node_names[count.index]
       PDS_DATA_SOURCE_NAME               = var.pds_data_source_names[count.index]
-      PDS_NUCLEUS_CONFIG_BUCKET_NAME     = "${lower(replace(var.pds_data_source_node_names[count.index], "_", "-"))}-${lower(replace(var.pds_data_source_names[count.index], "_", "-"))}-${var.pds_nucleus_config_bucket_name_postfix}"
+      PDS_NUCLEUS_CONFIG_BUCKET_NAME     = local.node_config_bucket_name_map[var.pds_data_source_node_names[count.index]]
       REPLACE_PREFIX_WITH                = var.pds_nucleus_harvest_replace_prefix_with_list[count.index]
       HARVEST_REPLACE_PREFIX             = var.pds_nucleus_harvest_replace_prefix_list[count.index]
       PDS_MWAA_ENV_NAME                  = var.airflow_env_name
@@ -289,7 +295,9 @@ resource "aws_lambda_permission" "s3-lambda-permission" {
 # Create an SQS queue to receive S3 bucket notifications for each s3 bucket of each data source
 resource "aws_sqs_queue" "pds_nucleus_files_to_save_in_database_sqs_queue" {
   count                      = length(var.pds_data_source_names)
-  name                       = "pds-nucleus-files-to-save-in-database-${var.pds_data_source_node_names[count.index]}-${var.pds_data_source_names[count.index]}"
+  # Queue name ends with the node name (data source placed before it) to match the existing
+  # ECS task role IAM SQS resource pattern "pds-nucleus-*-<node>" without any IAM changes.
+  name                       = "pds-nucleus-files-to-save-in-database-${var.pds_data_source_names[count.index]}-${var.pds_data_source_node_names[count.index]}"
   delay_seconds              = 0
   visibility_timeout_seconds = 300
   message_retention_seconds  = 345600
