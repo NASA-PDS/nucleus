@@ -154,6 +154,8 @@ module "test-data" {
   pds_nucleus_default_airflow_dag_id      = var.pds_nucleus_default_airflow_dag_id
   pds_nucleus_s3_backlog_processor_dag_id = var.pds_nucleus_s3_backlog_processor_dag_id
   pds_node_names                          = var.pds_node_names
+  pds_data_source_names                   = var.pds_data_source_names
+  pds_data_source_node_names              = var.pds_data_source_node_names
   region                                  = var.region
   tags                                    = local.default_tags
 

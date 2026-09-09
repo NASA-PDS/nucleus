@@ -189,9 +189,9 @@ resource "aws_lambda_function" "pds_nucleus_s3_file_file_event_processor_functio
     variables = {
       DB_CLUSTER_ARN = aws_rds_cluster.default.arn
       DB_SECRET_ARN  = aws_secretsmanager_secret.pds_nucleus_rds_credentials.arn
-      DB_NAME        = "pds_nucleus_${lower(var.pds_data_source_node_names[count.index])}"
-      EFS_MOUNT_PATH = "/mnt/data/"
-      PDS_NODE_NAME  = var.pds_data_source_node_names[count.index]
+      DB_NAME              = "pds_nucleus_${lower(var.pds_data_source_node_names[count.index])}_${lower(var.pds_data_source_names[count.index])}"
+      EFS_MOUNT_PATH       = "/mnt/data/"
+      PDS_NODE_NAME        = var.pds_data_source_node_names[count.index]
       PDS_DATA_SOURCE_NAME = var.pds_data_source_names[count.index]
     }
   }
@@ -223,10 +223,10 @@ resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function"
 
   environment {
     variables = {
-      AIRFLOW_DAG_NAME                   = "${var.pds_data_source_node_names[count.index]}-${var.pds_nucleus_default_airflow_dag_id}"
+      AIRFLOW_DAG_NAME                   = "${var.pds_data_source_node_names[count.index]}_${var.pds_data_source_names[count.index]}-${var.pds_nucleus_default_airflow_dag_id}"
       DB_CLUSTER_ARN                     = aws_rds_cluster.default.arn
       DB_SECRET_ARN                      = aws_secretsmanager_secret.pds_nucleus_rds_credentials.arn
-      DB_NAME                            = "pds_nucleus_${lower(var.pds_data_source_node_names[count.index])}"
+      DB_NAME                            = "pds_nucleus_${lower(var.pds_data_source_node_names[count.index])}_${lower(var.pds_data_source_names[count.index])}"
       EFS_MOUNT_PATH                     = "/mnt/data"
       ES_AUTH_CONFIG_FILE_PATH           = "/etc/es-auth.cfg"
       OPENSEARCH_ENDPOINT                = var.pds_nucleus_opensearch_url
@@ -246,19 +246,23 @@ resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function"
   tags = var.tags
 }
 
+# One EventBridge scheduled rule per data source (not shared), so each data source's completion checker runs on its own rule.
 resource "aws_cloudwatch_event_rule" "every_one_minute" {
-  name                = "pds-nucleus-every-one-minutes"
-  description         = "Fires every one minute"
+  count               = length(var.pds_data_source_names)
+  name                = "pds-nucleus-every-one-minute-${var.pds_data_source_node_names[count.index]}-${var.pds_data_source_names[count.index]}"
+  description         = "Fires every one minute for ${var.pds_data_source_node_names[count.index]} - ${var.pds_data_source_names[count.index]}"
   schedule_expression = "rate(1 minute)"
-  
+  state               = "DISABLED"
+
   tags = var.tags
 }
 
 resource "aws_cloudwatch_event_target" "check_product_completion_event_target" {
   count = length(var.pds_data_source_names)
 
-  rule      = aws_cloudwatch_event_rule.every_one_minute.name
-  target_id = "pds-nucleus-check-product-completion-event-target-${var.pds_data_source_node_names[count.index]}-${var.pds_data_source_names[count.index]}"
+  rule      = aws_cloudwatch_event_rule.every_one_minute[count.index].name
+  # target_id has a 64-character AWS limit — use a short prefix instead of the full descriptive name.
+  target_id = "pds-nucleus-pcc-${var.pds_data_source_node_names[count.index]}-${var.pds_data_source_names[count.index]}"
   arn       = aws_lambda_function.pds_nucleus_product_completion_checker_function[count.index].arn
 }
 
@@ -269,7 +273,7 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_call_product_completion_ch
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.pds_nucleus_product_completion_checker_function[count.index].function_name
   principal     = "events.amazonaws.com"
-  source_arn    = aws_cloudwatch_event_rule.every_one_minute.arn
+  source_arn    = aws_cloudwatch_event_rule.every_one_minute[count.index].arn
 }
 
 # Apply lambda permissions for each pds_nucleus_s3_file_file_event_processor_function of each data source
@@ -332,10 +336,13 @@ resource "time_sleep" "wait_for_database" {
 }
 
 resource "aws_lambda_invocation" "invoke_pds_nucleus_init_function" {
-  count         = length(var.pds_node_names)
+  count         = length(var.pds_data_source_names)
   function_name = aws_lambda_function.pds_nucleus_init_function.function_name
 
-  input = jsonencode({ pds_node_name = var.pds_node_names[count.index] })
+  input = jsonencode({
+    pds_node_name         = var.pds_data_source_node_names[count.index]
+    pds_data_source_name  = var.pds_data_source_names[count.index]
+  })
 
   lifecycle {
     replace_triggered_by = [

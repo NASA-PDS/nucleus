@@ -68,9 +68,19 @@ variable "pds_nucleus_default_airflow_dag_id" {
 }
 
 variable "pds_node_names" {
-  description = "List of PDS Node Names"
+  description = "List of unique PDS Node Names"
   type        = list(string)
   sensitive   = true
+}
+
+variable "pds_data_source_names" {
+  description = "List of data source identifiers, one entry per data source (e.g. 'lroc', 'diviner'). Each data source gets its own DAG (dag_id/file/S3 key), while the DAG's ECS task definitions remain per-node."
+  type        = list(string)
+}
+
+variable "pds_data_source_node_names" {
+  description = "PDS node name for each data source, parallel array to pds_data_source_names."
+  type        = list(string)
 }
 
 variable "tags" {

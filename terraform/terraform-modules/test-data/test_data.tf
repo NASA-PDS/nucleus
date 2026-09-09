@@ -8,32 +8,32 @@ data "aws_s3_bucket" "pds_nucleus_airflow_dags_bucket" {
 # PDS Nucleus Basic Registry Load Use Case DAG
 #-----------------------------------------------
 
-# Replace ECS related variables in PDS Basic Registry Load Use Case DAG file for each PDS Node
+# Replace ECS related variables in PDS Basic Registry Load Use Case DAG file for each data source (ECS task definitions stay per-node)
 data "template_file" "pds-basic-registry-load-use-case-dag-template" {
-  count    = length(var.pds_node_names)
+  count    = length(var.pds_data_source_names)
   template = file("terraform-modules/test-data/dags/template-${var.pds_basic_registry_data_load_dag_file_name}")
   vars = {
-    pds_node_name                     = var.pds_node_names[count.index]
+    pds_node_name                     = var.pds_data_source_node_names[count.index]
     pds_nucleus_ecs_cluster_name      = var.pds_nucleus_ecs_cluster_name
     pds_nucleus_ecs_subnets           = jsonencode(var.pds_nucleus_ecs_subnets)
     pds_nucleus_ecs_security_groups   = jsonencode([var.pds_nucleus_security_group_id])
-    pds_nucleus_basic_registry_dag_id = "${var.pds_node_names[count.index]}-${var.pds_basic_registry_data_load_dag_id}"
+    pds_nucleus_basic_registry_dag_id = "${var.pds_data_source_node_names[count.index]}_${var.pds_data_source_names[count.index]}-${var.pds_basic_registry_data_load_dag_id}"
     aws_region                        = var.region
   }
 }
 
-# Create a default DAG file for each PDS Node
+# Create a default DAG file for each data source
 resource "local_file" "pds-basic-registry-load-use-case-dag-file" {
-  count    = length(var.pds_node_names)
+  count    = length(var.pds_data_source_names)
   content  = data.template_file.pds-basic-registry-load-use-case-dag-template[count.index].rendered
-  filename = "terraform-modules/test-data/dags/${var.pds_node_names[count.index]}-${var.pds_basic_registry_data_load_dag_file_name}"
+  filename = "terraform-modules/test-data/dags/${var.pds_data_source_node_names[count.index]}_${var.pds_data_source_names[count.index]}-${var.pds_basic_registry_data_load_dag_file_name}"
 }
 
-# Create an S3 object for default DAG file of each PDS Node
+# Create an S3 object for default DAG file of each data source
 resource "aws_s3_object" "pds_basic_registry_data_load_dag_file" {
-  count       = length(var.pds_node_names)
+  count       = length(var.pds_data_source_names)
   bucket      = var.mwaa_dag_s3_bucket_name
-  key         = "dags/${var.pds_node_names[count.index]}/${var.pds_node_names[count.index]}-${var.pds_basic_registry_data_load_dag_file_name}"
+  key         = "dags/${var.pds_data_source_node_names[count.index]}/${var.pds_data_source_node_names[count.index]}_${var.pds_data_source_names[count.index]}-${var.pds_basic_registry_data_load_dag_file_name}"
   acl         = "private"
   source      = local_file.pds-basic-registry-load-use-case-dag-file[count.index].filename
   # FIX: Use md5() on the template content, not filemd5() on the local resource filename.
@@ -50,31 +50,31 @@ resource "aws_s3_object" "pds_basic_registry_data_load_dag_file" {
 # PDS Nucleus S3 Backlog Processor DAG
 #-----------------------------------------------
 
-# Replace ECS related variables in PDS Nucleus S3 Backlog Processor DAG file for each PDS Node
+# Replace ECS related variables in PDS Nucleus S3 Backlog Processor DAG file for each data source (ECS task definitions stay per-node)
 data "template_file" "pds-nucleus-s3-backlog-processor-dag-template" {
-  count    = length(var.pds_node_names)
+  count    = length(var.pds_data_source_names)
   template = file("terraform-modules/test-data/dags/template-${var.pds_nucleus_s3_backlog_processor_dag_file_name}")
   vars = {
-    pds_node_name                           = var.pds_node_names[count.index]
+    pds_node_name                           = var.pds_data_source_node_names[count.index]
     pds_nucleus_ecs_cluster_name            = var.pds_nucleus_ecs_cluster_name
     pds_nucleus_ecs_subnets                 = jsonencode(var.pds_nucleus_ecs_subnets)
     pds_nucleus_ecs_security_groups         = jsonencode([var.pds_nucleus_security_group_id])
-    pds_nucleus_s3_backlog_processor_dag_id = "${var.pds_node_names[count.index]}-${var.pds_nucleus_s3_backlog_processor_dag_id}"
+    pds_nucleus_s3_backlog_processor_dag_id = "${var.pds_data_source_node_names[count.index]}_${var.pds_data_source_names[count.index]}-${var.pds_nucleus_s3_backlog_processor_dag_id}"
   }
 }
 
-# Create an S3 Backlog Processor DAG file for each PDS Node
+# Create an S3 Backlog Processor DAG file for each data source
 resource "local_file" "pds-nucleus-s3-backlog-processor-dag-file" {
-  count    = length(var.pds_node_names)
+  count    = length(var.pds_data_source_names)
   content  = data.template_file.pds-nucleus-s3-backlog-processor-dag-template[count.index].rendered
-  filename = "terraform-modules/test-data/dags/${var.pds_node_names[count.index]}-${var.pds_nucleus_s3_backlog_processor_dag_file_name}"
+  filename = "terraform-modules/test-data/dags/${var.pds_data_source_node_names[count.index]}_${var.pds_data_source_names[count.index]}-${var.pds_nucleus_s3_backlog_processor_dag_file_name}"
 }
 
-# Create an S3 object for S3 Backlog Processor DAG file of each PDS Node
+# Create an S3 object for S3 Backlog Processor DAG file of each data source
 resource "aws_s3_object" "pds_nucleus_s3_backlog_processor_dag_file" {
-  count       = length(var.pds_node_names)
+  count       = length(var.pds_data_source_names)
   bucket      = var.mwaa_dag_s3_bucket_name
-  key         = "dags/${var.pds_node_names[count.index]}/${var.pds_node_names[count.index]}-${var.pds_nucleus_s3_backlog_processor_dag_file_name}"
+  key         = "dags/${var.pds_data_source_node_names[count.index]}/${var.pds_data_source_node_names[count.index]}_${var.pds_data_source_names[count.index]}-${var.pds_nucleus_s3_backlog_processor_dag_file_name}"
   acl         = "private"
   source      = local_file.pds-nucleus-s3-backlog-processor-dag-file[count.index].filename
   # FIX: Apply the same fix here to prevent a future failure
@@ -91,29 +91,30 @@ resource "aws_s3_object" "pds_nucleus_s3_backlog_processor_dag_file" {
 # PDS Validate and Harvest DAG (no archive)
 #-----------------------------------------------
 
+# ECS task definitions referenced inside this DAG stay per-node; only the DAG identity (dag_id/file/S3 key) is per-data-source.
 data "template_file" "pds-validate-and-harvest-dag-template" {
-  count    = length(var.pds_node_names)
+  count    = length(var.pds_data_source_names)
   template = file("terraform-modules/test-data/dags/template-${var.pds_validate_and_harvest_dag_file_name}")
   vars = {
-    pds_node_name                      = var.pds_node_names[count.index]
+    pds_node_name                      = var.pds_data_source_node_names[count.index]
     pds_nucleus_ecs_cluster_name       = var.pds_nucleus_ecs_cluster_name
     pds_nucleus_ecs_subnets            = jsonencode(var.pds_nucleus_ecs_subnets)
     pds_nucleus_ecs_security_groups    = jsonencode([var.pds_nucleus_security_group_id])
-    pds_validate_and_harvest_dag_id    = "${var.pds_node_names[count.index]}-pds-validate-and-harvest"
+    pds_validate_and_harvest_dag_id    = "${var.pds_data_source_node_names[count.index]}_${var.pds_data_source_names[count.index]}-pds-validate-and-harvest"
     aws_region                         = var.region
   }
 }
 
 resource "local_file" "pds-validate-and-harvest-dag-file" {
-  count    = length(var.pds_node_names)
+  count    = length(var.pds_data_source_names)
   content  = data.template_file.pds-validate-and-harvest-dag-template[count.index].rendered
-  filename = "terraform-modules/test-data/dags/${var.pds_node_names[count.index]}-${var.pds_validate_and_harvest_dag_file_name}"
+  filename = "terraform-modules/test-data/dags/${var.pds_data_source_node_names[count.index]}_${var.pds_data_source_names[count.index]}-${var.pds_validate_and_harvest_dag_file_name}"
 }
 
 resource "aws_s3_object" "pds_validate_and_harvest_dag_file" {
-  count       = length(var.pds_node_names)
+  count       = length(var.pds_data_source_names)
   bucket      = var.mwaa_dag_s3_bucket_name
-  key         = "dags/${var.pds_node_names[count.index]}/${var.pds_node_names[count.index]}-${var.pds_validate_and_harvest_dag_file_name}"
+  key         = "dags/${var.pds_data_source_node_names[count.index]}/${var.pds_data_source_node_names[count.index]}_${var.pds_data_source_names[count.index]}-${var.pds_validate_and_harvest_dag_file_name}"
   acl         = "private"
   source      = local_file.pds-validate-and-harvest-dag-file[count.index].filename
   source_hash = md5(data.template_file.pds-validate-and-harvest-dag-template[count.index].rendered)

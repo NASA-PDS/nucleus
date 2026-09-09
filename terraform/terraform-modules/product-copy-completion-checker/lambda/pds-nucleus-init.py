@@ -3,13 +3,16 @@
 pds-nucleus-init.py
 ============================================================
 
-Lambda function to initialize PDS database tables for a single PDS node.
+Lambda function to initialize PDS database tables for a single PDS data
+source.
 
 Expected event payload:
-  { "pds_node_name": "PDS_IMG" }
+  { "pds_node_name": "PDS_IMG", "pds_data_source_name": "lroc" }
 
-Creates a dedicated database (pds_nucleus_pds_img) inside the shared Aurora
-cluster, then drops and recreates all tables within it.
+Creates a dedicated database (pds_nucleus_pds_img_lroc) inside the shared
+Aurora cluster, then drops and recreates all tables within it. One database
+per data source, so multiple data sources under the same node do not share
+tables.
 """
 
 import logging
@@ -23,8 +26,8 @@ db_clust_arn = os.environ.get('DB_CLUSTER_ARN')
 db_secret_arn = os.environ.get('DB_SECRET_ARN')
 
 
-def db_name_for_node(pds_node_name: str) -> str:
-    return f"pds_nucleus_{pds_node_name.lower()}"
+def db_name_for_data_source(pds_node_name: str, pds_data_source_name: str) -> str:
+    return f"pds_nucleus_{pds_node_name.lower()}_{pds_data_source_name.lower()}"
 
 
 def lambda_handler(event, context):
@@ -38,7 +41,11 @@ def lambda_handler(event, context):
     if not pds_node_name:
         raise ValueError("Event must contain 'pds_node_name'")
 
-    db_name = db_name_for_node(pds_node_name)
+    pds_data_source_name = event.get('pds_data_source_name')
+    if not pds_data_source_name:
+        raise ValueError("Event must contain 'pds_data_source_name'")
+
+    db_name = db_name_for_data_source(pds_node_name, pds_data_source_name)
     logger.info(f"Initialising database: {db_name}")
 
     try:
