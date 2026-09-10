@@ -182,7 +182,9 @@ data "aws_s3_bucket" "pds_nucleus_s3_staging_bucket" {
 # Create pds_nucleus_s3_file_file_event_processor_function for each data source (IAM role shared per node via local.node_role_arn_map — no IAM created/modified here)
 resource "aws_lambda_function" "pds_nucleus_s3_file_file_event_processor_function" {
   count            = length(var.pds_data_source_names)
-  function_name    = "pds_nucleus_s3_file_event_processor-${var.pds_data_source_node_names[count.index]}-${var.pds_data_source_names[count.index]}"
+  # Short prefix to stay under the AWS Lambda 64-character function name limit
+  # once the node/data-source names are appended.
+  function_name    = "pds-nucleus-fep-${var.pds_data_source_node_names[count.index]}-${var.pds_data_source_names[count.index]}"
   filename         = "${path.module}/lambda/pds-nucleus-s3-file-event-processor.zip"
   source_code_hash = data.archive_file.pds_nucleus_s3_file_file_event_processor_function_zip.output_base64sha256
   role             = local.node_role_arn_map[var.pds_data_source_node_names[count.index]]
@@ -218,7 +220,9 @@ resource "aws_lambda_event_source_mapping" "event_source_mapping" {
 # Create pds_nucleus_product_completion_checker_function for each data source (IAM role/DB/OpenSearch/archive bucket shared per node — no IAM created/modified here)
 resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function" {
   count            = length(var.pds_data_source_names)
-  function_name    = "pds-nucleus-product-completion-checker-${var.pds_data_source_node_names[count.index]}-${var.pds_data_source_names[count.index]}"
+  # Short prefix to stay under the AWS Lambda 64-character function name limit
+  # once the node/data-source names are appended.
+  function_name    = "pds-nucleus-pcc-${var.pds_data_source_node_names[count.index]}-${var.pds_data_source_names[count.index]}"
   filename         = "${path.module}/lambda/pds_nucleus_product_completion_checker.zip"
   source_code_hash = data.archive_file.pds_nucleus_product_completion_checker_zip.output_base64sha256
   role             = local.node_role_arn_map[var.pds_data_source_node_names[count.index]]
@@ -255,7 +259,9 @@ resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function"
 # One EventBridge scheduled rule per data source (not shared), so each data source's completion checker runs on its own rule.
 resource "aws_cloudwatch_event_rule" "every_one_minute" {
   count               = length(var.pds_data_source_names)
-  name                = "pds-nucleus-every-one-minute-${var.pds_data_source_node_names[count.index]}-${var.pds_data_source_names[count.index]}"
+  # Short prefix to stay under the AWS EventBridge 64-character rule name limit
+  # once the node/data-source names are appended.
+  name                = "pds-nucleus-eom-${var.pds_data_source_node_names[count.index]}-${var.pds_data_source_names[count.index]}"
   description         = "Fires every one minute for ${var.pds_data_source_node_names[count.index]} - ${var.pds_data_source_names[count.index]}"
   schedule_expression = "rate(1 minute)"
   state               = "DISABLED"
