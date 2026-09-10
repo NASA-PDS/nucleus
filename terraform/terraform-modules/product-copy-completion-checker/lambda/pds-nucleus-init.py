@@ -7,9 +7,9 @@ Lambda function to initialize PDS database tables for a single PDS data
 source.
 
 Expected event payload:
-  { "pds_node_name": "PDS_IMG", "pds_data_source_name": "lroc" }
+  { "pds_node_name": "PDS_IMG", "pds_data_source_name": "backlog" }
 
-Creates a dedicated database (pds_nucleus_pds_img_lroc) inside the shared
+Creates a dedicated database (pds_nucleus_pds_img_backlog) inside the shared
 Aurora cluster, then drops and recreates all tables within it. One database
 per data source, so multiple data sources under the same node do not share
 tables.

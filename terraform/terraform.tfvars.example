@@ -16,11 +16,12 @@ aws_secretmanager_key_arn             = "arn:aws:kms:us-west-2:000000000000:key/
 pds_node_names                                   = ["pds_node1", "pds_node2"]
 pds_nucleus_opensearch_collection_arns           = ["arn:aws:aoss:us-west-2:000000000000:collection/example-collection-id", "arn:aws:aoss:us-west-2:000000000000:collection/example-collection-id"]
 pds_nucleus_opensearch_cognito_identity_pool_ids = ["us-west-2:00000000-0000-0000-0000-000000000000", "us-west-2:00000000-0000-0000-0000-000000000000"]
+pds_archive_bucket_names                         = ["pds-node1-archive-bucket", "pds-node2-archive-bucket"]
 
-# One entry per data source (each node can have multiple data sources, e.g. a backlog processor and a realtime feed).
+# Node may have different data sources such as separate S3 buckets as a staging bucket and a backlog bucket. Set data sources specific values the following lists in correct order.
+
 pds_data_source_node_names                       = ["pds_node1", "pds_node1", "pds_node2", "pds_node2"]
 pds_data_source_names                            = ["backlog", "realtime", "backlog", "realtime"]
-pds_archive_bucket_names                         = ["pds-node1-archive-bucket", "pds-node2-archive-bucket"]
 pds_nucleus_harvest_replace_prefix_with_list     = ["https://example.pds.nasa.gov/data/store/node1", "https://example.pds.nasa.gov/data/store/node1", "https://example.pds.nasa.gov/data/store/node2", "https://example.pds.nasa.gov/data/store/node2"]
 pds_nucleus_harvest_replace_prefix_list          = ["/mnt/data/pds-node1-staging", "/mnt/data/pds-node1-staging", "/mnt/data/pds-node2-staging", "/mnt/data/pds-node2-staging"]
 
