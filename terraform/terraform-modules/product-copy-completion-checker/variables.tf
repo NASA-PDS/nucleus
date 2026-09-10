@@ -68,7 +68,7 @@ variable "pds_node_names" {
 }
 
 variable "pds_data_source_names" {
-  description = "List of data source identifiers, one entry per data source (e.g. 'lroc', 'diviner'). A single PDS node can have multiple data sources, each getting its own S3 staging bucket/SQS queue/Lambda pair, while sharing the node's IAM role."
+  description = "List of data source identifiers, one entry per data source (e.g. 'backlog', 'realtime'). A single PDS node can have multiple data sources, each getting its own S3 staging bucket/SQS queue/Lambda pair, while sharing the node's IAM role."
   type        = list(string)
 }
 

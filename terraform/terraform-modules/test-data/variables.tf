@@ -74,7 +74,7 @@ variable "pds_node_names" {
 }
 
 variable "pds_data_source_names" {
-  description = "List of data source identifiers, one entry per data source (e.g. 'lroc', 'diviner'). Each data source gets its own DAG (dag_id/file/S3 key), while the DAG's ECS task definitions remain per-node."
+  description = "List of data source identifiers, one entry per data source (e.g. 'backlog', 'realtime'). Each data source gets its own DAG (dag_id/file/S3 key), while the DAG's ECS task definitions remain per-node."
   type        = list(string)
 }
 
