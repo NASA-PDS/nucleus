@@ -1,12 +1,15 @@
 # PDS Validate and Harvest DAG (Airflow 3 compatible, TEMPLATE)
 # Same as pds-basic-registry-load-use-case but without the Data_Archive task.
 
+import asyncio
 import boto3
 from airflow import DAG
 from airflow.decorators import task
-from airflow.exceptions import AirflowFailException
+from airflow.exceptions import AirflowException, AirflowFailException
+from airflow.models import BaseOperator
 from airflow.operators.bash import BashOperator
 from airflow.providers.amazon.aws.operators.ecs import EcsRunTaskOperator
+from airflow.triggers.base import BaseTrigger, TriggerEvent
 from airflow.utils.trigger_rule import TriggerRule
 from datetime import datetime, timedelta
 
@@ -18,7 +21,28 @@ from datetime import datetime, timedelta
 # that retrying will not change. Any other non-zero exit (task crashed,
 # never started, OOM, etc.) is a genuine infra failure worth retrying.
 # We distinguish the two so only infra failures consume the task's retries.
-class ValidateEcsRunTaskOperator(EcsRunTaskOperator):
+class EcsRunTaskOperatorWithArnXCom(EcsRunTaskOperator):
+    """Pushes the started ECS task's ARN to XCom (key='ecs_task_arn') so a
+    downstream deferrable log-fetch task can locate the exact CloudWatch log
+    stream, on both the success path and the (deferred) failure path."""
+    def execute(self, context):
+        try:
+            return super().execute(context)
+        finally:
+            self._push_arn(context)
+
+    def execute_complete(self, context, event=None):
+        try:
+            return super().execute_complete(context, event)
+        finally:
+            self._push_arn(context)
+
+    def _push_arn(self, context):
+        if self.arn:
+            context["ti"].xcom_push(key="ecs_task_arn", value=self.arn)
+
+
+class ValidateEcsRunTaskOperator(EcsRunTaskOperatorWithArnXCom):
     def execute(self, context):
         try:
             return super().execute(context)
@@ -63,6 +87,95 @@ def _read_product_list(s3_config_dir):
     key = "/".join(s3_config_dir.replace("s3://", "").split("/")[1:] + ["product_list.txt"])
     body = boto3.client("s3").get_object(Bucket=bucket, Key=key)["Body"].read()
     return [line for line in body.decode("utf-8").splitlines() if line]
+
+# -------------------------------------------------------------------
+# Deferrable CloudWatch log fetcher — used after Validate/Harvest to pull
+# and print the full log stream contents (regardless of task outcome),
+# without holding a worker slot while polling CloudWatch.
+# -------------------------------------------------------------------
+class CloudWatchLogsFetchTrigger(BaseTrigger):
+    def __init__(self, log_group, log_stream, region):
+        super().__init__()
+        self.log_group = log_group
+        self.log_stream = log_stream
+        self.region = region
+
+    def serialize(self):
+        return (
+            f"{__name__}.CloudWatchLogsFetchTrigger",
+            {
+                "log_group": self.log_group,
+                "log_stream": self.log_stream,
+                "region": self.region,
+            },
+        )
+
+    async def run(self):
+        messages, error = await asyncio.to_thread(self._fetch_all_log_events)
+        yield TriggerEvent({"messages": messages, "error": error})
+
+    def _fetch_all_log_events(self):
+        client = boto3.client("logs", region_name=self.region)
+        messages = []
+        next_token = None
+        try:
+            while True:
+                kwargs = {
+                    "logGroupName": self.log_group,
+                    "logStreamName": self.log_stream,
+                    "startFromHead": True,
+                }
+                if next_token:
+                    kwargs["nextToken"] = next_token
+                resp = client.get_log_events(**kwargs)
+                events = resp.get("events", [])
+                messages.extend(e["message"] for e in events)
+                new_token = resp.get("nextForwardToken")
+                if not events or new_token == next_token:
+                    break
+                next_token = new_token
+            return messages, None
+        except client.exceptions.ResourceNotFoundException:
+            return messages, f"Log stream '{self.log_stream}' not found in '{self.log_group}' (task may not have started)."
+
+
+class ShowEcsCloudWatchLogsOperator(BaseOperator):
+    template_fields = ("ecs_task_arn", "log_group", "stream_prefix", "container_name")
+
+    def __init__(self, *, ecs_task_arn, log_group, stream_prefix, container_name, region, **kwargs):
+        super().__init__(**kwargs)
+        self.ecs_task_arn = ecs_task_arn
+        self.log_group = log_group
+        self.stream_prefix = stream_prefix
+        self.container_name = container_name
+        self.region = region
+
+    def execute(self, context):
+        if not self.ecs_task_arn:
+            print("No ECS task ARN available (upstream task may not have started) — skipping log fetch.")
+            return []
+        ecs_task_id = self.ecs_task_arn.rsplit("/", 1)[-1]
+        log_stream = f"{self.stream_prefix}/{self.container_name}/{ecs_task_id}"
+        self.defer(
+            trigger=CloudWatchLogsFetchTrigger(
+                log_group=self.log_group,
+                log_stream=log_stream,
+                region=self.region,
+            ),
+            method_name="execute_complete",
+        )
+
+    def execute_complete(self, context, event=None):
+        event = event or {}
+        messages = event.get("messages", [])
+        error = event.get("error")
+        print(f"--- Full CloudWatch log stream ({len(messages)} lines) ---")
+        for line in messages:
+            print(line)
+        if error:
+            raise AirflowException(error)
+        return messages
+
 
 # -------------------------------------------------------------------
 # DAG definition
@@ -226,10 +339,21 @@ validate = ValidateEcsRunTaskOperator(
     dag=dag,
 )
 
+show_validate_logs = ShowEcsCloudWatchLogsOperator(
+    task_id="Show_Validate_Logs",
+    ecs_task_arn="{{ ti.xcom_pull(task_ids='Validate_Products', key='ecs_task_arn') }}",
+    log_group="/pds/ecs/validate-${pds_node_name}",
+    stream_prefix="ecs/pds-validate",
+    container_name="pds-validate",
+    region=AWS_REGION,
+    trigger_rule=TriggerRule.ALL_DONE,
+    dag=dag,
+)
+
 # -------------------------------------------------------------------
 # HARVEST
 # -------------------------------------------------------------------
-harvest = EcsRunTaskOperator(
+harvest = EcsRunTaskOperatorWithArnXCom(
     task_id="Harvest_Data",
     cluster=ECS_CLUSTER_NAME,
     task_definition="pds-registry-loader-harvest-task-definition-${pds_node_name}",
@@ -267,6 +391,17 @@ harvest = EcsRunTaskOperator(
     trigger_rule=TriggerRule.ALL_DONE,
     deferrable=True,
     waiter_delay=1,
+    dag=dag,
+)
+
+show_harvest_logs = ShowEcsCloudWatchLogsOperator(
+    task_id="Show_Harvest_Logs",
+    ecs_task_arn="{{ ti.xcom_pull(task_ids='Harvest_Data', key='ecs_task_arn') }}",
+    log_group="/pds/ecs/harvest-${pds_node_name}",
+    stream_prefix="ecs/pds-registry-loader-harvest",
+    container_name="pds-registry-loader-harvest",
+    region=AWS_REGION,
+    trigger_rule=TriggerRule.ALL_DONE,
     dag=dag,
 )
 
@@ -349,7 +484,9 @@ config_init_cleanup = EcsRunTaskOperator(
     >> config_init
     >> config_s3_to_efs_copy
     >> validate
+    >> show_validate_logs
     >> harvest
+    >> show_harvest_logs
     >> config_s3_to_efs_copy_cleanup
     >> config_init_cleanup
     >> print_end_time
