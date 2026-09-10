@@ -65,6 +65,11 @@ variable "pds_node_names" {
   description = "List of unique PDS Node Names. Drives IAM role creation upstream and any per-node (shared-across-data-sources) config — DO NOT change ordering/length without coordinating with the IAM module."
   type        = list(string)
   sensitive   = true
+
+  validation {
+    condition     = length(distinct(var.pds_node_names)) == length(var.pds_node_names)
+    error_message = "pds_node_names must contain unique values; entries are used as map keys."
+  }
 }
 
 variable "pds_data_source_names" {
@@ -75,6 +80,19 @@ variable "pds_data_source_names" {
 variable "pds_data_source_node_names" {
   description = "PDS node name for each data source, parallel array to pds_data_source_names (index i is the node that data source i belongs to). Used only to look up the node's existing IAM role/DB/OpenSearch config — never to create new IAM."
   type        = list(string)
+
+  validation {
+    condition     = length(var.pds_data_source_node_names) == length(var.pds_data_source_names)
+    error_message = "pds_data_source_node_names must have exactly one entry per data source."
+  }
+
+  validation {
+    condition = alltrue([
+      for node in var.pds_data_source_node_names :
+      contains(var.pds_node_names, node)
+    ])
+    error_message = "Every pds_data_source_node_names entry must appear in pds_node_names."
+  }
 }
 
 variable "pds_archive_bucket_names" {
