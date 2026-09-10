@@ -261,7 +261,7 @@ resource "aws_cloudwatch_event_rule" "every_one_minute" {
   count               = length(var.pds_data_source_names)
   # Short prefix to stay under the AWS EventBridge 64-character rule name limit
   # once the node/data-source names are appended.
-  name                = "pds-nucleus-eomin-${var.pds_data_source_node_names[count.index]}-${var.pds_data_source_names[count.index]}"
+  name                = "pds-nucleus-minute-${var.pds_data_source_node_names[count.index]}-${var.pds_data_source_names[count.index]}"
   description         = "Fires every one minute for ${var.pds_data_source_node_names[count.index]} - ${var.pds_data_source_names[count.index]}"
   schedule_expression = "rate(1 minute)"
   state               = "DISABLED"
