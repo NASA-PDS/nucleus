@@ -333,11 +333,11 @@ def archive_completed_products(products):
 def _build_harvest_cfg(batch):
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <harvest>
-  <registry auth="/etc/es-auth.cfg">file:///mnt/data/dag-data/{batch}/connection.xml</registry>
+  <registry auth="/etc/es-auth.cfg">file:///mnt/data/dag-data/{PDS_DATA_SOURCE}/{batch}/connection.xml</registry>
 
   <load>
     <files>
-      <manifest>/mnt/data/dag-data/{batch}/harvest_manifest.txt</manifest>
+      <manifest>/mnt/data/dag-data/{PDS_DATA_SOURCE}/{batch}/harvest_manifest.txt</manifest>
     </files>
   </load>
 
