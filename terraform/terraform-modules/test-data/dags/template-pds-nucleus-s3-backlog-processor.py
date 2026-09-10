@@ -23,6 +23,7 @@ ECS_CLUSTER_NAME    = "${pds_nucleus_ecs_cluster_name}"
 ECS_LAUNCH_TYPE     = "FARGATE"
 ECS_SUBNETS         = ${pds_nucleus_ecs_subnets}
 ECS_SECURITY_GROUPS = ${pds_nucleus_ecs_security_groups}
+SQS_QUEUE_URL       = "${pds_nucleus_sqs_queue_url}"
 
 
 # -------------------------------------------------------------------
@@ -53,11 +54,6 @@ with DAG(
             minItems=1,
             description="List of S3 key prefixes to process. One ECS task is launched per prefix.",
         ),
-        "sqs_queue_url": Param(
-            default="<SQS queue URL used to register files in the database>",
-            type="string",
-            pattern="^https:\\/\\/sqs\\.us-west-2\\.amazonaws\\.com\\/\\d+\\/pds-nucleus.*$",
-        ),
         "aws_region": Param(
             default="us-west-2",
             type="string",
@@ -74,7 +70,6 @@ with DAG(
     @task
     def build_overrides(**context):
         prefixes       = context["params"]["s3_bucket_prefixes"]
-        sqs_queue_url  = context["params"]["sqs_queue_url"]
         aws_region     = context["params"]["aws_region"]
         s3_bucket_name = context["params"]["s3_bucket_name"]
         return [
@@ -88,7 +83,7 @@ with DAG(
                                 "value": "gov.nasa.pds.nucleus.ingress.PDSNucleusS3BackLogProcessor",
                             },
                             {"name": "S3_BUCKET_PREFIX", "value": prefix},
-                            {"name": "SQS_QUEUE_URL",    "value": sqs_queue_url},
+                            {"name": "SQS_QUEUE_URL",    "value": SQS_QUEUE_URL},
                             {"name": "AWS_REGION",       "value": aws_region},
                             {"name": "S3_BUCKET_NAME",   "value": s3_bucket_name},
                         ],

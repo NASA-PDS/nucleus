@@ -60,6 +60,7 @@ data "template_file" "pds-nucleus-s3-backlog-processor-dag-template" {
     pds_nucleus_ecs_subnets                 = jsonencode(var.pds_nucleus_ecs_subnets)
     pds_nucleus_ecs_security_groups         = jsonencode([var.pds_nucleus_security_group_id])
     pds_nucleus_s3_backlog_processor_dag_id = "${var.pds_data_source_node_names[count.index]}_${var.pds_data_source_names[count.index]}-${var.pds_nucleus_s3_backlog_processor_dag_id}"
+    pds_nucleus_sqs_queue_url                = var.pds_nucleus_files_to_save_in_database_sqs_queue_urls[count.index]
   }
 }
 

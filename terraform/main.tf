@@ -156,10 +156,11 @@ module "test-data" {
   pds_node_names                          = var.pds_node_names
   pds_data_source_names                   = var.pds_data_source_names
   pds_data_source_node_names              = var.pds_data_source_node_names
+  pds_nucleus_files_to_save_in_database_sqs_queue_urls = module.product-copy-completion-checker.pds_nucleus_files_to_save_in_database_sqs_queue_urls
   region                                  = var.region
   tags                                    = local.default_tags
 
-  depends_on = [module.common, module.ecs_ecr]
+  depends_on = [module.common, module.ecs_ecr, module.product-copy-completion-checker]
 }
 
 

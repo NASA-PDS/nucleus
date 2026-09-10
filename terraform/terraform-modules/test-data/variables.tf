@@ -83,6 +83,11 @@ variable "pds_data_source_node_names" {
   type        = list(string)
 }
 
+variable "pds_nucleus_files_to_save_in_database_sqs_queue_urls" {
+  description = "SQS queue URL for each data source, parallel array to pds_data_source_names, used to register files in the database"
+  type        = list(string)
+}
+
 variable "tags" {
   description = "Resource tags"
   type        = map(string)
