@@ -303,7 +303,9 @@ resource "aws_sqs_queue" "pds_nucleus_files_to_save_in_database_sqs_queue" {
   count                      = length(var.pds_data_source_names)
   # Queue name ends with the node name (data source placed before it) to match the existing
   # ECS task role IAM SQS resource pattern "pds-nucleus-*-<node>" without any IAM changes.
-  name                       = "pds-nucleus-files-to-save-in-database-${var.pds_data_source_names[count.index]}-${var.pds_data_source_node_names[count.index]}"
+  # Short prefix to stay well under the AWS SQS 80-character queue name limit
+  # once the data-source/node names are appended.
+  name                       = "pds-nucleus-fsid-${var.pds_data_source_names[count.index]}-${var.pds_data_source_node_names[count.index]}"
   delay_seconds              = 0
   visibility_timeout_seconds = 300
   message_retention_seconds  = 345600
