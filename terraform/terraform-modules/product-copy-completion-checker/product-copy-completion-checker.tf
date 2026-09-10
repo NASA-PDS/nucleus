@@ -184,7 +184,7 @@ resource "aws_lambda_function" "pds_nucleus_s3_file_file_event_processor_functio
   count            = length(var.pds_data_source_names)
   # Short prefix to stay under the AWS Lambda 64-character function name limit
   # once the node/data-source names are appended.
-  function_name    = "pds-nucleus-fep-${var.pds_data_source_node_names[count.index]}-${var.pds_data_source_names[count.index]}"
+  function_name    = "pds-nucleus-s3-watch-${var.pds_data_source_node_names[count.index]}-${var.pds_data_source_names[count.index]}"
   filename         = "${path.module}/lambda/pds-nucleus-s3-file-event-processor.zip"
   source_code_hash = data.archive_file.pds_nucleus_s3_file_file_event_processor_function_zip.output_base64sha256
   role             = local.node_role_arn_map[var.pds_data_source_node_names[count.index]]
