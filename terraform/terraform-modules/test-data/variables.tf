@@ -68,9 +68,47 @@ variable "pds_nucleus_default_airflow_dag_id" {
 }
 
 variable "pds_node_names" {
-  description = "List of PDS Node Names"
+  description = "List of unique PDS Node Names"
   type        = list(string)
   sensitive   = true
+
+  validation {
+    condition     = length(distinct(var.pds_node_names)) == length(var.pds_node_names)
+    error_message = "pds_node_names must contain unique values; entries are used as map keys."
+  }
+}
+
+variable "pds_data_source_names" {
+  description = "List of data source identifiers, one entry per data source (e.g. 'backlog', 'realtime'). Each data source gets its own DAG (dag_id/file/S3 key), while the DAG's ECS task definitions remain per-node."
+  type        = list(string)
+}
+
+variable "pds_data_source_node_names" {
+  description = "PDS node name for each data source, parallel array to pds_data_source_names."
+  type        = list(string)
+
+  validation {
+    condition     = length(var.pds_data_source_node_names) == length(var.pds_data_source_names)
+    error_message = "pds_data_source_node_names must have exactly one entry per data source."
+  }
+
+  validation {
+    condition = alltrue([
+      for node in var.pds_data_source_node_names :
+      contains(var.pds_node_names, node)
+    ])
+    error_message = "Every pds_data_source_node_names entry must appear in pds_node_names."
+  }
+}
+
+variable "pds_nucleus_files_to_save_in_database_sqs_queue_urls" {
+  description = "SQS queue URL for each data source, parallel array to pds_data_source_names, used to register files in the database"
+  type        = list(string)
+
+  validation {
+    condition     = length(var.pds_nucleus_files_to_save_in_database_sqs_queue_urls) == length(var.pds_data_source_names)
+    error_message = "pds_nucleus_files_to_save_in_database_sqs_queue_urls must have exactly one entry per data source."
+  }
 }
 
 variable "tags" {

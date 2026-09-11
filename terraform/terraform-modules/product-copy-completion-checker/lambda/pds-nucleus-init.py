@@ -3,13 +3,16 @@
 pds-nucleus-init.py
 ============================================================
 
-Lambda function to initialize PDS database tables for a single PDS node.
+Lambda function to initialize PDS database tables for a single PDS data
+source.
 
 Expected event payload:
-  { "pds_node_name": "PDS_IMG" }
+  { "pds_node_name": "PDS_IMG", "pds_data_source_name": "backlog" }
 
-Creates a dedicated database (pds_nucleus_pds_img) inside the shared Aurora
-cluster, then drops and recreates all tables within it.
+Creates a dedicated database (pds_nucleus_pds_img_backlog) inside the shared
+Aurora cluster, then drops and recreates all tables within it. One database
+per data source, so multiple data sources under the same node do not share
+tables.
 """
 
 import logging
@@ -23,8 +26,8 @@ db_clust_arn = os.environ.get('DB_CLUSTER_ARN')
 db_secret_arn = os.environ.get('DB_SECRET_ARN')
 
 
-def db_name_for_node(pds_node_name: str) -> str:
-    return f"pds_nucleus_{pds_node_name.lower()}"
+def db_name_for_data_source(pds_node_name: str, pds_data_source_name: str) -> str:
+    return f"pds_nucleus_{pds_node_name.lower()}_{pds_data_source_name.lower()}"
 
 
 def lambda_handler(event, context):
@@ -38,7 +41,11 @@ def lambda_handler(event, context):
     if not pds_node_name:
         raise ValueError("Event must contain 'pds_node_name'")
 
-    db_name = db_name_for_node(pds_node_name)
+    pds_data_source_name = event.get('pds_data_source_name')
+    if not pds_data_source_name:
+        raise ValueError("Event must contain 'pds_data_source_name'")
+
+    db_name = db_name_for_data_source(pds_node_name, pds_data_source_name)
     logger.info(f"Initialising database: {db_name}")
 
     try:
@@ -47,14 +54,12 @@ def lambda_handler(event, context):
         drop_product_table(db_name)
         drop_datafile_table(db_name)
         drop_product_datafile_mapping_table(db_name)
-        drop_product_processing_status_table(db_name)
         drop_product_archive_table(db_name)
         drop_product_datafile_mapping_archive_table(db_name)
 
         create_product_table(db_name)
         create_datafile_table(db_name)
         create_product_datafile_mapping_table(db_name)
-        create_product_processing_status_table(db_name)
         create_product_archive_table(db_name)
         create_product_datafile_mapping_archive_table(db_name)
 
@@ -140,27 +145,6 @@ def create_product_datafile_mapping_table(db_name):
     """
     response = _execute(sql, db_name)
     logger.debug(f"create_product_datafile_mapping_table: {str(response)}")
-
-
-def drop_product_processing_status_table(db_name):
-    response = _execute("DROP TABLE IF EXISTS product_processing_status;", db_name)
-    logger.debug(f"drop_product_processing_status_table: {str(response)}")
-
-
-def create_product_processing_status_table(db_name):
-    sql = """
-        CREATE TABLE product_processing_status
-        (
-            s3_url_of_product_label VARCHAR(1500) CHARACTER SET latin1,
-            processing_status       VARCHAR(50),
-            last_updated_epoch_time BIGINT,
-            pds_node                VARCHAR(10),
-            batch_number            VARCHAR(100),
-            PRIMARY KEY (s3_url_of_product_label)
-        );
-    """
-    response = _execute(sql, db_name)
-    logger.debug(f"create_product_processing_status_table: {str(response)}")
 
 
 def drop_product_archive_table(db_name):

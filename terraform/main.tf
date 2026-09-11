@@ -122,6 +122,8 @@ module "product-copy-completion-checker" {
   pds_nucleus_default_airflow_dag_id      = var.pds_nucleus_default_airflow_dag_id
 
   pds_node_names                                 = var.pds_node_names
+  pds_data_source_names                          = var.pds_data_source_names
+  pds_data_source_node_names                     = var.pds_data_source_node_names
   pds_archive_bucket_names                       = var.pds_archive_bucket_names
   pds_nucleus_opensearch_url                     = var.pds_nucleus_opensearch_url
   pds_nucleus_opensearch_registry_names          = var.pds_nucleus_opensearch_registry_names
@@ -152,10 +154,13 @@ module "test-data" {
   pds_nucleus_default_airflow_dag_id      = var.pds_nucleus_default_airflow_dag_id
   pds_nucleus_s3_backlog_processor_dag_id = var.pds_nucleus_s3_backlog_processor_dag_id
   pds_node_names                          = var.pds_node_names
+  pds_data_source_names                   = var.pds_data_source_names
+  pds_data_source_node_names              = var.pds_data_source_node_names
+  pds_nucleus_files_to_save_in_database_sqs_queue_urls = module.product-copy-completion-checker.pds_nucleus_files_to_save_in_database_sqs_queue_urls
   region                                  = var.region
   tags                                    = local.default_tags
 
-  depends_on = [module.common, module.ecs_ecr]
+  depends_on = [module.common, module.ecs_ecr, module.product-copy-completion-checker]
 }
 
 

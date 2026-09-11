@@ -165,36 +165,6 @@ resource "aws_cloudwatch_log_group" "pds-registry-loader-harvest-log-group" {
   tags  = var.tags
 }
 
-# Create secrets to keep usernames for each PDS Node
-resource "aws_secretsmanager_secret" "opensearch_user" {
-  count                   = length(var.pds_node_names)
-  name                    = "pds/nucleus/opensearch/creds/${var.pds_node_names[count.index]}/user"
-  description             = "PDS Nucleus Opensearch username for ${var.pds_node_names[count.index]}"
-  recovery_window_in_days = 0
-  tags                    = var.tags
-}
-
-resource "aws_secretsmanager_secret_version" "opensearch_user_version" {
-  count         = length(var.pds_node_names)
-  secret_id     = aws_secretsmanager_secret.opensearch_user[count.index].id
-  secret_string = "Replace this with Opensearch username of PDS Node: ${var.pds_node_names[count.index]}"
-}
-
-# Create secrets to keep passwords for each PDS Node
-resource "aws_secretsmanager_secret" "opensearch_password" {
-  count                   = length(var.pds_node_names)
-  name                    = "pds/nucleus/opensearch/creds/${var.pds_node_names[count.index]}/password"
-  description             = "PDS Nucleus Opensearch password for ${var.pds_node_names[count.index]}"
-  recovery_window_in_days = 0
-  tags                    = var.tags
-}
-
-resource "aws_secretsmanager_secret_version" "opensearch_password_version" {
-  count         = length(var.pds_node_names)
-  secret_id     = aws_secretsmanager_secret.opensearch_password[count.index].id
-  secret_string = "Replace this with Opensearch password of PDS Node: ${var.pds_node_names[count.index]}"
-}
-
 # Replace PDS Registry Loader Harvest related variables in pds-registry-loader-harvest-containers.json
 data "template_file" "pds-registry-loader-harvest-containers-json-template" {
   count    = length(var.pds_node_names)
@@ -203,8 +173,6 @@ data "template_file" "pds-registry-loader-harvest-containers-json-template" {
     pds_registry_loader_harvest_ecr_image_path         = aws_ecr_repository.pds_registry_loader_harvest.repository_url
     pds_registry_loader_harvest_cloudwatch_logs_group  = "${var.pds_registry_loader_harvest_cloudwatch_logs_group}-${var.pds_node_names[count.index]}"
     pds_registry_loader_harvest_cloudwatch_logs_region = var.pds_registry_loader_harvest_cloudwatch_logs_region
-    opensearch_user_secretmanager_arn                  = aws_secretsmanager_secret_version.opensearch_user_version[count.index].arn
-    opensearch_password_secretmanager_arn              = aws_secretsmanager_secret_version.opensearch_password_version[count.index].arn
   }
 }
 

@@ -14,16 +14,22 @@ aws_secretmanager_key_arn             = "arn:aws:kms:us-west-2:000000000000:key/
 # (PDS_ATM, PDS_ENG, PDS_GEO, PDS_IMG, PDS_NAIF, PDS_RMS, PDS_SBN, PSA, JAXA, ROSCOSMOS)
 
 pds_node_names                                   = ["pds_node1", "pds_node2"]
+pds_nucleus_opensearch_collection_arns           = ["arn:aws:aoss:us-west-2:000000000000:collection/example-collection-id", "arn:aws:aoss:us-west-2:000000000000:collection/example-collection-id"]
+pds_nucleus_opensearch_cognito_identity_pool_ids = ["us-west-2:00000000-0000-0000-0000-000000000000", "us-west-2:00000000-0000-0000-0000-000000000000"]
 pds_archive_bucket_names                         = ["pds-node1-archive-bucket", "pds-node2-archive-bucket"]
+
+# Node may have different data sources such as separate S3 buckets as a staging bucket and a backlog bucket. Set data sources specific values the following lists in correct order.
+
+pds_data_source_node_names                       = ["pds_node1", "pds_node1", "pds_node2", "pds_node2"]
+pds_data_source_names                            = ["backlog", "realtime", "backlog", "realtime"]
+pds_nucleus_harvest_replace_prefix_with_list     = ["https://example.pds.nasa.gov/data/store/node1", "https://example.pds.nasa.gov/data/store/node1", "https://example.pds.nasa.gov/data/store/node2", "https://example.pds.nasa.gov/data/store/node2"]
+pds_nucleus_harvest_replace_prefix_list          = ["/mnt/data/pds-node1-staging", "/mnt/data/pds-node1-staging", "/mnt/data/pds-node2-staging", "/mnt/data/pds-node2-staging"]
+
 pds_nucleus_opensearch_url                       = "https://example-opensearch-endpoint.us-west-2.aoss.amazonaws.com"
 pds_nucleus_opensearch_registry_names            = ["pds-node1-registry", "pds-node2-registry"]
 pds_nucleus_opensearch_credential_relative_url   = "http://169.254.170.2/AWS_CONTAINER_CREDENTIALS_RELATIVE_URI"
-pds_nucleus_harvest_replace_prefix_with_list     = ["https://example.pds.nasa.gov/data/store/node1", "https://example.pds.nasa.gov/data/store/node2"]
-pds_nucleus_harvest_replace_prefix_list          = ["/mnt/data/pds-node1-staging", "/mnt/data/pds-node2-staging"]
 pds_registry_loader_harvest_version             = "1.3.2"
 pds_validate_version                            = "latest"
-pds_nucleus_opensearch_collection_arns           = ["arn:aws:aoss:us-west-2:000000000000:collection/example-collection-id", "arn:aws:aoss:us-west-2:000000000000:collection/example-collection-id"]
-pds_nucleus_opensearch_cognito_identity_pool_ids = ["us-west-2:00000000-0000-0000-0000-000000000000", "us-west-2:00000000-0000-0000-0000-000000000000"]
 
 airflow_env_name                             = "pds-nucleus-airflow-env"
 mwaa_dag_s3_bucket_name                      = "example-nucleus-airflow-dags-bucket"

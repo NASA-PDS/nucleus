@@ -1,7 +1,5 @@
 # PDS Basic Registry Load Use Case DAG (Airflow 3 compatible, TEMPLATE)
 
-import boto3
-import json
 from airflow import DAG
 from airflow.operators.bash import BashOperator
 from airflow.providers.amazon.aws.operators.ecs import EcsRunTaskOperator
@@ -17,41 +15,6 @@ ECS_SUBNETS = ${pds_nucleus_ecs_subnets}
 ECS_SECURITY_GROUPS = ${pds_nucleus_ecs_security_groups}
 AWS_REGION = "${aws_region}"
 
-LAMBDA_FUNCTION_NAME = "pds_nucleus_product_processing_status_tracker"
-
-# -------------------------------------------------------------------
-# Status callbacks
-# -------------------------------------------------------------------
-def _read_product_list(s3_config_dir):
-    bucket = s3_config_dir.replace("s3://", "").split("/")[0]
-    key = "/".join(s3_config_dir.replace("s3://", "").split("/")[1:] + ["product_list.txt"])
-    body = boto3.client("s3").get_object(Bucket=bucket, Key=key)["Body"].read()
-    return [line for line in body.decode("utf-8").splitlines() if line]
-
-def _invoke_status_lambda(context, status):
-    boto3.client("lambda").invoke(
-        FunctionName=LAMBDA_FUNCTION_NAME,
-        InvocationType="Event",
-        Payload=json.dumps({
-            "productsList": _read_product_list(context["dag_run"].conf["s3_config_dir"]),
-            "pdsNode": context["dag_run"].conf["pds_node_name"],
-            "processingStatus": status,
-            "batchNumber": context["dag_run"].conf["batch_number"],
-        }),
-    )
-
-def validate_success(context):
-    _invoke_status_lambda(context, "validate_successful")
-
-def validate_failure(context):
-    _invoke_status_lambda(context, "validate_failed")
-
-def harvest_success(context):
-    _invoke_status_lambda(context, "harvest_successful")
-
-def harvest_failure(context):
-    _invoke_status_lambda(context, "harvest_failed")
-
 # -------------------------------------------------------------------
 # DAG definition
 # -------------------------------------------------------------------
@@ -65,6 +28,16 @@ dag = DAG(
         "retry_delay": timedelta(minutes=2),
         "retry_exponential_backoff": True,
         "max_retry_delay": timedelta(minutes=15),
+    },
+    params={
+        # Extra CLI switches for the `harvest` command (e.g. "-O -f").
+        # Shows up as an editable field in the Airflow UI's "Trigger DAG w/ config" form.
+        # Some supported harvest flags (see harvest -h):
+        #   -O, --overwrite       Overwrite registered products
+        #   -f, --force           Force load products even when namespace schema or attribute
+        #                         type cannot be resolved. Affected fields will not be indexed.
+        #   -a, --archive-status  Set the archive status for all products defaulting to staged
+        "harvest_extra_args": "",
     },
 )
 
@@ -165,8 +138,6 @@ validate = EcsRunTaskOperator(
             }
         ]
     },
-    on_success_callback=validate_success,
-    on_failure_callback=validate_failure,
     dag=dag,
 )
 
@@ -192,14 +163,18 @@ harvest = EcsRunTaskOperator(
                     {
                         "name": "HARVEST_CFG",
                         "value": "{{ dag_run.conf['efs_config_dir'] }}/harvest.cfg",
-                    }
+                    },
+                    {
+                        # Extra CLI switches for the `harvest` command, editable via the DAG's
+                        # "harvest_extra_args" param (Trigger DAG w/ config UI) or dag_run.conf.
+                        "name": "HARVEST_EXTRA_ARGS",
+                        "value": "{{ params.harvest_extra_args }}",
+                    },
                 ],
             }
         ]
     },
     trigger_rule=TriggerRule.ALL_DONE,
-    on_success_callback=harvest_success,
-    on_failure_callback=harvest_failure,
     dag=dag,
 )
 

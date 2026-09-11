@@ -62,9 +62,37 @@ variable "database_availability_zones" {
 }
 
 variable "pds_node_names" {
-  description = "List of PDS Node Names"
+  description = "List of unique PDS Node Names. Drives IAM role creation upstream and any per-node (shared-across-data-sources) config — DO NOT change ordering/length without coordinating with the IAM module."
   type        = list(string)
   sensitive   = true
+
+  validation {
+    condition     = length(distinct(var.pds_node_names)) == length(var.pds_node_names)
+    error_message = "pds_node_names must contain unique values; entries are used as map keys."
+  }
+}
+
+variable "pds_data_source_names" {
+  description = "List of data source identifiers, one entry per data source (e.g. 'backlog', 'realtime'). A single PDS node can have multiple data sources, each getting its own S3 staging bucket/SQS queue/Lambda pair, while sharing the node's IAM role."
+  type        = list(string)
+}
+
+variable "pds_data_source_node_names" {
+  description = "PDS node name for each data source, parallel array to pds_data_source_names (index i is the node that data source i belongs to). Used only to look up the node's existing IAM role/DB/OpenSearch config — never to create new IAM."
+  type        = list(string)
+
+  validation {
+    condition     = length(var.pds_data_source_node_names) == length(var.pds_data_source_names)
+    error_message = "pds_data_source_node_names must have exactly one entry per data source."
+  }
+
+  validation {
+    condition = alltrue([
+      for node in var.pds_data_source_node_names :
+      contains(var.pds_node_names, node)
+    ])
+    error_message = "Every pds_data_source_node_names entry must appear in pds_node_names."
+  }
 }
 
 variable "pds_archive_bucket_names" {
@@ -92,13 +120,23 @@ variable "pds_nucleus_opensearch_credential_relative_url" {
 }
 
 variable "pds_nucleus_harvest_replace_prefix_with_list" {
-  description = "List of PDS Nucleus Harvest Replace Prefix With"
+  description = "List of PDS Nucleus Harvest Replace Prefix With, one entry per data source (parallel to pds_data_source_names)"
   type        = list(string)
+
+  validation {
+    condition     = length(var.pds_nucleus_harvest_replace_prefix_with_list) == length(var.pds_data_source_names)
+    error_message = "pds_nucleus_harvest_replace_prefix_with_list must have exactly one entry per pds_data_source_names entry."
+  }
 }
 
 variable "pds_nucleus_harvest_replace_prefix_list" {
-  description = "List of EFS path prefixes to replace in harvest config, one per PDS node (e.g. /mnt/data/pds-img-staging-dev/lroc)"
+  description = "List of EFS path prefixes to replace in harvest config, one per data source (e.g. /mnt/data/pds-img-staging-dev/lroc)"
   type        = list(string)
+
+  validation {
+    condition     = length(var.pds_nucleus_harvest_replace_prefix_list) == length(var.pds_data_source_names)
+    error_message = "pds_nucleus_harvest_replace_prefix_list must have exactly one entry per pds_data_source_names entry."
+  }
 }
 
 variable "pds_nucleus_staging_bucket_name_postfix" {
