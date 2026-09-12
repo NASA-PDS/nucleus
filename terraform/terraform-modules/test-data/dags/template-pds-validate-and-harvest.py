@@ -452,9 +452,16 @@ config_init_cleanup = EcsRunTaskOperator(
 def restart_dag_on_failure(**context):
     """Check if any task failed; if so, trigger a new DAG run for retry."""
     import subprocess
+    from airflow.models import TaskInstance
     
     dag_run = context["dag_run"]
-    task_instances = context["task_instances"]
+    session = context["session"]
+    
+    # Query task instances for this DAG run
+    task_instances = session.query(TaskInstance).filter(
+        TaskInstance.dag_id == context["dag"].dag_id,
+        TaskInstance.run_id == dag_run.run_id
+    ).all()
     
     # Check if any task failed (not skipped, not success)
     failed_tasks = [ti for ti in task_instances if ti.state == "failed"]
