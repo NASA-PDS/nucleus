@@ -119,14 +119,18 @@ def save_product_data_file_mappings_in_database(s3_url_of_product_label, file_na
     ]
 
     try:
-        rds_data.batch_execute_statement(
+        logger.info(f"Executing batch insert with {len(param_sets)} parameter sets")
+        response = rds_data.batch_execute_statement(
             resourceArn=db_clust_arn,
             secretArn=db_secret_arn,
             database=db_name,
             sql=sql,
             parameterSets=param_sets)
+        logger.info(f"Batch insert response: {response}")
     except Exception as e:
         logger.exception(f"Error batch-inserting product_data_file_mapping. Exception: {str(e)}")
+        logger.error(f"SQL: {sql}")
+        logger.error(f"Param sets: {param_sets}")
         raise e
 
 
@@ -162,16 +166,19 @@ def save_product_completion_status_in_database(s3_url_of_product_label, completi
     param_set = [s3_url_of_product_label_param, completion_status_param, last_updated_epoch_time_param, pds_node_param]
 
     try:
+        logger.info(f"Executing insert statement for product: {s3_url_of_product_label}")
         response = rds_data.execute_statement(
             resourceArn=db_clust_arn,
             secretArn=db_secret_arn,
             database=db_name,
             sql=sql,
             parameters=param_set)
-        logger.debug(str(response))
+        logger.info(f"Product insert response: {response}")
 
     except Exception as e:
         logger.error(f"Error writing to product table. Exception: {str(e)}")
+        logger.error(f"SQL: {sql}")
+        logger.error(f"Params: {param_set}")
         raise e
 
 
