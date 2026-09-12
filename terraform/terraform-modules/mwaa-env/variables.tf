@@ -10,7 +10,7 @@ variable "airflow_version" {
 
 variable "airflow_env_class" {
   description = "PDS Nucleus Airflow Environment Class"
-  default     = "mw1.small"
+  default     = "mw1.large"
   type        = string
 }
 
