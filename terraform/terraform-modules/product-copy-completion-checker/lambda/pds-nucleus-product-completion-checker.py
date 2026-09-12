@@ -64,7 +64,7 @@ OPENSEARCH_CRED_URL = os.environ["OPENSEARCH_CREDENTIAL_RELATIVE_URL"]
 REPLACE_PREFIX_WITH = os.environ["REPLACE_PREFIX_WITH"]
 HARVEST_REPLACE_PREFIX = os.environ["HARVEST_REPLACE_PREFIX"]
 
-PRODUCT_BATCH_SIZE = int(os.environ.get("PRODUCT_BATCH_SIZE", "200"))
+PRODUCT_BATCH_SIZE = int(os.environ.get("PRODUCT_BATCH_SIZE", "500"))
 
 # -------------------------------------------------------------------
 # Constants
