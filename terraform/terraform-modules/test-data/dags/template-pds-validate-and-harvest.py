@@ -25,13 +25,14 @@ from typing import Any
 class EcsRunTaskOperatorWithMaxLogs(EcsRunTaskOperator):
     """Base class: fetch max available CloudWatch logs after task execution."""
     def execute(self, context: Any) -> str | None:
-        """Execute task and fetch CloudWatch logs."""
+        """Execute task synchronously and fetch CloudWatch logs."""
         try:
             result = super().execute(context)
         except Exception:
             # Task failed; try to fetch and log CloudWatch logs before re-raising
             self._fetch_and_log_cloudwatch_logs()
             raise
+        
         # Task succeeded; also fetch logs for visibility
         self._fetch_and_log_cloudwatch_logs()
         return result
@@ -68,6 +69,7 @@ class EcsRunTaskOperatorWithMaxLogs(EcsRunTaskOperator):
 class ValidateEcsRunTaskOperator(EcsRunTaskOperatorWithMaxLogs):
     def execute(self, context):
         try:
+            # This will run the parent execute(), which also fetches the logs
             return super().execute(context)
         except Exception as e:
             exit_code = None
@@ -101,12 +103,10 @@ class HarvestEcsRunTaskOperator(EcsRunTaskOperatorWithMaxLogs):
     parses CloudWatch logs to detect the [SUMMARY] line with failed file count
     and fails the task if any files failed.
     """
-    def execute_complete(self, context: Any, event: dict[str, Any] | None = None) -> str | None:
-        """Resume from deferral, fetch logs, and check for failed files."""
-        try:
-            result = super().execute_complete(context, event)
-        except Exception:
-            raise
+    def execute(self, context: Any) -> str | None:
+        """Execute task synchronously, fetch logs, and check for failed files."""
+        # This will run the parent execute(), which also fetches the logs
+        result = super().execute(context)
         
         # Task succeeded (exit 0), but check if harvest had failed files
         self._check_harvest_summary()
