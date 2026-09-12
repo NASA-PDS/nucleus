@@ -23,11 +23,11 @@ from typing import Any
 # never started, OOM, etc.) is a genuine infra failure worth retrying.
 # We distinguish the two so only infra failures consume the task's retries.
 class EcsRunTaskOperatorWithMaxLogs(EcsRunTaskOperator):
-    """Base class: on deferred resume, pull max available CloudWatch logs."""
-    def execute_complete(self, context: Any, event: dict[str, Any] | None = None) -> str | None:
-        """Resume from deferral and pull max available log lines from CloudWatch."""
+    """Base class: fetch max available CloudWatch logs after task execution."""
+    def execute(self, context: Any) -> str | None:
+        """Execute task and fetch CloudWatch logs."""
         try:
-            result = super().execute_complete(context, event)
+            result = super().execute(context)
         except Exception:
             # Task failed; try to fetch and log CloudWatch logs before re-raising
             self._fetch_and_log_cloudwatch_logs()
@@ -256,7 +256,7 @@ config_init = EcsRunTaskOperator(
     awslogs_region=AWS_REGION,
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,
-    deferrable=True,
+    deferrable=False,
     waiter_delay=1,
     dag=dag,
 )
@@ -288,7 +288,7 @@ config_s3_to_efs_copy = EcsRunTaskOperator(
     awslogs_region=AWS_REGION,
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,
-    deferrable=True,
+    deferrable=False,
     waiter_delay=1,
     dag=dag,
 )
@@ -323,7 +323,7 @@ validate = ValidateEcsRunTaskOperator(
     awslogs_region=AWS_REGION,
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,
-    deferrable=True,
+    deferrable=False,
     waiter_delay=1,
     # No explicit retries override: ValidateEcsRunTaskOperator already
     # distinguishes real data-validation failures (no retry, fails fast)
@@ -369,9 +369,9 @@ harvest = HarvestEcsRunTaskOperator(
     awslogs_region=AWS_REGION,
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,
-    deferrable=True,
+    deferrable=False,
     waiter_delay=1,
-    # execute_complete() pulls max available CloudWatch logs
+    # execute() pulls max available CloudWatch logs
     # and checks the [SUMMARY] line for failed files. If any files failed,
     # the task fails (since files missing from EFS indicate upstream copy failure).
     dag=dag,
@@ -408,7 +408,7 @@ config_s3_to_efs_copy_cleanup = EcsRunTaskOperator(
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,
     trigger_rule=TriggerRule.ALL_DONE,
-    deferrable=True,
+    deferrable=False,
     waiter_delay=1,
     dag=dag,
 )
@@ -442,7 +442,7 @@ config_init_cleanup = EcsRunTaskOperator(
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,
     trigger_rule=TriggerRule.ALL_DONE,
-    deferrable=True,
+    deferrable=False,
     waiter_delay=1,
     dag=dag,
 )
