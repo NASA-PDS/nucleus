@@ -9,6 +9,8 @@ from airflow.operators.bash import BashOperator
 from airflow.providers.amazon.aws.hooks.logs import AwsLogsHook
 from airflow.providers.amazon.aws.operators.ecs import EcsRunTaskOperator
 from airflow.utils.trigger_rule import TriggerRule
+from airflow.utils.state import State
+from airflow.api.common.trigger_dag import trigger_dag
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -254,7 +256,7 @@ config_init = EcsRunTaskOperator(
     awslogs_region=AWS_REGION,
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,
-    deferrable=False,
+    deferrable=True,
     waiter_delay=1,
     dag=dag,
 )
@@ -286,7 +288,7 @@ config_s3_to_efs_copy = EcsRunTaskOperator(
     awslogs_region=AWS_REGION,
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,
-    deferrable=False,
+    deferrable=True,
     waiter_delay=1,
     dag=dag,
 )
@@ -321,7 +323,7 @@ validate = ValidateEcsRunTaskOperator(
     awslogs_region=AWS_REGION,
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,
-    deferrable=False,
+    deferrable=True,
     waiter_delay=1,
     # No explicit retries override: ValidateEcsRunTaskOperator already
     # distinguishes real data-validation failures (no retry, fails fast)
@@ -367,7 +369,7 @@ harvest = HarvestEcsRunTaskOperator(
     awslogs_region=AWS_REGION,
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,
-    deferrable=False,
+    deferrable=True,
     waiter_delay=1,
     # execute_complete() pulls max available CloudWatch logs
     # and checks the [SUMMARY] line for failed files. If any files failed,
@@ -406,7 +408,7 @@ config_s3_to_efs_copy_cleanup = EcsRunTaskOperator(
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,
     trigger_rule=TriggerRule.ALL_DONE,
-    deferrable=False,
+    deferrable=True,
     waiter_delay=1,
     dag=dag,
 )
@@ -440,7 +442,7 @@ config_init_cleanup = EcsRunTaskOperator(
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,
     trigger_rule=TriggerRule.ALL_DONE,
-    deferrable=False,
+    deferrable=True,
     waiter_delay=1,
     dag=dag,
 )
@@ -448,47 +450,40 @@ config_init_cleanup = EcsRunTaskOperator(
 # -------------------------------------------------------------------
 # DAG RESTART ON FAILURE
 # -------------------------------------------------------------------
-@task(task_id="Restart_DAG_On_Failure", dag=dag, trigger_rule=TriggerRule.ALL_DONE)
+@task(task_id="Restart_DAG_On_Failure", trigger_rule=TriggerRule.ALL_DONE, dag=dag)
 def restart_dag_on_failure(**context):
     """Check if any task failed; if so, trigger a new DAG run for retry."""
-    import subprocess
-    from airflow.models import TaskInstance
-    
     dag_run = context["dag_run"]
-    session = context["session"]
     
-    # Query task instances for this DAG run
-    task_instances = session.query(TaskInstance).filter(
-        TaskInstance.dag_id == context["dag"].dag_id,
-        TaskInstance.run_id == dag_run.run_id
-    ).all()
-    
-    # Check if any task failed (not skipped, not success)
-    failed_tasks = [ti for ti in task_instances if ti.state == "failed"]
+    # Clean, native way to get failed tasks for this specific run
+    failed_tasks = dag_run.get_task_instances(state=State.FAILED)
     
     if not failed_tasks:
-        print("No failed tasks. DAG completed successfully or all failures were handled.")
+        print("No failed tasks. DAG completed successfully.")
         return
-    
+
+    # If we are here, something failed. Check retry limits.
     retry_count = dag_run.conf.get("retry_count", 0)
     if retry_count >= 3:
-        print(f"Max retries (3) exceeded. Failing DAG.")
-        raise AirflowFailException("Max retries exceeded")
+        raise AirflowFailException(f"Max DAG retries (3) exceeded. Failed tasks: {[t.task_id for t in failed_tasks]}")
     
     new_retry = retry_count + 1
-    print(f"DAG has failed tasks. Restarting (attempt {new_retry}/3)...")
+    print(f"DAG has failed tasks. Triggering retry attempt {new_retry}/3...")
     
-    import json
-    conf = {
-        "s3_config_dir": dag_run.conf["s3_config_dir"],
-        "efs_config_dir": dag_run.conf["efs_config_dir"],
-        "retry_count": new_retry
-    }
-    subprocess.run([
-        "aws", "airflow", "dags", "trigger",
-        "--dag-id", dag_run.dag_id,
-        "--conf", json.dumps(conf)
-    ], check=True)
+    # Trigger the new DAG natively (No AWS CLI required)
+    trigger_dag(
+        dag_id=context["dag"].dag_id,
+        run_id=f"retry_{new_retry}_{dag_run.run_id}",
+        conf={
+            "s3_config_dir": dag_run.conf["s3_config_dir"],
+            "efs_config_dir": dag_run.conf["efs_config_dir"],
+            "retry_count": new_retry
+        },
+        replace_microseconds=False
+    )
+
+    # Fail the current DAG run so the UI accurately shows it didn't succeed
+    raise AirflowFailException("Failing current DAG run because upstream tasks failed. A retry DAG run has been triggered.")
 
 restart_dag = restart_dag_on_failure()
 
