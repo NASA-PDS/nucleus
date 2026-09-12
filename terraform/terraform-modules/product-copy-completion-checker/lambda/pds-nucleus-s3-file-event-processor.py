@@ -72,10 +72,6 @@ def handle_file_types(s3_url_of_file, s3_bucket, s3_key):
         # Data file received
         elif not s3_url_of_file.lower().endswith("/"):  # Not a directory
             logger.info(f"Received data file: {s3_url_of_file}")
-            # Extract product directory and create product if it doesn't exist
-            product_dir = s3_url_of_file.rsplit('/', 1)[0]
-            product_label_url = f"{product_dir}/product.xml"
-            save_product_completion_status_in_database(product_label_url, "INCOMPLETE")
             save_data_file_in_database(s3_url_of_file)
 
     except Exception as e:
