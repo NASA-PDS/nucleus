@@ -152,11 +152,11 @@ class HarvestEcsRunTaskOperator(EcsRunTaskOperatorWithMaxLogs):
 # -------------------------------------------------------------------
 # ECS configuration (TEMPLATE — injected by Terraform)
 # -------------------------------------------------------------------
-ECS_CLUSTER_NAME    = "${pds_nucleus_ecs_cluster_name}"
+ECS_CLUSTER_NAME    = "pds-nucleus-ecs"
 ECS_LAUNCH_TYPE     = "FARGATE"
-ECS_SUBNETS         = ${pds_nucleus_ecs_subnets}
-ECS_SECURITY_GROUPS = ${pds_nucleus_ecs_security_groups}
-AWS_REGION          = "${aws_region}"
+ECS_SUBNETS         = ["subnet-0476a07ebfcaaea3a","subnet-0ac3ac3ab93fa2f89"]
+ECS_SECURITY_GROUPS = ["sg-0253338e480247bb6"]
+AWS_REGION          = "us-west-2"
 
 # -------------------------------------------------------------------
 # Read the batch's product list (used below for the XCom-visible task)
@@ -171,7 +171,7 @@ def _read_product_list(s3_config_dir):
 # DAG definition
 # -------------------------------------------------------------------
 dag = DAG(
-    dag_id="${pds_validate_and_harvest_dag_id}",
+    dag_id="PDS_IMG-pds-validate-and-harvest",
     schedule=None,
     catchup=False,
     start_date=datetime(2024, 1, 1),
@@ -181,16 +181,7 @@ dag = DAG(
         "retry_exponential_backoff": True,
         "max_retry_delay": timedelta(minutes=15),
     },
-    params={
-        # Extra CLI switches for the `harvest` command (e.g. "-O -f").
-        # Shows up as an editable field in the Airflow UI's "Trigger DAG w/ config" form.
-        # Some supported harvest flags (see harvest -h):
-        #   -O, --overwrite       Overwrite registered products
-        #   -f, --force           Force load products even when namespace schema or attribute
-        #                         type cannot be resolved. Affected fields will not be indexed.
-        #   -a, --archive-status  Set the archive status for all products defaulting to staged
-        "harvest_extra_args": "",
-    },
+    tags=["pds", "nucleus", "img"],
 )
 
 # -------------------------------------------------------------------
@@ -229,7 +220,7 @@ list_products = list_products_in_batch()
 config_init = EcsRunTaskOperator(
     task_id="Config_Init",
     cluster=ECS_CLUSTER_NAME,
-    task_definition="pds-nucleus-config-init-task-definition-${pds_node_name}",
+    task_definition="pds-nucleus-config-init-task-definition-PDS_IMG",
     launch_type=ECS_LAUNCH_TYPE,
     network_configuration={
         "awsvpcConfiguration": {
@@ -249,7 +240,7 @@ config_init = EcsRunTaskOperator(
             }
         ]
     },
-    awslogs_group="/pds/ecs/pds-nucleus-config-init-${pds_node_name}",
+    awslogs_group="/pds/ecs/pds-nucleus-config-init-PDS_IMG",
     awslogs_stream_prefix="ecs/pds-nucleus-config-init",
     awslogs_region=AWS_REGION,
     awslogs_fetch_interval=timedelta(seconds=1),
@@ -262,7 +253,7 @@ config_init = EcsRunTaskOperator(
 config_s3_to_efs_copy = EcsRunTaskOperator(
     task_id="Config_S3_to_EFS_Copy",
     cluster=ECS_CLUSTER_NAME,
-    task_definition="pds-nucleus-s3-to-efs-copy-task-definition-${pds_node_name}",
+    task_definition="pds-nucleus-s3-to-efs-copy-task-definition-PDS_IMG",
     launch_type=ECS_LAUNCH_TYPE,
     network_configuration={
         "awsvpcConfiguration": {
@@ -281,7 +272,7 @@ config_s3_to_efs_copy = EcsRunTaskOperator(
             }
         ]
     },
-    awslogs_group="/pds/ecs/pds-nucleus-s3-to-efs-copy-${pds_node_name}",
+    awslogs_group="/pds/ecs/pds-nucleus-s3-to-efs-copy-PDS_IMG",
     awslogs_stream_prefix="ecs/pds-nucleus-s3-to-efs-copy",
     awslogs_region=AWS_REGION,
     awslogs_fetch_interval=timedelta(seconds=1),
@@ -297,7 +288,7 @@ config_s3_to_efs_copy = EcsRunTaskOperator(
 validate = ValidateEcsRunTaskOperator(
     task_id="Validate_Products",
     cluster=ECS_CLUSTER_NAME,
-    task_definition="pds-validate-task-definition-${pds_node_name}",
+    task_definition="pds-validate-task-definition-PDS_IMG",
     launch_type=ECS_LAUNCH_TYPE,
     network_configuration={
         "awsvpcConfiguration": {
@@ -316,16 +307,13 @@ validate = ValidateEcsRunTaskOperator(
             }
         ]
     },
-    awslogs_group="/pds/ecs/validate-${pds_node_name}",
+    awslogs_group="/pds/ecs/validate-PDS_IMG",
     awslogs_stream_prefix="ecs/pds-validate",
     awslogs_region=AWS_REGION,
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,
     deferrable=False,
     waiter_delay=1,
-    # No explicit retries override: ValidateEcsRunTaskOperator already
-    # distinguishes real data-validation failures (no retry, fails fast)
-    # from genuine infra failures (retried per the DAG-level default).
     dag=dag,
 )
 
@@ -335,7 +323,7 @@ validate = ValidateEcsRunTaskOperator(
 harvest = HarvestEcsRunTaskOperator(
     task_id="Harvest_Data",
     cluster=ECS_CLUSTER_NAME,
-    task_definition="pds-registry-loader-harvest-task-definition-${pds_node_name}",
+    task_definition="pds-registry-loader-harvest-task-definition-PDS_IMG",
     launch_type=ECS_LAUNCH_TYPE,
     network_configuration={
         "awsvpcConfiguration": {
@@ -353,25 +341,20 @@ harvest = HarvestEcsRunTaskOperator(
                         "value": "{{ dag_run.conf['efs_config_dir'] }}/harvest.cfg",
                     },
                     {
-                        # Extra CLI switches for the `harvest` command, editable via the DAG's
-                        # "harvest_extra_args" param (Trigger DAG w/ config UI) or dag_run.conf.
                         "name": "HARVEST_EXTRA_ARGS",
-                        "value": "{{ params.harvest_extra_args }}",
+                        "value": "-a archived --overwrite",
                     },
                 ],
             }
         ]
     },
-    awslogs_group="/pds/ecs/harvest-${pds_node_name}",
+    awslogs_group="/pds/ecs/harvest-PDS_IMG",
     awslogs_stream_prefix="ecs/pds-registry-loader-harvest",
     awslogs_region=AWS_REGION,
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,
     deferrable=False,
     waiter_delay=1,
-    # execute_complete() pulls max available CloudWatch logs
-    # and checks the [SUMMARY] line for failed files. If any files failed,
-    # the task fails (since files missing from EFS indicate upstream copy failure).
     dag=dag,
 )
 
@@ -381,7 +364,7 @@ harvest = HarvestEcsRunTaskOperator(
 config_s3_to_efs_copy_cleanup = EcsRunTaskOperator(
     task_id="Config_S3_to_EFS_Copy_Cleanup",
     cluster=ECS_CLUSTER_NAME,
-    task_definition="pds-nucleus-s3-to-efs-copy-task-definition-${pds_node_name}",
+    task_definition="pds-nucleus-s3-to-efs-copy-task-definition-PDS_IMG",
     launch_type=ECS_LAUNCH_TYPE,
     network_configuration={
         "awsvpcConfiguration": {
@@ -400,7 +383,7 @@ config_s3_to_efs_copy_cleanup = EcsRunTaskOperator(
             }
         ]
     },
-    awslogs_group="/pds/ecs/pds-nucleus-s3-to-efs-copy-${pds_node_name}",
+    awslogs_group="/pds/ecs/pds-nucleus-s3-to-efs-copy-PDS_IMG",
     awslogs_stream_prefix="ecs/pds-nucleus-s3-to-efs-copy",
     awslogs_region=AWS_REGION,
     awslogs_fetch_interval=timedelta(seconds=1),
@@ -414,7 +397,7 @@ config_s3_to_efs_copy_cleanup = EcsRunTaskOperator(
 config_init_cleanup = EcsRunTaskOperator(
     task_id="Config_Init_Cleanup",
     cluster=ECS_CLUSTER_NAME,
-    task_definition="pds-nucleus-config-init-task-definition-${pds_node_name}",
+    task_definition="pds-nucleus-config-init-task-definition-PDS_IMG",
     launch_type=ECS_LAUNCH_TYPE,
     network_configuration={
         "awsvpcConfiguration": {
@@ -434,7 +417,7 @@ config_init_cleanup = EcsRunTaskOperator(
             }
         ]
     },
-    awslogs_group="/pds/ecs/pds-nucleus-config-init-${pds_node_name}",
+    awslogs_group="/pds/ecs/pds-nucleus-config-init-PDS_IMG",
     awslogs_stream_prefix="ecs/pds-nucleus-config-init",
     awslogs_region=AWS_REGION,
     awslogs_fetch_interval=timedelta(seconds=1),

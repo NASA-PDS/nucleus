@@ -1,7 +1,7 @@
 """
 ============================================================
-pds-nucleus-product-completion-checker.py
-(Airflow 3 / MWAA compatible)
+pds-nucleus-product-completion-checker-hardcoded.py
+(Airflow 3 / MWAA compatible, hardcoded for PDS_IMG)
 ============================================================
 """
 import os
@@ -46,11 +46,10 @@ if not logger.handlers:
 
 
 # -------------------------------------------------------------------
-# Env Vars
+# Hardcoded Env Vars (PDS_IMG)
 # -------------------------------------------------------------------
-DAG_NAME = os.environ["AIRFLOW_DAG_NAME"]
-PDS_NODE = os.environ["PDS_NODE_NAME"]
-PDS_DATA_SOURCE = os.environ["PDS_DATA_SOURCE_NAME"]
+DAG_NAME = "PDS_IMG-pds-validate-and-harvest"
+PDS_NODE = "PDS_IMG"
 DB_CLUSTER_ARN = os.environ["DB_CLUSTER_ARN"]
 DB_SECRET_ARN = os.environ["DB_SECRET_ARN"]
 DB_NAME = os.environ["DB_NAME"]
@@ -126,10 +125,8 @@ def lambda_handler(event, context):
             break
 
         batch          = generate_batch_name()
-        # CONFIG_BUCKET is shared per node (not per data source) to keep the original IAM S3
-        # resource pattern intact, so data sources are isolated by key prefix instead.
-        s3_config_dir  = f"{S3_PREFIX}{CONFIG_BUCKET}/dag-data/{PDS_DATA_SOURCE}/{batch}"
-        efs_config_dir = f"{EFS_MOUNT}/dag-data/{PDS_DATA_SOURCE}/{batch}"
+        s3_config_dir  = f"{S3_PREFIX}{CONFIG_BUCKET}/dag-data/{batch}"
+        efs_config_dir = f"{EFS_MOUNT}/dag-data/{batch}"
 
         logger.info(f"Preparing batch {batch} ({len(products)} products) claim={claim_id}")
 
@@ -334,11 +331,11 @@ def archive_completed_products(products):
 def _build_harvest_cfg(batch):
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <harvest>
-  <registry auth="/etc/es-auth.cfg">file:///mnt/data/dag-data/{PDS_DATA_SOURCE}/{batch}/connection.xml</registry>
+  <registry auth="/etc/es-auth.cfg">file:///mnt/data/dag-data/{batch}/connection.xml</registry>
 
   <load>
     <files>
-      <manifest>/mnt/data/dag-data/{PDS_DATA_SOURCE}/{batch}/harvest_manifest.txt</manifest>
+      <manifest>/mnt/data/dag-data/{batch}/harvest_manifest.txt</manifest>
     </files>
   </load>
 
@@ -418,7 +415,7 @@ def upload_text(s3_dir, name, content):
 
 
 # -------------------------------------------------------------------
-# MWAA Trigger
+# MWAA Trigger (with retry logic)
 # -------------------------------------------------------------------
 
 def trigger_airflow(batch, s3_config_dir, efs_config_dir):

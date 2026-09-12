@@ -190,7 +190,8 @@ resource "aws_lambda_function" "pds_nucleus_s3_file_file_event_processor_functio
   role             = local.node_role_arn_map[var.pds_data_source_node_names[count.index]]
   runtime          = var.lambda_runtime
   handler          = "pds-nucleus-s3-file-event-processor.lambda_handler"
-  timeout          = 300
+  timeout          = 900
+  memory_size      = 1024
   depends_on       = [data.archive_file.pds_nucleus_s3_file_file_event_processor_function_zip]
 
   environment {
@@ -209,12 +210,13 @@ resource "aws_lambda_function" "pds_nucleus_s3_file_file_event_processor_functio
 
 # Create SQS queue event source for pds_nucleus_s3_file_file_event_processor_function for each data source
 resource "aws_lambda_event_source_mapping" "event_source_mapping" {
-  count                    = length(var.pds_data_source_names)
-  event_source_arn         = aws_sqs_queue.pds_nucleus_files_to_save_in_database_sqs_queue[count.index].arn
-  enabled                  = true
-  function_name            = aws_lambda_function.pds_nucleus_s3_file_file_event_processor_function[count.index].function_name
-  batch_size               = 10
-  function_response_types  = ["ReportBatchItemFailures"]
+  count                                = length(var.pds_data_source_names)
+  event_source_arn                     = aws_sqs_queue.pds_nucleus_files_to_save_in_database_sqs_queue[count.index].arn
+  enabled                              = true
+  function_name                        = aws_lambda_function.pds_nucleus_s3_file_file_event_processor_function[count.index].function_name
+  batch_size                           = 100
+  maximum_batching_window_in_seconds   = 1
+  function_response_types              = ["ReportBatchItemFailures"]
 }
 
 # Create pds_nucleus_product_completion_checker_function for each data source (IAM role/DB/OpenSearch/archive bucket shared per node — no IAM created/modified here)
@@ -228,7 +230,8 @@ resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function"
   role             = local.node_role_arn_map[var.pds_data_source_node_names[count.index]]
   runtime          = var.lambda_runtime
   handler          = "pds-nucleus-product-completion-checker.lambda_handler"
-  timeout          = 300
+  timeout          = 900
+  memory_size      = 256
   depends_on       = [data.archive_file.pds_nucleus_product_completion_checker_zip]
 
   environment {
