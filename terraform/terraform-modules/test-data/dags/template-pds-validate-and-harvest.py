@@ -9,8 +9,6 @@ from airflow.operators.bash import BashOperator
 from airflow.providers.amazon.aws.hooks.logs import AwsLogsHook
 from airflow.providers.amazon.aws.operators.ecs import EcsRunTaskOperator
 from airflow.utils.trigger_rule import TriggerRule
-from airflow.utils.state import State
-from airflow.api.common.trigger_dag import trigger_dag
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -448,46 +446,6 @@ config_init_cleanup = EcsRunTaskOperator(
 )
 
 # -------------------------------------------------------------------
-# DAG RESTART ON FAILURE
-# -------------------------------------------------------------------
-@task(task_id="Restart_DAG_On_Failure", trigger_rule=TriggerRule.ALL_DONE, dag=dag)
-def restart_dag_on_failure(**context):
-    """Check if any task failed; if so, trigger a new DAG run for retry."""
-    dag_run = context["dag_run"]
-    
-    # Clean, native way to get failed tasks for this specific run
-    failed_tasks = dag_run.get_task_instances(state=State.FAILED)
-    
-    if not failed_tasks:
-        print("No failed tasks. DAG completed successfully.")
-        return
-
-    # If we are here, something failed. Check retry limits.
-    retry_count = dag_run.conf.get("retry_count", 0)
-    if retry_count >= 3:
-        raise AirflowFailException(f"Max DAG retries (3) exceeded. Failed tasks: {[t.task_id for t in failed_tasks]}")
-    
-    new_retry = retry_count + 1
-    print(f"DAG has failed tasks. Triggering retry attempt {new_retry}/3...")
-    
-    # Trigger the new DAG natively (No AWS CLI required)
-    trigger_dag(
-        dag_id=context["dag"].dag_id,
-        run_id=f"retry_{new_retry}_{dag_run.run_id}",
-        conf={
-            "s3_config_dir": dag_run.conf["s3_config_dir"],
-            "efs_config_dir": dag_run.conf["efs_config_dir"],
-            "retry_count": new_retry
-        },
-        replace_microseconds=False
-    )
-
-    # Fail the current DAG run so the UI accurately shows it didn't succeed
-    raise AirflowFailException("Failing current DAG run because upstream tasks failed. A retry DAG run has been triggered.")
-
-restart_dag = restart_dag_on_failure()
-
-# -------------------------------------------------------------------
 # WORKFLOW
 # -------------------------------------------------------------------
 (
@@ -500,5 +458,4 @@ restart_dag = restart_dag_on_failure()
     >> config_s3_to_efs_copy_cleanup
     >> config_init_cleanup
     >> print_end_time
-    >> restart_dag
 )
