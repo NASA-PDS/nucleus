@@ -20,8 +20,11 @@ db_clust_arn  = os.environ.get('DB_CLUSTER_ARN')
 db_secret_arn = os.environ.get('DB_SECRET_ARN')
 pds_node      = os.environ.get('PDS_NODE_NAME')
 db_name       = os.environ.get('DB_NAME')
+pool_size     = int(os.environ.get('RDS_DATA_API_POOL_SIZE', '10'))
 
-rds_data = boto3.client('rds-data')
+rds_data = boto3.client('rds-data', config=boto3.session.Config(
+    max_pool_connections=pool_size
+))
 
 def _process_record(record):
     s3_event = json.loads(record.get("body"))

@@ -202,6 +202,7 @@ resource "aws_lambda_function" "pds_nucleus_s3_file_file_event_processor_functio
       EFS_MOUNT_PATH       = "/mnt/data/"
       PDS_NODE_NAME        = var.pds_data_source_node_names[count.index]
       PDS_DATA_SOURCE_NAME = var.pds_data_source_names[count.index]
+      RDS_DATA_API_POOL_SIZE = "10"
     }
   }
 
