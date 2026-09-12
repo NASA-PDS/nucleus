@@ -300,13 +300,37 @@ def archive_completed_products(products):
             FROM product_data_file_mapping
             WHERE s3_url_of_product_label IN ({placeholders})
         """,
-        # 3. delete active mappings
+        # 3. archive data_file rows referenced by these products
+        f"""
+            INSERT IGNORE INTO data_file_archive
+                (s3_url_of_data_file, original_s3_url_of_data_file_name,
+                 last_updated_epoch_time, pds_node, archived_epoch_time)
+            SELECT DISTINCT df.s3_url_of_data_file, df.original_s3_url_of_data_file_name,
+                   df.last_updated_epoch_time, df.pds_node, :ts
+            FROM data_file df
+            WHERE df.s3_url_of_data_file IN (
+                SELECT DISTINCT m.s3_url_of_data_file
+                FROM product_data_file_mapping m
+                WHERE m.s3_url_of_product_label IN ({placeholders})
+            )
+        """,
+        # 4. delete active mappings
         f"DELETE FROM product_data_file_mapping WHERE s3_url_of_product_label IN ({placeholders})",
-        # 4. delete active product rows last
+        # 5. delete orphaned data_file rows
+        f"""
+            DELETE FROM data_file
+            WHERE s3_url_of_data_file IN (
+                SELECT DISTINCT m.s3_url_of_data_file
+                FROM product_data_file_mapping_archive m
+                WHERE m.s3_url_of_product_label IN ({placeholders})
+            )
+        """,
+        # 6. delete active product rows last
         f"DELETE FROM product WHERE s3_url_of_product_label IN ({placeholders})",
     ]
 
     deleted_products = None
+    deleted_data_files = None
     for i, sql in enumerate(steps):
         resp = rds.execute_statement(
             resourceArn=DB_CLUSTER_ARN,
@@ -315,7 +339,9 @@ def archive_completed_products(products):
             sql=sql,
             parameters=params,
         )
-        if i == 3:  # DELETE FROM product
+        if i == 4:  # DELETE FROM data_file
+            deleted_data_files = resp.get("numberOfRecordsUpdated")
+        elif i == 5:  # DELETE FROM product
             deleted_products = resp.get("numberOfRecordsUpdated")
 
     if deleted_products != len(products):
@@ -324,7 +350,7 @@ def archive_completed_products(products):
             f"deleted {deleted_products} rows from 'product' table"
         )
 
-    logger.info(f"Archived {len(products)} completed products")
+    logger.info(f"Archived {len(products)} completed products and {deleted_data_files} data files")
 
 
 # -------------------------------------------------------------------
