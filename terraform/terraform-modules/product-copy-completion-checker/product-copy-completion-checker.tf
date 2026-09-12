@@ -190,7 +190,7 @@ resource "aws_lambda_function" "pds_nucleus_s3_file_file_event_processor_functio
   role             = local.node_role_arn_map[var.pds_data_source_node_names[count.index]]
   runtime          = var.lambda_runtime
   handler          = "pds-nucleus-s3-file-event-processor.lambda_handler"
-  timeout          = 900
+  timeout          = 300
   memory_size      = 1024
   depends_on       = [data.archive_file.pds_nucleus_s3_file_file_event_processor_function_zip]
 
