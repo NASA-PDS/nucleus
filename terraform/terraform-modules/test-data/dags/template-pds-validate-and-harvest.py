@@ -14,7 +14,7 @@ from pds_airflow_custom_operators import (
     ValidateEcsRunTaskOperator,
     HarvestEcsRunTaskOperator,
 )
-from pds_log_parsers import build_manifest_key, harvested_count
+from pds_log_parsers import build_manifest_key, common_directory, harvested_count
 
 
 # -------------------------------------------------------------------
@@ -25,6 +25,10 @@ ECS_LAUNCH_TYPE     = "FARGATE"
 ECS_SUBNETS         = ${pds_nucleus_ecs_subnets}
 ECS_SECURITY_GROUPS = ${pds_nucleus_ecs_security_groups}
 AWS_REGION          = "${aws_region}"
+
+# A CloudWatch log event may not exceed 256 KB. Leave headroom for the log
+# framing that Airflow adds around the message.
+MAX_SUMMARY_EVENT_BYTES = 200_000
 
 # -------------------------------------------------------------------
 # Read the batch's product list (used below for the XCom-visible task)
@@ -370,35 +374,53 @@ def generate_summary_report(**context):
         and not unexpected
     )
 
+    # One entry per product, holding only what cannot be derived: the file
+    # name, its LIDVID and its status. The directory is identical for every
+    # product in a batch, so it is recorded once as a prefix instead of being
+    # repeated on all 166 entries.
+    status_by_name = {name: "not_validated" for name in manifest_keys}
+    for status, items in (
+        ("passed", validate_passed),
+        ("failed", validate_failed),
+        ("skipped", validate_skipped),
+    ):
+        for item in items:
+            status_by_name[build_manifest_key(item["file"])] = status
+
+    lidvid_by_name = {
+        build_manifest_key(item["file"]): item["lidvid"]
+        for item in validate_passed + validate_failed + validate_skipped
+    }
+
+    products = [
+        {
+            "name": name,
+            "lidvid": lidvid_by_name.get(name),
+            "status": status_by_name[name],
+        }
+        for name in sorted(status_by_name)
+    ]
+
     summary = {
         "batch_id": dag_run.run_id,
+        "status": "SUCCESS" if all_match else "WARNING",
         "timing": {
             "start_time": dag_run.start_date.isoformat() if dag_run.start_date else None,
             "end_time": datetime.utcnow().isoformat(),
         },
-        "received": {
-            "count": received_count,
-            "s3_urls": manifest_urls,
+        "counts": {
+            "received": received_count,
+            "validated": passed_count,
+            "validation_failed": len(validate_failed),
+            "validation_skipped": len(validate_skipped),
+            "harvested": harvest_count,
+            "harvest_skipped": harvest_skipped,
         },
-        "validation": {
-            "passed_count": len(validate_passed),
-            "failed_count": len(validate_failed),
-            "skipped_count": len(validate_skipped),
-            "tool_summary": validate_summary,
-            "passed": validate_passed,
-            "failed": validate_failed,
-            "skipped": validate_skipped,
-        },
-        "harvest": {
-            "count": harvest_count,
-            "skipped_count": harvest_skipped,
-            "tool_summary": harvest_summary,
+        "tool_summaries": {
+            "validate": validate_summary,
+            "harvest": harvest_summary,
         },
         "data_integrity": {
-            "received_count": received_count,
-            "validated_count": passed_count,
-            "harvested_count": harvest_count,
-            "harvest_skipped_count": harvest_skipped,
             "harvest_count_reported": harvest_count_known,
             "counts_match": counts_match,
             "not_validated": not_validated,
@@ -406,16 +428,38 @@ def generate_summary_report(**context):
             "all_match": all_match,
             "status": "COMPLETE" if all_match else "INCOMPLETE",
         },
-        "status": "SUCCESS" if all_match else "WARNING",
+        "s3_prefix": common_directory(manifest_urls),
+        "efs_prefix": common_directory([item["file"] for item in validate_passed]),
+        "products": products,
     }
 
-    # Single-line JSON for CloudWatch metric filters / downstream tooling.
-    print(f"PDS_BATCH_SUMMARY_JSON: {json.dumps(summary)}")
-    print("\n=== BATCH SUMMARY REPORT ===")
-    print(json.dumps(summary, indent=2))
-    print("=== END SUMMARY REPORT ===")
+    # A CloudWatch log event is capped at 256 KB. Drop the per-product list
+    # rather than let the whole report be truncated on a very large batch;
+    # the counts and the reconciliation lists still get through.
+    payload = json.dumps(summary, separators=(",", ":"))
+    if len(payload.encode("utf-8")) > MAX_SUMMARY_EVENT_BYTES:
+        summary["products"] = []
+        summary["products_omitted"] = len(products)
+        payload = json.dumps(summary, separators=(",", ":"))
 
-    return summary
+    # Exactly one machine-readable event, plus one short human-readable line.
+    # Anything more repeats every file path and LIDVID again.
+    print(f"PDS_BATCH_SUMMARY_JSON: {payload}")
+    print(
+        f"Batch {summary['status']}: received={received_count} "
+        f"validated={passed_count} harvested={harvest_count} "
+        f"not_validated={len(not_validated)} unexpected={len(unexpected)}"
+    )
+
+    # Return only the counts. The full report is already in the log above,
+    # and whatever is returned here is written to XCom and echoed into the
+    # task log a second time.
+    return {
+        "batch_id": summary["batch_id"],
+        "status": summary["status"],
+        "counts": summary["counts"],
+        "data_integrity_status": summary["data_integrity"]["status"],
+    }
 
 
 summary_report = generate_summary_report()

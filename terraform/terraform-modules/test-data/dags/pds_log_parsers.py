@@ -111,6 +111,35 @@ def harvested_count(summary: Dict[str, int]):
     return None
 
 
+def common_directory(paths: List[str]) -> str:
+    """Return the directory prefix shared by every path.
+
+    Lets a report store one prefix plus bare file names instead of repeating
+    the full location for every product. Returns "" when the paths share no
+    directory, in which case callers should keep the full paths.
+    """
+    directories = [path.rsplit("/", 1)[0] for path in paths if "/" in path]
+    if not directories or len(directories) != len(paths):
+        return ""
+
+    first = directories[0]
+    if all(directory == first for directory in directories):
+        return first
+
+    # Compare segment by segment so the prefix always ends on a path
+    # boundary, never in the middle of a directory name.
+    segments = first.split("/")
+    for directory in directories[1:]:
+        other = directory.split("/")
+        keep = 0
+        while keep < len(segments) and keep < len(other) and segments[keep] == other[keep]:
+            keep += 1
+        segments = segments[:keep]
+        if not segments:
+            return ""
+    return "/".join(segments)
+
+
 def build_manifest_key(path_or_url: str) -> str:
     """Normalise an S3 URL or EFS path down to its file name.
 

@@ -4,6 +4,7 @@ import unittest
 
 from pds_log_parsers import (
     build_manifest_key,
+    common_directory,
     harvested_count,
     parse_harvest_messages,
     parse_validate_messages,
@@ -118,6 +119,34 @@ class HarvestedCountTest(unittest.TestCase):
 
     def test_unknown_when_nothing_reported(self):
         self.assertIsNone(harvested_count({}))
+
+
+class CommonDirectoryTest(unittest.TestCase):
+    def test_returns_shared_directory(self):
+        paths = [
+            "s3://bucket/lroc/2009184/M101266738LE_hst.xml",
+            "s3://bucket/lroc/2009184/M101266738RE_hst.xml",
+        ]
+        self.assertEqual(common_directory(paths), "s3://bucket/lroc/2009184")
+
+    def test_truncates_to_shared_parent_when_directories_differ(self):
+        paths = [
+            "s3://bucket/lroc/2009184/a.xml",
+            "s3://bucket/lroc/2009185/b.xml",
+        ]
+        self.assertEqual(common_directory(paths), "s3://bucket/lroc")
+
+    def test_never_splits_inside_a_directory_name(self):
+        # "2009184" and "2009185" share the characters "200918", but that is
+        # not a real directory, so it must not become the prefix.
+        paths = ["/data/2009184/a.xml", "/data/2009185/b.xml"]
+        self.assertEqual(common_directory(paths), "/data")
+
+    def test_empty_when_nothing_shared(self):
+        self.assertEqual(common_directory(["/a/x.xml", "/b/y.xml"]), "")
+
+    def test_empty_for_no_paths(self):
+        self.assertEqual(common_directory([]), "")
 
 
 class BuildManifestKeyTest(unittest.TestCase):
