@@ -346,6 +346,7 @@ def generate_summary_report(**context):
     """
     dag_run = context["dag_run"]
     ti = context["task_instance"]
+    batch_id = dag_run.run_id
 
     def pull(task_id, key, default):
         value = ti.xcom_pull(task_ids=task_id, key=key)
@@ -500,6 +501,11 @@ def generate_summary_report(**context):
     # product as fully ingested.
     products = [
         {
+            # Repeated on every entry so a product found on its own still
+            # names the run it came from. The XCom list below is read
+            # without the surrounding report, and a product pulled out of a
+            # log search has nothing else to tie it back to its batch.
+            "batch_id": batch_id,
             "name": name,
             "path": path_by_name.get(name, name),
             "lidvid": lidvid_by_name.get(name),
@@ -510,7 +516,7 @@ def generate_summary_report(**context):
     ]
 
     summary = {
-        "batch_id": dag_run.run_id,
+        "batch_id": batch_id,
         "status": "FAILED" if failures else ("WARNING" if warnings else "SUCCESS"),
         "timing": {
             "start_time": dag_run.start_date.isoformat() if dag_run.start_date else None,
@@ -573,7 +579,7 @@ def generate_summary_report(**context):
             "PDS_PRODUCT_ISSUE_JSON: "
             + json.dumps(
                 {
-                    "batch_id": summary["batch_id"],
+                    "batch_id": batch_id,
                     "name": issue["name"],
                     # Spelled out in full here. These events are capped and
                     # are what an operator acts on, so the location should
@@ -617,14 +623,13 @@ def generate_summary_report(**context):
     # would replay the same failure five times to no purpose.
     if failures and context["params"]["fail_on_data_integrity_error"]:
         raise AirflowFailException(
-            f"Batch {summary['batch_id']} failed data integrity: "
-            + "; ".join(failures)
+            f"Batch {batch_id} failed data integrity: " + "; ".join(failures)
         )
 
     # Return only the counts. Airflow echoes the returned value into the
     # task log, so returning the full report would put it in CloudWatch too.
     return {
-        "batch_id": summary["batch_id"],
+        "batch_id": batch_id,
         "status": summary["status"],
         "counts": summary["counts"],
         "s3_prefix": s3_prefix,

@@ -125,6 +125,7 @@ class HarvestedCountTest(unittest.TestCase):
 
 def _product(name, **overrides):
     product = {
+        "batch_id": "manual__2026-09-13T04:46:52",
         "name": name,
         "path": name,
         "lidvid": None,
