@@ -1,4 +1,9 @@
-"""
+#!/usr/bin/env python3
+"""Update pds_airflow_custom_operators.py to parse logs and save to EFS."""
+
+import os
+
+content = '''"""
 PDS Airflow Custom Operators
 
 Reusable ECS operators for PDS Node workflows with enhanced logging and error handling.
@@ -113,8 +118,8 @@ class ValidateEcsRunTaskOperator(EcsRunTaskOperatorWithMaxLogs):
             results_file = os.path.join(efs_config_dir, "validation_results.txt")
             Path(efs_config_dir).mkdir(parents=True, exist_ok=True)
             with open(results_file, 'w') as f:
-                f.write(f"validated_count={validated_count}\n")
-                f.write(f"completed_at={datetime.utcnow().isoformat()}\n")
+                f.write(f"validated_count={validated_count}\\n")
+                f.write(f"completed_at={datetime.utcnow().isoformat()}\\n")
             
             self.log.info(f"Validation results saved: {validated_count} products")
         except Exception as e:
@@ -224,8 +229,8 @@ class HarvestEcsRunTaskOperator(EcsRunTaskOperatorWithMaxLogs):
             results_file = os.path.join(efs_config_dir, "harvest_results.txt")
             Path(efs_config_dir).mkdir(parents=True, exist_ok=True)
             with open(results_file, 'w') as f:
-                f.write(f"harvested_count={harvested_count}\n")
-                f.write(f"completed_at={datetime.utcnow().isoformat()}\n")
+                f.write(f"harvested_count={harvested_count}\\n")
+                f.write(f"completed_at={datetime.utcnow().isoformat()}\\n")
             
             self.log.info(f"Harvest results saved: {harvested_count} products")
         except Exception as e:
@@ -262,3 +267,10 @@ class HarvestEcsRunTaskOperator(EcsRunTaskOperatorWithMaxLogs):
             self.log.warning(f"Could not parse harvest logs: {e}")
         
         return harvested_count
+'''
+
+target_file = "terraform/terraform-modules/test-data/dags/pds_airflow_custom_operators.py"
+with open(target_file, 'w') as f:
+    f.write(content)
+
+print(f"Updated {target_file}")

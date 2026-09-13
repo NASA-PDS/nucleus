@@ -323,110 +323,77 @@ config_init_cleanup = EcsRunTaskOperator(
 # -------------------------------------------------------------------
 @task(task_id="Generate_Summary_Report", trigger_rule=TriggerRule.ALL_DONE, dag=dag)
 def generate_summary_report(**context):
-    """Generate comprehensive summary report with product tracking."""
+    """Generate comprehensive summary report from EFS files."""
     dag_run = context["dag_run"]
-    ti = context["task_instance"]
     
     batch_id = dag_run.run_id
     efs_config_dir = dag_run.conf.get("efs_config_dir", "")
-    s3_config_dir = dag_run.conf.get("s3_config_dir", "")
     
-    # Extract manifest products
+    # Read manifest from EFS
     manifest_products = extract_manifest_products(efs_config_dir)
     
-    # Parse validate and harvest logs
-    logs_hook = AwsLogsHook(aws_conn_id="aws_default", region_name=AWS_REGION)
-    logs_client = logs_hook.conn
-    
-    validate_log_group = "/pds/ecs/validate-${pds_node_name}"
-    validate_log_stream_prefix = "ecs/pds-validate"
-    
-    harvest_log_group = "/pds/ecs/harvest-${pds_node_name}"
-    harvest_log_stream_prefix = "ecs/pds-registry-loader-harvest"
-    
-    validated_products = []
-    harvested_products = []
-    
-    # Try to find and parse validate logs
+    # Read validation results from EFS
+    validated_count = 0
     try:
-        log_streams_resp = logs_client.describe_log_streams(
-            logGroupName=validate_log_group,
-            logStreamNamePrefix=validate_log_stream_prefix,
-            orderBy="LastEventTime",
-            descending=True,
-            limit=1
-        )
-        if log_streams_resp.get("logStreams"):
-            latest_stream = log_streams_resp["logStreams"][0]["logStreamName"]
-            validated_products = parse_validate_logs(logs_client, validate_log_group, latest_stream)
+        with open(f"{efs_config_dir}/validation_results.txt", 'r') as f:
+            for line in f:
+                if line.startswith("validated_count="):
+                    validated_count = int(line.split("=")[1].strip())
     except Exception as e:
-        print(f"Could not fetch validate logs: {e}")
+        print(f"Could not read validation results: {e}")
     
-    # Try to find and parse harvest logs
+    # Read harvest results from EFS
+    harvested_count = 0
     try:
-        log_streams_resp = logs_client.describe_log_streams(
-            logGroupName=harvest_log_group,
-            logStreamNamePrefix=harvest_log_stream_prefix,
-            orderBy="LastEventTime",
-            descending=True,
-            limit=1
-        )
-        if log_streams_resp.get("logStreams"):
-            latest_stream = log_streams_resp["logStreams"][0]["logStreamName"]
-            harvested_products = parse_harvest_logs(logs_client, harvest_log_group, latest_stream)
+        with open(f"{efs_config_dir}/harvest_results.txt", 'r') as f:
+            for line in f:
+                if line.startswith("harvested_count="):
+                    harvested_count = int(line.split("=")[1].strip())
     except Exception as e:
-        print(f"Could not fetch harvest logs: {e}")
+        print(f"Could not read harvest results: {e}")
     
     # Calculate data integrity
-    manifest_set = set(manifest_products)
-    validated_set = set(validated_products)
-    harvested_set = set(harvested_products)
-    
-    missing_from_validation = list(manifest_set - validated_set)
-    missing_from_harvest = list(validated_set - harvested_set)
-    all_match = (len(manifest_set) == len(validated_set) == len(harvested_set) and 
-                 manifest_set == validated_set == harvested_set)
+    manifest_count = len(manifest_products)
+    all_match = (manifest_count == validated_count == harvested_count)
     
     # Generate summary report
     summary = {
         "batch_id": batch_id,
-        "batch_size": len(manifest_products),
+        "batch_size": manifest_count,
         "timing": {
             "start_time": dag_run.start_date.isoformat() if dag_run.start_date else None,
             "end_time": datetime.utcnow().isoformat(),
         },
         "manifest": {
-            "count": len(manifest_products),
+            "count": manifest_count,
             "s3_urls": manifest_products,
         },
         "validation": {
-            "count": len(validated_products),
-            "lidvids": validated_products,
+            "count": validated_count,
         },
         "harvest": {
-            "count": len(harvested_products),
-            "s3_urls": harvested_products,
+            "count": harvested_count,
         },
         "data_integrity": {
-            "manifest_count": len(manifest_products),
-            "validated_count": len(validated_products),
-            "harvested_count": len(harvested_products),
+            "manifest_count": manifest_count,
+            "validated_count": validated_count,
+            "harvested_count": harvested_count,
             "all_match": all_match,
-            "missing_from_validation": missing_from_validation,
-            "missing_from_harvest": missing_from_harvest,
             "status": "COMPLETE" if all_match else "INCOMPLETE",
         },
         "status": "SUCCESS" if all_match else "WARNING",
     }
     
-    # Log the summary as a single CloudWatch event
+    # Log the summary
     summary_json = json.dumps(summary, indent=2)
     print(f"PDS_BATCH_SUMMARY_JSON: {json.dumps(summary)}")
-    print(f"\n=== BATCH SUMMARY REPORT ===")
+    print(f"
+=== BATCH SUMMARY REPORT ===")
     print(summary_json)
     print(f"=== END SUMMARY REPORT ===")
     
     return summary
+
 
 summary_report = generate_summary_report()
 
