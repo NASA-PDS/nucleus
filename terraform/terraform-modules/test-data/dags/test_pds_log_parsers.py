@@ -5,6 +5,7 @@ import unittest
 from pds_log_parsers import (
     build_manifest_key,
     common_directory,
+    format_human_report,
     harvested_count,
     parse_harvest_messages,
     parse_validate_messages,
@@ -119,6 +120,65 @@ class HarvestedCountTest(unittest.TestCase):
 
     def test_unknown_when_nothing_reported(self):
         self.assertIsNone(harvested_count({}))
+
+
+def _summary(**overrides):
+    summary = {
+        "batch_id": "manual__2026-09-13T04:46:52",
+        "status": "SUCCESS",
+        "timing": {"start_time": "2026-09-13T04:46:53", "end_time": "2026-09-13T04:58:16"},
+        "counts": {
+            "received": 2,
+            "validated": 2,
+            "validation_failed": 0,
+            "validation_skipped": 0,
+            "harvested": 2,
+            "harvest_skipped": 0,
+        },
+        "data_integrity": {
+            "status": "COMPLETE",
+            "not_validated": [],
+            "unexpected_products": [],
+        },
+    }
+    summary.update(overrides)
+    return summary
+
+
+class FormatHumanReportTest(unittest.TestCase):
+    def test_healthy_batch_says_none_need_attention(self):
+        products = [
+            {"name": "a.xml", "lidvid": "urn:a::1.0", "status": "passed"},
+            {"name": "b.xml", "lidvid": "urn:b::1.0", "status": "passed"},
+        ]
+        report = format_human_report(_summary(), products)
+
+        self.assertIn("PRODUCTS NEEDING ATTENTION (0)", report)
+        self.assertIn("none", report)
+        self.assertIn("ALL PRODUCTS (2)", report)
+        self.assertIn("urn:a::1.0", report)
+
+    def test_lists_only_non_passing_products_as_issues(self):
+        products = [
+            {"name": "a.xml", "lidvid": "urn:a::1.0", "status": "passed"},
+            {"name": "b.xml", "lidvid": "urn:b::1.0", "status": "failed"},
+            {"name": "c.xml", "lidvid": None, "status": "not_validated"},
+        ]
+        report = format_human_report(_summary(status="WARNING"), products)
+        attention = report.split("PRODUCTS NEEDING ATTENTION (2)")[1].split("ALL PRODUCTS")[0]
+
+        self.assertIn("b.xml", attention)
+        self.assertIn("c.xml", attention)
+        self.assertNotIn("a.xml", attention)
+
+    def test_unreported_harvest_count_is_not_shown_as_zero(self):
+        # None must not render as "0", which would read as "harvested none"
+        # when the truth is that harvest did not report a count at all.
+        summary = _summary()
+        summary["counts"]["harvested"] = None
+        report = format_human_report(summary, [])
+
+        self.assertIn("not reported", report)
 
 
 class CommonDirectoryTest(unittest.TestCase):

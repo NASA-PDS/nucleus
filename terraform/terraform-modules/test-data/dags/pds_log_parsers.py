@@ -1,11 +1,12 @@
 """
-PDS Log Parsers
+PDS Log Parsers and Report Formatting
 
 Helpers for extracting product identifiers and counts from the CloudWatch
-logs emitted by the PDS validate and harvest ECS tasks.
+logs emitted by the PDS validate and harvest ECS tasks, and for rendering
+the reconciled result as a human-readable report.
 
-These functions are pure (they take a list of log message strings) so they
-can be unit tested without any AWS calls.
+These functions are pure (they take plain data structures) so they can be
+unit tested without any AWS calls.
 """
 
 import re
@@ -109,6 +110,65 @@ def harvested_count(summary: Dict[str, int]):
         if key in summary:
             return summary[key]
     return None
+
+
+def format_human_report(summary: Dict, products: List[Dict]) -> str:
+    """Render the batch summary as plain text for the Airflow UI XCom tab.
+
+    This goes to XCom rather than the task log on purpose: MWAA stores task
+    logs in CloudWatch, so printing this would duplicate into CloudWatch
+    everything the JSON event already carries. XCom lives in the Airflow
+    metadata database and is shown in the UI only.
+    """
+    counts = summary["counts"]
+    integrity = summary["data_integrity"]
+
+    def row(label, value):
+        return f"  {label:<22}{value}"
+
+    lines = [
+        "PDS BATCH SUMMARY",
+        "=" * 60,
+        row("Batch", summary["batch_id"]),
+        row("Status", summary["status"]),
+        row("Started", summary["timing"]["start_time"] or "unknown"),
+        row("Ended", summary["timing"]["end_time"]),
+        "",
+        "COUNTS",
+        "-" * 60,
+        row("Received", counts["received"]),
+        row("Validated", counts["validated"]),
+        row("Validation failed", counts["validation_failed"]),
+        row("Validation skipped", counts["validation_skipped"]),
+        row(
+            "Harvested",
+            counts["harvested"] if counts["harvested"] is not None else "not reported",
+        ),
+        row("Harvest skipped", counts["harvest_skipped"]),
+        "",
+        "DATA INTEGRITY",
+        "-" * 60,
+        row("Result", integrity["status"]),
+        row("Not validated", len(integrity["not_validated"])),
+        row("Unexpected products", len(integrity["unexpected_products"])),
+    ]
+
+    issues = [product for product in products if product["status"] != "passed"]
+    lines += ["", f"PRODUCTS NEEDING ATTENTION ({len(issues)})", "-" * 60]
+    if issues:
+        lines += [
+            f"  {product['status']:<14}{product['name']}  {product['lidvid'] or ''}".rstrip()
+            for product in issues
+        ]
+    else:
+        lines.append("  none")
+
+    lines += ["", f"ALL PRODUCTS ({len(products)})", "-" * 60]
+    lines += [
+        f"  {product['status']:<14}{product['name']}  {product['lidvid'] or ''}".rstrip()
+        for product in products
+    ]
+    return "\n".join(lines)
 
 
 def common_directory(paths: List[str]) -> str:

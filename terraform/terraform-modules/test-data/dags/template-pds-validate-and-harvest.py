@@ -14,7 +14,12 @@ from pds_airflow_custom_operators import (
     ValidateEcsRunTaskOperator,
     HarvestEcsRunTaskOperator,
 )
-from pds_log_parsers import build_manifest_key, common_directory, harvested_count
+from pds_log_parsers import (
+    build_manifest_key,
+    common_directory,
+    format_human_report,
+    harvested_count,
+)
 
 
 # -------------------------------------------------------------------
@@ -443,18 +448,47 @@ def generate_summary_report(**context):
         summary["products_omitted"] = len(products)
         payload = json.dumps(summary, separators=(",", ":"))
 
-    # Exactly one machine-readable event, plus one short human-readable line.
-    # Anything more repeats every file path and LIDVID again.
+    # Channel 1: one batch-level event. Metric filters read scalars from it,
+    # e.g. $.counts.received or $.status, to drive a CloudWatch dashboard.
     print(f"PDS_BATCH_SUMMARY_JSON: {payload}")
+
+    # Channel 2: one event per product that needs attention. CloudWatch Logs
+    # Insights flattens a JSON array by index (products.0.name,
+    # products.1.name, ...), so per-product status cannot be queried out of
+    # the batch event above. A separate event per product makes it
+    # queryable. Only non-passing products are emitted, so a healthy batch
+    # adds nothing to the log.
+    issues = [product for product in products if product["status"] != "passed"]
+    for issue in issues:
+        print(
+            "PDS_PRODUCT_ISSUE_JSON: "
+            + json.dumps(
+                {
+                    "batch_id": summary["batch_id"],
+                    "name": issue["name"],
+                    "lidvid": issue["lidvid"],
+                    "status": issue["status"],
+                },
+                separators=(",", ":"),
+            )
+        )
+
     print(
         f"Batch {summary['status']}: received={received_count} "
         f"validated={passed_count} harvested={harvest_count} "
-        f"not_validated={len(not_validated)} unexpected={len(unexpected)}"
+        f"not_validated={len(not_validated)} unexpected={len(unexpected)} "
+        f"issues={len(issues)}"
     )
 
-    # Return only the counts. The full report is already in the log above,
-    # and whatever is returned here is written to XCom and echoed into the
-    # task log a second time.
+    # Channel 3: the human-readable report, for users who only have the
+    # Airflow UI. It goes to XCom rather than the log because MWAA stores
+    # task logs in CloudWatch, so printing it would duplicate the whole
+    # report into CloudWatch alongside the JSON event.
+    ti.xcom_push(key="report", value=format_human_report(summary, products))
+    ti.xcom_push(key="products", value=products)
+
+    # Return only the counts. Airflow echoes the returned value into the
+    # task log, so returning the full report would put it in CloudWatch too.
     return {
         "batch_id": summary["batch_id"],
         "status": summary["status"],
