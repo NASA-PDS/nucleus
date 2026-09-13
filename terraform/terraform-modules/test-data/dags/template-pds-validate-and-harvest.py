@@ -37,10 +37,11 @@ AWS_REGION          = "${aws_region}"
 # framing that Airflow adds around the message.
 MAX_SUMMARY_EVENT_BYTES = 200_000
 
-# Cap on per-product issue events. When a whole batch is broken, every
-# product is an issue, and emitting one event each would flood the log with
-# the same finding repeated. The batch event already carries the full list.
-MAX_PRODUCT_ISSUE_EVENTS = 25
+# Cap on per-product events (channel 2 below emits one per product, not just
+# failures). Sized well above any realistic product_batch_size so normal runs
+# never hit it; it exists only so a misconfigured batch of many thousands of
+# products can't turn into an unbounded log stream.
+MAX_PRODUCT_EVENTS = 5000
 
 # -------------------------------------------------------------------
 # Read the batch's product list (used below for the XCom-visible task)
@@ -572,54 +573,67 @@ def generate_summary_report(**context):
         "efs_prefix": common_directory([item["file"] for item in validate_passed]),
         "harvest_status": batch_harvest_status,
         "harvest_extra_args": harvest_extra_args,
-        "products": products,
     }
 
-    # A CloudWatch log event is capped at 256 KB. Drop the per-product list
-    # rather than let the whole report be truncated on a very large batch;
-    # the counts and the reconciliation lists still get through.
+    # A CloudWatch log event is capped at 256 KB. The product list itself is
+    # never in this event (channel 2 below carries it instead); the only
+    # fields here that can still grow unboundedly are the two name lists in
+    # data_integrity, so trim those rather than let CloudWatch truncate the
+    # whole event on an unusually large batch.
     payload = json.dumps(summary, separators=(",", ":"))
     if len(payload.encode("utf-8")) > MAX_SUMMARY_EVENT_BYTES:
-        summary["products"] = []
-        summary["products_omitted"] = len(products)
+        summary["data_integrity"]["not_validated"] = []
+        summary["data_integrity"]["not_validated_omitted"] = len(not_validated)
+        summary["data_integrity"]["unexpected_products"] = []
+        summary["data_integrity"]["unexpected_products_omitted"] = len(unexpected)
         payload = json.dumps(summary, separators=(",", ":"))
 
     # Channel 1: one batch-level event. Metric filters read scalars from it,
     # e.g. $.counts.received or $.status, to drive a CloudWatch dashboard.
     print(f"PDS_BATCH_SUMMARY_JSON: {payload}")
 
-    # Channel 2: one event per product that needs attention. CloudWatch Logs
-    # Insights flattens a JSON array by index (products.0.name,
-    # products.1.name, ...), so per-product status cannot be queried out of
-    # the batch event above. A separate event per product makes it
-    # queryable. Only non-passing products are emitted, so a healthy batch
-    # adds nothing to the log.
-    issues = [
-        product for product in products if product["validate_status"] != "passed"
-    ]
-    for issue in issues[:MAX_PRODUCT_ISSUE_EVENTS]:
+    # Channel 2: one event per product in the batch, every product, not just
+    # failures. CloudWatch Logs Insights flattens a JSON array by index
+    # (products.0.name, products.1.name, ...), so per-product status cannot
+    # be queried out of the batch event above; a separate event per product
+    # makes it queryable, and this is the only place in CloudWatch that
+    # carries the product list. MWAA wraps each print() in Airflow's own
+    # log-line prefix, so the event is not itself valid JSON and $.-style
+    # field discovery will not work -- query it with an explicit parse, e.g.:
+    #
+    #   filter @message like /PDS_PRODUCT_JSON/
+    #   | parse @message /"name":"(?<name>[^"]*)"/
+    #   | parse @message /"validate_status":"(?<validate_status>[^"]*)"/
+    #   | filter validate_status != "passed"
+    for product in products[:MAX_PRODUCT_EVENTS]:
         print(
-            "PDS_PRODUCT_ISSUE_JSON: "
+            "PDS_PRODUCT_JSON: "
             + json.dumps(
                 {
                     "batch_number": batch_number,
                     "dag_run_id": dag_run_id,
-                    "name": issue["name"],
-                    "s3_url": issue["s3_url"],
-                    "lidvid": issue["lidvid"],
-                    "validate_status": issue["validate_status"],
-                    "harvest_status": issue["harvest_status"],
+                    "name": product["name"],
+                    "s3_url": product["s3_url"],
+                    "lidvid": product["lidvid"],
+                    "validate_status": product["validate_status"],
+                    "harvest_status": product["harvest_status"],
                 },
                 separators=(",", ":"),
             )
         )
-    if len(issues) > MAX_PRODUCT_ISSUE_EVENTS:
+    if len(products) > MAX_PRODUCT_EVENTS:
         print(
-            f"{len(issues)} products need attention; "
-            f"logged the first {MAX_PRODUCT_ISSUE_EVENTS}. "
-            "The batch event above lists them all."
+            f"{len(products) - MAX_PRODUCT_EVENTS} product event(s) omitted; "
+            f"logged the first {MAX_PRODUCT_EVENTS} of {len(products)}. "
+            "The full list is still in the report and the products XCom."
         )
 
+    issues = [
+        product for product in products if product["validate_status"] != "passed"
+    ]
+    # Printed last, after the (possibly hundreds of) per-product events
+    # above, so the human-readable one-line verdict is what's visible at
+    # the bottom of the task log rather than buried above them.
     print(
         f"Batch {summary['status']}: received={received_count} "
         f"validated={passed_count} harvested={harvest_count} "

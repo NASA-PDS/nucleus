@@ -66,6 +66,12 @@ HARVEST_REPLACE_PREFIX = os.environ["HARVEST_REPLACE_PREFIX"]
 
 PRODUCT_BATCH_SIZE = int(os.environ.get("PRODUCT_BATCH_SIZE", "500"))
 
+# fetch_data_files() looks up data files with one query per chunk instead of
+# one per product. A 500-product IN clause is only ~95 KB at realistic PDS
+# URL lengths (comfortably under the Data API's request size limit), but
+# chunking bounds how large a single query gets if PRODUCT_BATCH_SIZE grows.
+DATA_FILE_QUERY_CHUNK_SIZE = 200
+
 # -------------------------------------------------------------------
 # Constants
 # -------------------------------------------------------------------
@@ -398,13 +404,20 @@ def _build_connection_xml():
 
 
 def prepare_harvest_files(batch, products, s3_config_dir):
+    chunks = [
+        products[i : i + DATA_FILE_QUERY_CHUNK_SIZE]
+        for i in range(0, len(products), DATA_FILE_QUERY_CHUNK_SIZE)
+    ]
+
     # Phase 1: static files and DB fetches run fully in parallel
-    with ThreadPoolExecutor(max_workers=min(12, len(products) + 2)) as pool:
+    with ThreadPoolExecutor(max_workers=min(12, len(chunks) + 2)) as pool:
         f_cfg  = pool.submit(upload_text, s3_config_dir, "harvest.cfg",   _build_harvest_cfg(batch))
         f_conn = pool.submit(upload_text, s3_config_dir, "connection.xml", _build_connection_xml())
-        data_futures = {pool.submit(fetch_data_files, p): p for p in products}
+        data_futures = [pool.submit(fetch_data_files, chunk) for chunk in chunks]
         try:
-            data_files_by_product = {data_futures[f]: f.result() for f in as_completed(data_futures)}
+            data_files_by_product = {}
+            for f in as_completed(data_futures):
+                data_files_by_product.update(f.result())
         finally:
             # Always surface upload errors even if a DB fetch failed first
             f_cfg.result()
@@ -424,24 +437,44 @@ def prepare_harvest_files(batch, products, s3_config_dir):
         f_products.result()
 
 
-def fetch_data_files(product_label):
-    sql = """
-        SELECT df.original_s3_url_of_data_file_name
+def fetch_data_files(product_labels):
+    """Look up data files for a chunk of products in a single query.
+
+    One round trip per chunk instead of one per product: at 500 products
+    and DATA_FILE_QUERY_CHUNK_SIZE=200 that's 3 RDS Data API calls instead
+    of 500, which was the dominant cost of preparing a large batch.
+    """
+    if not product_labels:
+        return {}
+
+    placeholders = ", ".join(f":p{i}" for i in range(len(product_labels)))
+    sql = f"""
+        SELECT m.s3_url_of_product_label, df.original_s3_url_of_data_file_name
         FROM product_data_file_mapping m
         JOIN data_file df
           ON df.s3_url_of_data_file = m.s3_url_of_data_file
-        WHERE m.s3_url_of_product_label = :p
+        WHERE m.s3_url_of_product_label IN ({placeholders})
     """
+    parameters = [
+        {"name": f"p{i}", "value": {"stringValue": label}}
+        for i, label in enumerate(product_labels)
+    ]
 
     resp = rds.execute_statement(
         resourceArn=DB_CLUSTER_ARN,
         secretArn=DB_SECRET_ARN,
         database=DB_NAME,
         sql=sql,
-        parameters=[{"name": "p", "value": {"stringValue": product_label}}],
+        parameters=parameters,
     )
 
-    return [r[0]["stringValue"] for r in resp.get("records", [])]
+    # Every product in the chunk gets an entry, even with no data files, so
+    # callers can index this dict by product label the same way they could
+    # index the old per-product list result.
+    files_by_product = {label: [] for label in product_labels}
+    for record in resp.get("records", []):
+        files_by_product[record[0]["stringValue"]].append(record[1]["stringValue"])
+    return files_by_product
 
 
 def upload_text(s3_dir, name, content):
