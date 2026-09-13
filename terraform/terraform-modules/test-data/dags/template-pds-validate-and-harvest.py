@@ -88,9 +88,10 @@ print_end_time = BashOperator(
 @task(task_id="List_Products_In_Batch", dag=dag)
 def list_products_in_batch(**context):
     products = _read_product_list(context["dag_run"].conf["s3_config_dir"])
-    print(f"{len(products)} product(s) in this batch:")
-    for p in products:
-        print(p)
+    # Only the count is logged. The full list is returned to XCom, where the
+    # UI shows it and the summary task reads it, so printing each product
+    # here would just repeat all of them in the log.
+    print(f"{len(products)} product(s) in this batch")
     return products
 
 list_products = list_products_in_batch()
