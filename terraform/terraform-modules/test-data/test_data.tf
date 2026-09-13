@@ -126,9 +126,3 @@ resource "aws_s3_object" "pds_validate_and_harvest_dag_file" {
     local_file.pds-validate-and-harvest-dag-file,
   ]
 }
-
-#-----------------------------------------------
-# Shared PDS Airflow Custom Operators Module
-#-----------------------------------------------
-
-resource " aws_s3_object pds_airflow_custom_operators {
