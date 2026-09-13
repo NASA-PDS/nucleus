@@ -1,264 +1,175 @@
 """
 PDS Airflow Custom Operators
 
-Reusable ECS operators for PDS Node workflows with enhanced logging and error handling.
+Reusable synchronous ECS operators for PDS Node workflows.
+
+These operators run with deferrable=False so the container logs are streamed
+into the Airflow task log by the built-in ECS log fetcher. After the task
+finishes they re-read the same CloudWatch stream to extract structured
+results, which are published as XComs for a downstream summary task.
+
+Results are passed via XCom rather than shared EFS because these operators
+execute inside the MWAA worker, which does not mount the EFS volume used by
+the ECS containers.
 """
 
-import os
-import json
-import re
-from pathlib import Path
+from typing import Any, Dict, List
 
-from airflow.providers.amazon.aws.operators.ecs import EcsRunTaskOperator
-from airflow.providers.amazon.aws.hooks.logs import AwsLogsHook
 from airflow.exceptions import AirflowFailException
-from typing import Any
-from datetime import datetime
+from airflow.providers.amazon.aws.hooks.logs import AwsLogsHook
+from airflow.providers.amazon.aws.operators.ecs import EcsRunTaskOperator
+
+from pds_log_parsers import parse_harvest_messages, parse_validate_messages
 
 
-class EcsRunTaskOperatorWithMaxLogs(EcsRunTaskOperator):
-    """Base class: fetch max available CloudWatch logs after task execution."""
-    
-    def execute(self, context: Any) -> str | None:
-        """Execute task synchronously and fetch CloudWatch logs."""
-        try:
-            result = super().execute(context)
-        except Exception:
-            self._fetch_and_log_cloudwatch_logs()
-            raise
-        
-        self._fetch_and_log_cloudwatch_logs()
-        return result
+class CloudWatchReadingEcsOperator(EcsRunTaskOperator):
+    """Base class adding a helper to re-read this task's CloudWatch log stream."""
 
-    def _fetch_and_log_cloudwatch_logs(self):
-        """Fetch and log all available CloudWatch logs."""
-        if not self.awslogs_group or not self.awslogs_stream_prefix:
-            return
+    def _read_log_messages(self) -> List[str]:
+        """Return every log message this ECS task wrote, oldest first.
+
+        Returns an empty list rather than raising if the logs are unavailable,
+        so log parsing can never turn a successful ECS run into a failure.
+        """
+        if not (self.awslogs_group and self.awslogs_stream_prefix and self.arn):
+            return []
+
+        # ECS awslogs streams are named "<prefix>/<task-id>", where task-id is
+        # the final segment of the task ARN. Building it any other way (e.g.
+        # from earlier ARN segments) yields a name containing ':' which
+        # CloudWatch rejects with InvalidParameterException.
+        task_id = self.arn.rsplit("/", 1)[-1]
+        log_stream = f"{self.awslogs_stream_prefix}/{task_id}"
+
+        messages: List[str] = []
         try:
             logs_client = AwsLogsHook(
                 aws_conn_id=self.aws_conn_id, region_name=self.awslogs_region
             ).conn
-            if self.arn:
-                task_id = self.arn.rsplit("/", 1)[-1]
-                log_stream = f"{self.awslogs_stream_prefix}/{self.arn.split('/')[-3]}/{task_id}"
-                try:
-                    logs_resp = logs_client.get_log_events(
-                        logGroupName=self.awslogs_group,
-                        logStreamName=log_stream,
-                        startFromHead=True,
-                    )
-                    events = logs_resp.get("events", [])
-                    if events:
-                        self.log.info(f"--- CloudWatch logs ({len(events)} lines) ---")
-                        for event in events:
-                            self.log.info(event["message"])
-                except logs_client.exceptions.ResourceNotFoundException:
-                    self.log.warning(f"Log stream not found: {log_stream}")
-        except Exception as e:
-            self.log.warning(f"Could not fetch CloudWatch logs: {e}")
+
+            next_token = None
+            while True:
+                kwargs = {
+                    "logGroupName": self.awslogs_group,
+                    "logStreamName": log_stream,
+                    "startFromHead": True,
+                }
+                if next_token:
+                    kwargs["nextToken"] = next_token
+
+                response = logs_client.get_log_events(**kwargs)
+                events = response.get("events", [])
+                messages.extend(event["message"] for event in events)
+
+                token = response.get("nextForwardToken")
+                if not events or token == next_token:
+                    break
+                next_token = token
+        except Exception as exc:
+            self.log.warning("Could not read CloudWatch stream %s: %s", log_stream, exc)
+            return messages
+
+        self.log.info("Read %d log lines from %s", len(messages), log_stream)
+        return messages
 
 
-class ValidateEcsRunTaskOperator(EcsRunTaskOperatorWithMaxLogs):
-    """ECS operator for Validate task with exit code-aware error handling.
-    
-    The validate tool exits 1 when it ran successfully but found real
-    data problems (e.g. missing referenced file) — a deterministic result
-    that retrying will not change. Any other non-zero exit (task crashed,
-    never started, OOM, etc.) is a genuine infra failure worth retrying.
-    We distinguish the two so only infra failures consume the task's retries.
-    
-    Also parses logs and saves validated product count to EFS.
+class ValidateEcsRunTaskOperator(CloudWatchReadingEcsOperator):
+    """ECS operator for the validate task with exit-code-aware error handling.
+
+    The validate tool exits 1 when it ran successfully but found real data
+    problems (e.g. a missing referenced file) - a deterministic result that
+    retrying will not change. Any other non-zero exit (task crashed, never
+    started, OOM, etc.) is a genuine infra failure worth retrying. We
+    distinguish the two so only infra failures consume the task's retries.
+
+    On success it publishes these XComs:
+        validate_passed   list of {"lidvid", "file"}
+        validate_failed   list of {"lidvid", "file"}
+        validate_skipped  list of {"lidvid", "file"}
+        validate_summary  dict of counts reported by validate itself
     """
-    
-    def execute(self, context):
+
+    CONTAINER_NAME = "pds-validate"
+
+    def execute(self, context: Any) -> str | None:
         try:
             result = super().execute(context)
-            self._write_validation_results_to_efs(context)
-            return result
-        except Exception as e:
-            exit_code = None
-            if self.arn:
-                try:
-                    resp = self.hook.get_conn().describe_tasks(
-                        cluster=self.cluster, tasks=[self.arn]
-                    )
-                    exit_code = next(
-                        (
-                            c.get("exitCode")
-                            for c in resp["tasks"][0].get("containers", [])
-                            if c.get("name") == "pds-validate"
-                        ),
-                        None,
-                    )
-                except Exception:
-                    pass
-
-            if exit_code == 1:
+        except Exception as exc:
+            if self._exit_code() == 1:
                 raise AirflowFailException(
-                    f"{e} (validate exited 1 — data validation failure, not retrying)"
-                ) from e
+                    f"{exc} (validate exited 1 - data validation failure, not retrying)"
+                ) from exc
             raise
-    
-    def _write_validation_results_to_efs(self, context):
-        """Parse logs and write validation results to EFS."""
-        try:
-            dag_run = context["dag_run"]
-            efs_config_dir = dag_run.conf.get("efs_config_dir", "")
-            if not efs_config_dir:
-                self.log.warning("No efs_config_dir in dag_run.conf")
-                return
-            
-            validated_count = self._parse_validation_logs()
-            
-            results_file = os.path.join(efs_config_dir, "validation_results.txt")
-            Path(efs_config_dir).mkdir(parents=True, exist_ok=True)
-            with open(results_file, 'w') as f:
-                f.write(f"validated_count={validated_count}\n")
-                f.write(f"completed_at={datetime.utcnow().isoformat()}\n")
-            
-            self.log.info(f"Validation results saved: {validated_count} products")
-        except Exception as e:
-            self.log.warning(f"Could not write validation results: {e}")
-    
-    def _parse_validation_logs(self) -> int:
-        """Parse CloudWatch logs to count validated products."""
-        validated_count = 0
-        try:
-            if not self.awslogs_group or not self.awslogs_stream_prefix:
-                return 0
-            
-            logs_client = AwsLogsHook(
-                aws_conn_id=self.aws_conn_id, region_name=self.awslogs_region
-            ).conn
-            
-            if self.arn:
-                task_id = self.arn.rsplit("/", 1)[-1]
-                log_stream = f"{self.awslogs_stream_prefix}/{self.arn.split('/')[-3]}/{task_id}"
-                try:
-                    logs_resp = logs_client.get_log_events(
-                        logGroupName=self.awslogs_group,
-                        logStreamName=log_stream,
-                        startFromHead=True,
-                    )
-                    events = logs_resp.get("events", [])
-                    for event in events:
-                        msg = event["message"]
-                        if "Product_Observational" in msg or "Product_Bundle" in msg:
-                            validated_count += 1
-                except logs_client.exceptions.ResourceNotFoundException:
-                    self.log.warning(f"Log stream not found: {log_stream}")
-        except Exception as e:
-            self.log.warning(f"Could not parse validation logs: {e}")
-        
-        return validated_count
 
-
-class HarvestEcsRunTaskOperator(EcsRunTaskOperatorWithMaxLogs):
-    """ECS operator for Harvest task that checks for failed files in summary.
-    
-    The harvest tool always exits 0 even when files fail to parse. This operator
-    parses CloudWatch logs to detect the [SUMMARY] line with failed file count
-    and fails the task if any files failed.
-    
-    Also parses logs and saves harvested product count to EFS.
-    """
-    
-    def execute(self, context: Any) -> str | None:
-        """Execute task synchronously, fetch logs, and check for failed files."""
-        result = super().execute(context)
-        
-        self._check_harvest_summary()
-        self._write_harvest_results_to_efs(context)
-        
+        self._publish_results(context)
         return result
 
-    def _check_harvest_summary(self):
-        """Parse CloudWatch logs and fail if any files failed to harvest."""
-        if not self.awslogs_group or not self.awslogs_stream_prefix:
-            return
+    def _exit_code(self):
+        """Best-effort lookup of the validate container's exit code."""
+        if not self.arn:
+            return None
         try:
-            logs_client = AwsLogsHook(
-                aws_conn_id=self.aws_conn_id, region_name=self.awslogs_region
-            ).conn
-            if self.arn:
-                task_id = self.arn.rsplit("/", 1)[-1]
-                log_stream = f"{self.awslogs_stream_prefix}/{self.arn.split('/')[-3]}/{task_id}"
-                try:
-                    logs_resp = logs_client.get_log_events(
-                        logGroupName=self.awslogs_group,
-                        logStreamName=log_stream,
-                        startFromHead=True,
-                    )
-                    events = logs_resp.get("events", [])
-                    for event in events:
-                        msg = event["message"]
-                        if "[SUMMARY]" in msg and "Failed files:" in msg:
-                            parts = msg.split("Failed files:")
-                            if len(parts) > 1:
-                                try:
-                                    failed_count = int(parts[1].strip().split()[0])
-                                    if failed_count > 0:
-                                        raise AirflowFailException(
-                                            f"Harvest completed with {failed_count} failed files (missing from EFS)"
-                                        )
-                                except (ValueError, IndexError):
-                                    pass
-                except logs_client.exceptions.ResourceNotFoundException:
-                    self.log.warning(f"Log stream not found: {log_stream}")
-        except AirflowFailException:
-            raise
-        except Exception as e:
-            self.log.warning(f"Could not check harvest summary: {e}")
-    
-    def _write_harvest_results_to_efs(self, context):
-        """Parse logs and write harvest results to EFS."""
-        try:
-            dag_run = context["dag_run"]
-            efs_config_dir = dag_run.conf.get("efs_config_dir", "")
-            if not efs_config_dir:
-                self.log.warning("No efs_config_dir in dag_run.conf")
-                return
-            
-            harvested_count = self._parse_harvest_logs()
-            
-            results_file = os.path.join(efs_config_dir, "harvest_results.txt")
-            Path(efs_config_dir).mkdir(parents=True, exist_ok=True)
-            with open(results_file, 'w') as f:
-                f.write(f"harvested_count={harvested_count}\n")
-                f.write(f"completed_at={datetime.utcnow().isoformat()}\n")
-            
-            self.log.info(f"Harvest results saved: {harvested_count} products")
-        except Exception as e:
-            self.log.warning(f"Could not write harvest results: {e}")
-    
-    def _parse_harvest_logs(self) -> int:
-        """Parse CloudWatch logs to count harvested products."""
-        harvested_count = 0
-        try:
-            if not self.awslogs_group or not self.awslogs_stream_prefix:
-                return 0
-            
-            logs_client = AwsLogsHook(
-                aws_conn_id=self.aws_conn_id, region_name=self.awslogs_region
-            ).conn
-            
-            if self.arn:
-                task_id = self.arn.rsplit("/", 1)[-1]
-                log_stream = f"{self.awslogs_stream_prefix}/{self.arn.split('/')[-3]}/{task_id}"
-                try:
-                    logs_resp = logs_client.get_log_events(
-                        logGroupName=self.awslogs_group,
-                        logStreamName=log_stream,
-                        startFromHead=True,
-                    )
-                    events = logs_resp.get("events", [])
-                    for event in events:
-                        msg = event["message"]
-                        if "Processing" in msg and ".xml" in msg:
-                            harvested_count += 1
-                except logs_client.exceptions.ResourceNotFoundException:
-                    self.log.warning(f"Log stream not found: {log_stream}")
-        except Exception as e:
-            self.log.warning(f"Could not parse harvest logs: {e}")
-        
-        return harvested_count
+            response = self.hook.get_conn().describe_tasks(
+                cluster=self.cluster, tasks=[self.arn]
+            )
+            return next(
+                (
+                    container.get("exitCode")
+                    for container in response["tasks"][0].get("containers", [])
+                    if container.get("name") == self.CONTAINER_NAME
+                ),
+                None,
+            )
+        except Exception:
+            # If we cannot determine the exit code, fall back to retrying.
+            return None
+
+    def _publish_results(self, context: Any) -> None:
+        parsed = parse_validate_messages(self._read_log_messages())
+
+        task_instance = context["ti"]
+        task_instance.xcom_push(key="validate_passed", value=parsed["passed"])
+        task_instance.xcom_push(key="validate_failed", value=parsed["failed"])
+        task_instance.xcom_push(key="validate_skipped", value=parsed["skipped"])
+        task_instance.xcom_push(key="validate_summary", value=parsed["summary"])
+
+        self.log.info(
+            "Validate results: %d passed, %d failed, %d skipped",
+            len(parsed["passed"]),
+            len(parsed["failed"]),
+            len(parsed["skipped"]),
+        )
+
+
+class HarvestEcsRunTaskOperator(CloudWatchReadingEcsOperator):
+    """ECS operator for the harvest task that checks for failed files.
+
+    The harvest tool always exits 0 even when files fail to parse, so we read
+    the [SUMMARY] line and fail the task when it reports failed files.
+
+    Publishes the parsed summary as the "harvest_summary" XCom.
+    """
+
+    def execute(self, context: Any) -> str | None:
+        result = super().execute(context)
+
+        summary = parse_harvest_messages(self._read_log_messages())
+        context["ti"].xcom_push(key="harvest_summary", value=summary)
+        self.log.info("Harvest summary: %s", summary or "not reported")
+
+        failed_count = self._failed_count(summary)
+        if failed_count:
+            raise AirflowFailException(
+                f"Harvest completed with {failed_count} failed files "
+                "(files missing from EFS indicate an upstream copy failure)"
+            )
+
+        return result
+
+    @staticmethod
+    def _failed_count(summary: Dict[str, int]) -> int:
+        """Read the failed-file count from a parsed harvest summary."""
+        for key, value in summary.items():
+            if "fail" in key:
+                return value
+        return 0

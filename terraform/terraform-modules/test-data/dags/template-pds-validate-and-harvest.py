@@ -6,7 +6,6 @@ import json
 from airflow import DAG
 from airflow.decorators import task
 from airflow.operators.bash import BashOperator
-from airflow.providers.amazon.aws.hooks.logs import AwsLogsHook
 from airflow.providers.amazon.aws.operators.ecs import EcsRunTaskOperator
 from airflow.utils.trigger_rule import TriggerRule
 from datetime import datetime, timedelta
@@ -15,11 +14,7 @@ from pds_airflow_custom_operators import (
     ValidateEcsRunTaskOperator,
     HarvestEcsRunTaskOperator,
 )
-from pds_log_parsers import (
-    extract_manifest_products,
-    parse_validate_logs,
-    parse_harvest_logs,
-)
+from pds_log_parsers import build_manifest_key
 
 
 # -------------------------------------------------------------------
@@ -323,74 +318,97 @@ config_init_cleanup = EcsRunTaskOperator(
 # -------------------------------------------------------------------
 @task(task_id="Generate_Summary_Report", trigger_rule=TriggerRule.ALL_DONE, dag=dag)
 def generate_summary_report(**context):
-    """Generate comprehensive summary report from EFS files."""
+    """Reconcile the products received, validated and harvested in this batch.
+
+    Every input is read from XCom because this task runs in the MWAA worker,
+    which does not mount the EFS volume the ECS containers write to.
+    """
     dag_run = context["dag_run"]
-    
-    batch_id = dag_run.run_id
-    efs_config_dir = dag_run.conf.get("efs_config_dir", "")
-    
-    # Read manifest from EFS
-    manifest_products = extract_manifest_products(efs_config_dir)
-    
-    # Read validation results from EFS
-    validated_count = 0
-    try:
-        with open(f"{efs_config_dir}/validation_results.txt", 'r') as f:
-            for line in f:
-                if line.startswith("validated_count="):
-                    validated_count = int(line.split("=")[1].strip())
-    except Exception as e:
-        print(f"Could not read validation results: {e}")
-    
-    # Read harvest results from EFS
-    harvested_count = 0
-    try:
-        with open(f"{efs_config_dir}/harvest_results.txt", 'r') as f:
-            for line in f:
-                if line.startswith("harvested_count="):
-                    harvested_count = int(line.split("=")[1].strip())
-    except Exception as e:
-        print(f"Could not read harvest results: {e}")
-    
-    # Calculate data integrity
-    manifest_count = len(manifest_products)
-    all_match = (manifest_count == validated_count == harvested_count)
-    
-    # Generate summary report
+    ti = context["task_instance"]
+
+    def pull(task_id, key, default):
+        value = ti.xcom_pull(task_ids=task_id, key=key)
+        return default if value is None else value
+
+    # Everything the batch was asked to process.
+    manifest_urls = pull("List_Products_In_Batch", "return_value", [])
+
+    validate_passed = pull("Validate_Products", "validate_passed", [])
+    validate_failed = pull("Validate_Products", "validate_failed", [])
+    validate_skipped = pull("Validate_Products", "validate_skipped", [])
+    validate_summary = pull("Validate_Products", "validate_summary", {})
+    harvest_summary = pull("Harvest_Data", "harvest_summary", {})
+
+    # The manifest holds S3 URLs while validate logs EFS paths, so compare on
+    # file name rather than on the full location.
+    manifest_keys = {build_manifest_key(url) for url in manifest_urls}
+    validated_keys = {build_manifest_key(item["file"]) for item in validate_passed}
+
+    not_validated = sorted(manifest_keys - validated_keys)
+    unexpected = sorted(validated_keys - manifest_keys)
+
+    received_count = len(manifest_urls)
+    passed_count = len(validate_passed)
+
+    # Harvest only reports a count if it emitted a [SUMMARY] line. Treat a
+    # missing count as unknown rather than assuming it matched, so a silent
+    # harvest failure cannot be reported as SUCCESS.
+    harvested_count = harvest_summary.get("processed_files")
+    harvest_count_known = harvested_count is not None
+
+    counts_match = received_count == passed_count and (
+        not harvest_count_known or harvested_count == received_count
+    )
+    all_match = (
+        counts_match
+        and harvest_count_known
+        and not not_validated
+        and not unexpected
+    )
+
     summary = {
-        "batch_id": batch_id,
-        "batch_size": manifest_count,
+        "batch_id": dag_run.run_id,
         "timing": {
             "start_time": dag_run.start_date.isoformat() if dag_run.start_date else None,
             "end_time": datetime.utcnow().isoformat(),
         },
-        "manifest": {
-            "count": manifest_count,
-            "s3_urls": manifest_products,
+        "received": {
+            "count": received_count,
+            "s3_urls": manifest_urls,
         },
         "validation": {
-            "count": validated_count,
+            "passed_count": len(validate_passed),
+            "failed_count": len(validate_failed),
+            "skipped_count": len(validate_skipped),
+            "tool_summary": validate_summary,
+            "passed": validate_passed,
+            "failed": validate_failed,
+            "skipped": validate_skipped,
         },
         "harvest": {
             "count": harvested_count,
+            "tool_summary": harvest_summary,
         },
         "data_integrity": {
-            "manifest_count": manifest_count,
-            "validated_count": validated_count,
+            "received_count": received_count,
+            "validated_count": passed_count,
             "harvested_count": harvested_count,
+            "harvest_count_reported": harvest_count_known,
+            "counts_match": counts_match,
+            "not_validated": not_validated,
+            "unexpected_products": unexpected,
             "all_match": all_match,
             "status": "COMPLETE" if all_match else "INCOMPLETE",
         },
         "status": "SUCCESS" if all_match else "WARNING",
     }
-    
-    # Log the summary
-    summary_json = json.dumps(summary, indent=2)
+
+    # Single-line JSON for CloudWatch metric filters / downstream tooling.
     print(f"PDS_BATCH_SUMMARY_JSON: {json.dumps(summary)}")
     print("\n=== BATCH SUMMARY REPORT ===")
-    print(summary_json)
+    print(json.dumps(summary, indent=2))
     print("=== END SUMMARY REPORT ===")
-    
+
     return summary
 
 
