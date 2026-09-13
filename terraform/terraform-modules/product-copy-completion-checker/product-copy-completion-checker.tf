@@ -218,6 +218,25 @@ resource "aws_lambda_event_source_mapping" "event_source_mapping" {
   batch_size                           = 100
   maximum_batching_window_in_seconds   = 1
   function_response_types              = ["ReportBatchItemFailures"]
+
+  # Cap the fan-out. Uncapped, a large backlog drop scales all four mappings
+  # toward the account concurrency limit, which the completion checkers draw
+  # from too -- so products finish arriving just as the thing that dispatches
+  # them gets throttled.
+  #
+  # scaling_config rather than reserved_concurrent_executions on the function:
+  # reserved concurrency lets the poller over-invoke and be throttled, which
+  # still increments each message's receive count and walks it toward the DLQ.
+  # scaling_config makes Lambda stop polling instead, so nothing is throttled.
+  #
+  # 25 invocations x batch_size 100 = 2,500 messages in flight per data source.
+  # The real ceiling is Aurora, which idles at 0.5 ACU and needs time to scale,
+  # so raise this only while watching ApproximateAgeOfOldestMessage against
+  # ThrottlingException in the processor logs. Halve it if RDS_DATA_API_POOL_SIZE
+  # is ever raised to match the 20-wide thread pool.
+  scaling_config {
+    maximum_concurrency = 25
+  }
 }
 
 # Create pds_nucleus_product_completion_checker_function for each data source (IAM role/DB/OpenSearch/archive bucket shared per node — no IAM created/modified here)
@@ -234,6 +253,14 @@ resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function"
   timeout          = 900
   memory_size      = 256
   depends_on       = [data.archive_file.pds_nucleus_product_completion_checker_zip]
+
+  # Guarantees this scheduled poller a slot even while the file event processors
+  # are consuming the account's concurrency, and keeps it to one run at a time.
+  # A tick arriving while the previous run is still going is dropped rather than
+  # stacking a second claim query on a database that is evidently already busy;
+  # the next tick picks the work up. Overlap was never unsafe -- the DISPATCHING
+  # claim hands concurrent runs disjoint sets -- just wasteful.
+  reserved_concurrent_executions = 1
 
   environment {
     variables = {
@@ -302,20 +329,65 @@ resource "aws_lambda_permission" "s3-lambda-permission" {
   source_arn    = local.node_staging_bucket_arn_map[var.pds_data_source_node_names[count.index]]
 }
 
+# Dead letter queue for each data source. Without one, a message the file event
+# processor can never handle (e.g. a malformed product label) stays on the main
+# queue being retried until message_retention_seconds expires — four days of
+# re-invoking the lambda on the same poison record. Parking it here stops the
+# retry loop and keeps the message for inspection.
+resource "aws_sqs_queue" "pds_nucleus_files_to_save_in_database_dlq" {
+  count = length(var.pds_data_source_names)
+  # Same name shape as the source queue, ending with the node name, so the existing
+  # ECS task role IAM SQS resource pattern "pds-nucleus-*-<node>" still covers it
+  # and no IAM changes are needed.
+  name = "pds-nucleus-file-save-dlq-${var.pds_data_source_names[count.index]}-${var.pds_data_source_node_names[count.index]}"
+  # Longer than the source queue's 4 days: a message only lands here after it has
+  # already failed repeatedly, so the clock on investigating it starts later.
+  message_retention_seconds = 1209600 # 14 days, the AWS maximum
+  sqs_managed_sse_enabled   = true
+
+  tags = var.tags
+}
+
+# Restrict the DLQ to its own source queue, so no other queue can be pointed at it.
+# A separate resource rather than a redrive_allow_policy argument on the queue
+# above, because each queue referencing the other's ARN would be a dependency cycle.
+resource "aws_sqs_queue_redrive_allow_policy" "pds_nucleus_files_to_save_in_database_dlq_allow" {
+  count     = length(var.pds_data_source_names)
+  queue_url = aws_sqs_queue.pds_nucleus_files_to_save_in_database_dlq[count.index].id
+
+  redrive_allow_policy = jsonencode({
+    redrivePermission = "byQueue",
+    sourceQueueArns   = [aws_sqs_queue.pds_nucleus_files_to_save_in_database_sqs_queue[count.index].arn]
+  })
+}
+
 # Create an SQS queue to receive S3 bucket notifications for each s3 bucket of each data source
 resource "aws_sqs_queue" "pds_nucleus_files_to_save_in_database_sqs_queue" {
-  count                      = length(var.pds_data_source_names)
+  count = length(var.pds_data_source_names)
   # Queue name ends with the node name (data source placed before it) to match the existing
   # ECS task role IAM SQS resource pattern "pds-nucleus-*-<node>" without any IAM changes.
   # Short prefix to stay well under the AWS SQS 80-character queue name limit
   # once the data-source/node names are appended.
-  name                       = "pds-nucleus-file-save-${var.pds_data_source_names[count.index]}-${var.pds_data_source_node_names[count.index]}"
-  delay_seconds              = 0
-  visibility_timeout_seconds = 300
+  name          = "pds-nucleus-file-save-${var.pds_data_source_names[count.index]}-${var.pds_data_source_node_names[count.index]}"
+  delay_seconds = 0
+  # Six times the 300s timeout of the consuming lambda, per the AWS guidance for
+  # SQS event source mappings. Equal values (both 300s) let a message become
+  # visible again at the instant a full-length invocation finishes, racing the
+  # delete, so the poller could hand the same batch to a second invocation.
+  visibility_timeout_seconds = 1800
   message_retention_seconds  = 345600
   receive_wait_time_seconds  = 0
   sqs_managed_sse_enabled    = true
-  
+
+  # Five attempts before parking the message. High enough to ride out transient
+  # RDS Data API or S3 errors, low enough that a genuinely bad record stops
+  # being retried quickly. Only records that fail are redelivered, because the
+  # event source mapping reports partial batch failures.
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.pds_nucleus_files_to_save_in_database_dlq[count.index].arn
+    maxReceiveCount     = 5
+  })
+
   tags = var.tags
 }
 

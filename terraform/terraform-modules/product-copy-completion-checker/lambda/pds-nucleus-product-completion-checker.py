@@ -180,10 +180,14 @@ def reset_stale_dispatching():
         sql="""
             UPDATE product
             SET completion_status = 'INCOMPLETE', dispatch_claim = NULL
-            WHERE completion_status = 'DISPATCHING'
+            WHERE pds_node = :node
+              AND completion_status = 'DISPATCHING'
               AND last_updated_epoch_time < :threshold
         """,
-        parameters=[{"name": "threshold", "value": {"longValue": threshold}}],
+        parameters=[
+            {"name": "node", "value": {"stringValue": PDS_NODE}},
+            {"name": "threshold", "value": {"longValue": threshold}},
+        ],
     )
     count = resp.get("numberOfRecordsUpdated", 0)
     if count:
@@ -195,6 +199,13 @@ def claim_completed_products(claim_id: str) -> list:
     Atomically mark eligible INCOMPLETE products as DISPATCHING under claim_id,
     then return their URLs. Two concurrent invocations get disjoint sets because
     MySQL serialises the UPDATE on the completion_status='INCOMPLETE' predicate.
+
+    The pds_node predicate is what makes this an index seek rather than a full
+    table scan. The only index covering completion_status is idx_node_status
+    (pds_node, completion_status), and MySQL cannot use a composite index whose
+    leading column is absent from the WHERE clause. Every row in this database
+    belongs to PDS_NODE already -- one database per data source -- so the
+    predicate selects nothing different, it just lets the planner reach the index.
     """
     rds.execute_statement(
         resourceArn=DB_CLUSTER_ARN,
@@ -205,7 +216,8 @@ def claim_completed_products(claim_id: str) -> list:
             SET p.completion_status = 'DISPATCHING',
                 p.dispatch_claim = :claim,
                 p.last_updated_epoch_time = :ts
-            WHERE p.completion_status = 'INCOMPLETE'
+            WHERE p.pds_node = :node
+              AND p.completion_status = 'INCOMPLETE'
               AND EXISTS (
                   SELECT 1 FROM product_data_file_mapping m
                   WHERE m.s3_url_of_product_label = p.s3_url_of_product_label
@@ -221,6 +233,7 @@ def claim_completed_products(claim_id: str) -> list:
             LIMIT :limit
         """,
         parameters=[
+            {"name": "node",  "value": {"stringValue": PDS_NODE}},
             {"name": "claim", "value": {"stringValue": claim_id}},
             {"name": "ts",    "value": {"longValue": int(time.time() * 1000)}},
             {"name": "limit", "value": {"longValue": PRODUCT_BATCH_SIZE}},
