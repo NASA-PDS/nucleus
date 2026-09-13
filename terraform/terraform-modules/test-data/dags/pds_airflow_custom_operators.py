@@ -4,10 +4,15 @@ PDS Airflow Custom Operators
 Reusable ECS operators for PDS Node workflows with enhanced logging and error handling.
 """
 
+import os
+import json
+from pathlib import Path
+
 from airflow.providers.amazon.aws.operators.ecs import EcsRunTaskOperator
 from airflow.providers.amazon.aws.hooks.logs import AwsLogsHook
 from airflow.exceptions import AirflowFailException
 from typing import Any
+from datetime import datetime
 
 
 class EcsRunTaskOperatorWithMaxLogs(EcsRunTaskOperator):
@@ -68,7 +73,9 @@ class ValidateEcsRunTaskOperator(EcsRunTaskOperatorWithMaxLogs):
     def execute(self, context):
         try:
             # This will run the parent execute(), which also fetches the logs
-            return super().execute(context)
+            result = super().execute(context)
+            self._write_validation_marker_to_efs(context)
+            return result
         except Exception as e:
             exit_code = None
             if self.arn:
@@ -92,6 +99,24 @@ class ValidateEcsRunTaskOperator(EcsRunTaskOperatorWithMaxLogs):
                     f"{e} (validate exited 1 — data validation failure, not retrying)"
                 ) from e
             raise
+    
+    def _write_validation_marker_to_efs(self, context):
+        """Write validation completion marker to EFS."""
+        try:
+            dag_run = context["dag_run"]
+            efs_config_dir = dag_run.conf.get("efs_config_dir", "")
+            if not efs_config_dir:
+                self.log.warning("No efs_config_dir in dag_run.conf, skipping validation marker")
+                return
+            
+            marker_file = os.path.join(efs_config_dir, "validation_completed.txt")
+            Path(efs_config_dir).mkdir(parents=True, exist_ok=True)
+            with open(marker_file, 'w') as f:
+                f.write(f"Validation completed at {datetime.utcnow().isoformat()}\n")
+            
+            self.log.info(f"Wrote validation marker to {marker_file}")
+        except Exception as e:
+            self.log.warning(f"Could not write validation marker to EFS: {e}")
 
 
 class HarvestEcsRunTaskOperator(EcsRunTaskOperatorWithMaxLogs):
@@ -109,6 +134,10 @@ class HarvestEcsRunTaskOperator(EcsRunTaskOperatorWithMaxLogs):
         
         # Task succeeded (exit 0), but check if harvest had failed files
         self._check_harvest_summary()
+        
+        # Write harvest completion marker to EFS for summary task
+        self._write_harvest_marker_to_efs(context)
+        
         return result
 
     def _check_harvest_summary(self):
@@ -149,3 +178,21 @@ class HarvestEcsRunTaskOperator(EcsRunTaskOperatorWithMaxLogs):
             raise
         except Exception as e:
             self.log.warning(f"Could not check harvest summary: {e}")
+    
+    def _write_harvest_marker_to_efs(self, context):
+        """Write harvest completion marker to EFS."""
+        try:
+            dag_run = context["dag_run"]
+            efs_config_dir = dag_run.conf.get("efs_config_dir", "")
+            if not efs_config_dir:
+                self.log.warning("No efs_config_dir in dag_run.conf, skipping harvest marker")
+                return
+            
+            marker_file = os.path.join(efs_config_dir, "harvest_completed.txt")
+            Path(efs_config_dir).mkdir(parents=True, exist_ok=True)
+            with open(marker_file, 'w') as f:
+                f.write(f"Harvest completed at {datetime.utcnow().isoformat()}\n")
+            
+            self.log.info(f"Wrote harvest marker to {marker_file}")
+        except Exception as e:
+            self.log.warning(f"Could not write harvest marker to EFS: {e}")
