@@ -16,11 +16,11 @@ from pds_airflow_custom_operators import (
     HarvestEcsRunTaskOperator,
 )
 from pds_log_parsers import (
+    batch_number_from_config_dir,
     build_manifest_key,
     common_directory,
     format_human_report,
     harvested_count,
-    relative_path,
 )
 
 
@@ -73,7 +73,12 @@ dag = DAG(
         #   -f, --force           Force load products even when namespace schema or attribute
         #                         type cannot be resolved. Affected fields will not be indexed.
         #   -a, --archive-status  Set the archive status for all products defaulting to staged
-        "harvest_extra_args": "",
+        #
+        # "-a archived" because a product left at the default "staged" is not
+        # treated as part of the archive; "--overwrite" because without it
+        # harvest skips anything already registered, so a re-run silently
+        # loads nothing and never picks up a corrected label.
+        "harvest_extra_args": "-a archived --overwrite",
         # Whether a data integrity failure in the summary should fail the DAG
         # run. Turn off to let a batch finish green while its problems are
         # still reported.
@@ -346,7 +351,23 @@ def generate_summary_report(**context):
     """
     dag_run = context["dag_run"]
     ti = context["task_instance"]
-    batch_id = dag_run.run_id
+    conf = dag_run.conf or {}
+
+    # Two identifiers, deliberately kept apart. batch_number names the work:
+    # it is minted by the trigger, appears in the S3 config directory and
+    # survives a re-run. dag_run_id names one Airflow attempt at that work.
+    # Reporting only the run id, as this task used to, left no way to line a
+    # report up with the batch the rest of the pipeline talks about.
+    dag_run_id = dag_run.run_id
+    # A hand-triggered run has no batch_number in its conf, so fall back to
+    # the config directory, whose last segment is the batch name.
+    batch_number = conf.get("batch_number") or batch_number_from_config_dir(
+        conf.get("s3_config_dir", "")
+    )
+    # Recorded in the report because it decides whether an already-
+    # registered product is overwritten or skipped, which is the difference
+    # between a re-run that updates the registry and one that does nothing.
+    harvest_extra_args = context["params"].get("harvest_extra_args", "")
 
     def pull(task_id, key, default):
         value = ti.xcom_pull(task_ids=task_id, key=key)
@@ -444,8 +465,9 @@ def generate_summary_report(**context):
     if harvest_count_known and not harvest_count and harvest_skipped:
         warnings.append(
             f"harvest skipped all {harvest_skipped} product(s) as already "
-            "registered, so this run loaded nothing new. Pass "
-            "harvest_extra_args='-O' to overwrite them."
+            "registered, so this run loaded nothing new. harvest_extra_args "
+            f"was '{harvest_extra_args}'; without --overwrite harvest leaves "
+            "registered products untouched."
         )
     if validate_skipped:
         warnings.append(f"validate skipped {len(validate_skipped)} product(s)")
@@ -485,15 +507,13 @@ def generate_summary_report(**context):
         for item in validate_passed + validate_failed + validate_skipped
     }
 
-    # Each product's location below the shared prefix. Keeping this rather
-    # than only the file name makes the compression lossless: the full URL
-    # is s3_prefix + "/" + path. Products sitting in different
-    # subdirectories would otherwise all collapse to a bare file name with
-    # no way to tell where they came from.
+    # The full S3 URL of every product. An entry is read on its own far
+    # more often than as part of the whole report, and a bare file name
+    # plus a prefix held somewhere else is not something you can paste into
+    # an s3 command or a browser. s3_prefix stays in the report as a
+    # heading; the report shortens these against it for display.
     s3_prefix = common_directory(manifest_urls)
-    path_by_name = {
-        build_manifest_key(url): relative_path(url, s3_prefix) for url in manifest_urls
-    }
+    url_by_name = {build_manifest_key(url): url for url in manifest_urls}
 
     # "validate_status", not a bare "status": a product that passed
     # validation has only been checked, not necessarily registered. Calling
@@ -502,12 +522,13 @@ def generate_summary_report(**context):
     products = [
         {
             # Repeated on every entry so a product found on its own still
-            # names the run it came from. The XCom list below is read
-            # without the surrounding report, and a product pulled out of a
-            # log search has nothing else to tie it back to its batch.
-            "batch_id": batch_id,
+            # names where it came from. The XCom list below is read without
+            # the surrounding report, and a product pulled out of a log
+            # search has nothing else to tie it back to its batch.
+            "batch_number": batch_number,
+            "dag_run_id": dag_run_id,
             "name": name,
-            "path": path_by_name.get(name, name),
+            "s3_url": url_by_name.get(name),
             "lidvid": lidvid_by_name.get(name),
             "validate_status": status_by_name[name],
             "harvest_status": batch_harvest_status,
@@ -516,7 +537,8 @@ def generate_summary_report(**context):
     ]
 
     summary = {
-        "batch_id": batch_id,
+        "batch_number": batch_number,
+        "dag_run_id": dag_run_id,
         "status": "FAILED" if failures else ("WARNING" if warnings else "SUCCESS"),
         "timing": {
             "start_time": dag_run.start_date.isoformat() if dag_run.start_date else None,
@@ -549,6 +571,7 @@ def generate_summary_report(**context):
         "s3_prefix": s3_prefix,
         "efs_prefix": common_directory([item["file"] for item in validate_passed]),
         "harvest_status": batch_harvest_status,
+        "harvest_extra_args": harvest_extra_args,
         "products": products,
     }
 
@@ -579,12 +602,10 @@ def generate_summary_report(**context):
             "PDS_PRODUCT_ISSUE_JSON: "
             + json.dumps(
                 {
-                    "batch_id": batch_id,
+                    "batch_number": batch_number,
+                    "dag_run_id": dag_run_id,
                     "name": issue["name"],
-                    # Spelled out in full here. These events are capped and
-                    # are what an operator acts on, so the location should
-                    # not have to be reassembled from the batch event.
-                    "s3_url": f"{s3_prefix}/{issue['path']}" if s3_prefix else issue["path"],
+                    "s3_url": issue["s3_url"],
                     "lidvid": issue["lidvid"],
                     "validate_status": issue["validate_status"],
                     "harvest_status": issue["harvest_status"],
@@ -623,13 +644,15 @@ def generate_summary_report(**context):
     # would replay the same failure five times to no purpose.
     if failures and context["params"]["fail_on_data_integrity_error"]:
         raise AirflowFailException(
-            f"Batch {batch_id} failed data integrity: " + "; ".join(failures)
+            f"Batch {batch_number or dag_run_id} failed data integrity: "
+            + "; ".join(failures)
         )
 
     # Return only the counts. Airflow echoes the returned value into the
     # task log, so returning the full report would put it in CloudWatch too.
     return {
-        "batch_id": batch_id,
+        "batch_number": batch_number,
+        "dag_run_id": dag_run_id,
         "status": summary["status"],
         "counts": summary["counts"],
         "s3_prefix": s3_prefix,

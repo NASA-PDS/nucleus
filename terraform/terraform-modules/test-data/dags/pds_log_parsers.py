@@ -112,6 +112,20 @@ def harvested_count(summary: Dict[str, int]):
     return None
 
 
+def batch_number_from_config_dir(config_dir: str) -> str:
+    """Recover the batch name from the config directory a run was given.
+
+    The trigger builds this directory as .../dag-data/<node>/<batch>, so its
+    last segment is the batch name. Only a fallback: a run triggered with an
+    explicit batch_number should use that. It exists because a DAG triggered
+    by hand from the Airflow UI has no batch_number in its conf, and a run
+    with no batch name at all cannot be tied to the batch it processed.
+    """
+    if not config_dir:
+        return ""
+    return config_dir.rstrip("/").rsplit("/", 1)[-1]
+
+
 def format_human_report(summary: Dict, products: List[Dict]) -> str:
     """Render the batch summary as plain text for the Airflow UI XCom tab.
 
@@ -129,7 +143,11 @@ def format_human_report(summary: Dict, products: List[Dict]) -> str:
     lines = [
         "PDS BATCH SUMMARY",
         "=" * 60,
-        row("Batch", summary["batch_id"]),
+        # The batch name the pipeline works in terms of, and the Airflow run
+        # that processed it. Two different identifiers: one names the work,
+        # the other names the attempt, and a batch can be re-run.
+        row("Batch number", summary.get("batch_number") or "(unknown)"),
+        row("Airflow run", summary["dag_run_id"]),
         row("Status", summary["status"]),
         row("Started", summary["timing"]["start_time"] or "unknown"),
         row("Ended", summary["timing"]["end_time"]),
@@ -137,6 +155,9 @@ def format_human_report(summary: Dict, products: List[Dict]) -> str:
         # reader can reconstruct the full S3 URL without it being repeated
         # on all N lines.
         row("S3 location", summary.get("s3_prefix") or "(mixed)"),
+        # Which harvest flags this run used. Whether a re-run updated the
+        # registry or skipped every product turns on this line.
+        row("Harvest args", summary.get("harvest_extra_args") or "(none)"),
         "",
         "COUNTS",
         "-" * 60,
@@ -170,8 +191,15 @@ def format_human_report(summary: Dict, products: List[Dict]) -> str:
     # registry holding it.
     header = f"  {'VALIDATE':<14}{'HARVEST':<20}PRODUCT"
 
+    # Products carry their full S3 URL so an entry means something on its
+    # own. The report already prints the shared prefix as a heading, so it
+    # shows only the part below it rather than repeating the prefix on
+    # every line.
+    prefix = summary.get("s3_prefix") or ""
+
     def product_line(product):
-        location = product.get("path") or product["name"]
+        location = product.get("s3_url") or product["name"]
+        location = relative_path(location, prefix)
         validate_status = product.get("validate_status", product.get("status", ""))
         harvest_status = product.get("harvest_status", "")
         return (

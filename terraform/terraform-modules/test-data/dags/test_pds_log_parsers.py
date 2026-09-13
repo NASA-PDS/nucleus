@@ -3,6 +3,7 @@
 import unittest
 
 from pds_log_parsers import (
+    batch_number_from_config_dir,
     build_manifest_key,
     common_directory,
     format_human_report,
@@ -123,11 +124,15 @@ class HarvestedCountTest(unittest.TestCase):
         self.assertIsNone(harvested_count({}))
 
 
+BATCH = "2026-09-10-03-36-5624f194624d624c54931fdb1fe693019c"
+
+
 def _product(name, **overrides):
     product = {
-        "batch_id": "manual__2026-09-13T04:46:52",
+        "batch_number": BATCH,
+        "dag_run_id": f"batch__{BATCH}",
         "name": name,
-        "path": name,
+        "s3_url": f"s3://bucket/lroc/2009184/{name}",
         "lidvid": None,
         "validate_status": "passed",
         "harvest_status": "loaded",
@@ -138,7 +143,8 @@ def _product(name, **overrides):
 
 def _summary(**overrides):
     summary = {
-        "batch_id": "manual__2026-09-13T04:46:52",
+        "batch_number": BATCH,
+        "dag_run_id": f"batch__{BATCH}",
         "status": "SUCCESS",
         "timing": {"start_time": "2026-09-13T04:46:53", "end_time": "2026-09-13T04:58:16"},
         "counts": {
@@ -154,12 +160,55 @@ def _summary(**overrides):
             "not_validated": [],
             "unexpected_products": [],
         },
+        "s3_prefix": "s3://bucket/lroc/2009184",
+        "harvest_extra_args": "-a archived --overwrite",
     }
     summary.update(overrides)
     return summary
 
 
+class BatchNumberFromConfigDirTest(unittest.TestCase):
+    def test_takes_the_last_segment(self):
+        self.assertEqual(
+            batch_number_from_config_dir(
+                f"s3://pds-nucleus-config/dag-data/PDS_IMG/{BATCH}"),
+            BATCH,
+        )
+
+    def test_ignores_a_trailing_slash(self):
+        self.assertEqual(
+            batch_number_from_config_dir(
+                f"s3://pds-nucleus-config/dag-data/PDS_IMG/{BATCH}/"),
+            BATCH,
+        )
+
+    def test_works_on_the_efs_form_too(self):
+        self.assertEqual(
+            batch_number_from_config_dir(f"/mnt/data/dag-data/PDS_IMG/{BATCH}"),
+            BATCH,
+        )
+
+    def test_empty_when_there_is_no_config_dir(self):
+        self.assertEqual(batch_number_from_config_dir(""), "")
+
+
 class FormatHumanReportTest(unittest.TestCase):
+    def test_shows_the_batch_number_and_the_airflow_run_separately(self):
+        # One names the work, the other names the attempt at it. A re-run
+        # keeps the batch number and gets a new run id.
+        report = format_human_report(
+            _summary(batch_number=BATCH, dag_run_id="manual__2026-09-13T07:06:45"), [])
+
+        self.assertIn("Batch number", report)
+        self.assertIn(BATCH, report)
+        self.assertIn("Airflow run", report)
+        self.assertIn("manual__2026-09-13T07:06:45", report)
+
+    def test_says_unknown_when_the_run_carried_no_batch_number(self):
+        report = format_human_report(_summary(batch_number=""), [])
+
+        self.assertIn("(unknown)", report)
+
     def test_healthy_batch_says_none_need_attention(self):
         products = [
             _product("a.xml", lidvid="urn:a::1.0"),
@@ -197,13 +246,43 @@ class FormatHumanReportTest(unittest.TestCase):
         # Two products with the same file name in different subdirectories
         # must remain distinguishable in the report.
         products = [
-            _product("a.xml", path="le/a.xml", validate_status="failed"),
-            _product("a.xml", path="re/a.xml", validate_status="failed"),
+            _product("a.xml", s3_url="s3://bucket/lroc/2009184/le/a.xml",
+                     validate_status="failed"),
+            _product("a.xml", s3_url="s3://bucket/lroc/2009184/re/a.xml",
+                     validate_status="failed"),
         ]
         report = format_human_report(_summary(status="WARNING"), products)
 
         self.assertIn("le/a.xml", report)
         self.assertIn("re/a.xml", report)
+
+    def test_shortens_product_urls_against_the_printed_prefix(self):
+        # The prefix is already a heading, so repeating it on every line
+        # would push the status columns off the side for no gain.
+        products = [_product("a.xml")]
+        report = format_human_report(_summary(), products)
+        product_lines = report.split("ALL PRODUCTS")[1]
+
+        self.assertIn("a.xml", product_lines)
+        self.assertNotIn("s3://bucket/lroc/2009184/a.xml", product_lines)
+        self.assertIn("s3://bucket/lroc/2009184", report)
+
+    def test_falls_back_to_the_full_url_when_there_is_no_common_prefix(self):
+        products = [_product("a.xml", s3_url="s3://other/elsewhere/a.xml")]
+        report = format_human_report(_summary(), products)
+
+        self.assertIn("s3://other/elsewhere/a.xml", report)
+
+    def test_reports_the_harvest_flags_the_run_used(self):
+        report = format_human_report(
+            _summary(harvest_extra_args="-a archived --overwrite"), [])
+
+        self.assertIn("-a archived --overwrite", report)
+
+    def test_says_none_when_no_harvest_flags_were_passed(self):
+        report = format_human_report(_summary(harvest_extra_args=""), [])
+
+        self.assertIn("(none)", report)
 
     def test_separates_what_validate_said_from_what_harvest_did(self):
         # A product can pass validation and still not be in the registry.
