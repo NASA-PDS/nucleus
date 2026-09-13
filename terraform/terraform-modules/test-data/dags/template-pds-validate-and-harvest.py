@@ -64,11 +64,11 @@ dag = DAG(
     # sequential chain (list_products >> ... >> print_end_time), so exactly
     # one task is ever running per active run -- max_active_tasks therefore
     # has to move together with max_active_runs, or it becomes the new
-    # binding cap on its own. 32 is a conservative first step up from the
-    # default, not a sized-to-capacity value; raise further once ECS/Fargate
-    # and RDS Data API load at this level has been observed.
-    max_active_runs=32,
-    max_active_tasks=32,
+    # binding cap on its own. Matched to default_pool's 128 slots (the mwaa
+    # environment is mw1.large -- see mwaa-env/variables.tf) rather than an
+    # arbitrary fraction of it.
+    max_active_runs=128,
+    max_active_tasks=128,
     default_args={
         "retries": 5,
         "retry_delay": timedelta(minutes=2),
