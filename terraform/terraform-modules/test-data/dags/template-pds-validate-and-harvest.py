@@ -3,153 +3,24 @@
 
 import boto3
 import json
-import re
 from airflow import DAG
 from airflow.decorators import task
-from airflow.exceptions import AirflowFailException
 from airflow.operators.bash import BashOperator
 from airflow.providers.amazon.aws.hooks.logs import AwsLogsHook
 from airflow.providers.amazon.aws.operators.ecs import EcsRunTaskOperator
 from airflow.utils.trigger_rule import TriggerRule
 from datetime import datetime, timedelta
-from typing import Any
 
-# -------------------------------------------------------------------
-# Retry-aware ECS operator for Validate
-# -------------------------------------------------------------------
-# The `validate` tool exits 1 when it ran successfully but found real
-# data problems (e.g. missing referenced file) — a deterministic result
-# that retrying will not change. Any other non-zero exit (task crashed,
-# never started, OOM, etc.) is a genuine infra failure worth retrying.
-# We distinguish the two so only infra failures consume the task's retries.
-class EcsRunTaskOperatorWithMaxLogs(EcsRunTaskOperator):
-    """Base class: fetch max available CloudWatch logs after task execution."""
-    def execute(self, context: Any) -> str | None:
-        """Execute task synchronously and fetch CloudWatch logs."""
-        try:
-            result = super().execute(context)
-        except Exception:
-            # Task failed; try to fetch and log CloudWatch logs before re-raising
-            self._fetch_and_log_cloudwatch_logs()
-            raise
-        
-        # Task succeeded; also fetch logs for visibility
-        self._fetch_and_log_cloudwatch_logs()
-        return result
+from pds_airflow_custom_operators import (
+    ValidateEcsRunTaskOperator,
+    HarvestEcsRunTaskOperator,
+)
+from pds_log_parsers import (
+    extract_manifest_products,
+    parse_validate_logs,
+    parse_harvest_logs,
+)
 
-    def _fetch_and_log_cloudwatch_logs(self):
-        """Fetch and log all available CloudWatch logs."""
-        if not self.awslogs_group or not self.awslogs_stream_prefix:
-            return
-        try:
-            logs_client = AwsLogsHook(
-                aws_conn_id=self.aws_conn_id, region_name=self.awslogs_region
-            ).conn
-            # Build log stream name from task ARN
-            if self.arn:
-                task_id = self.arn.rsplit("/", 1)[-1]
-                log_stream = f"{self.awslogs_stream_prefix}/{self.arn.split('/')[-3]}/{task_id}"
-                try:
-                    logs_resp = logs_client.get_log_events(
-                        logGroupName=self.awslogs_group,
-                        logStreamName=log_stream,
-                        startFromHead=True,
-                    )
-                    events = logs_resp.get("events", [])
-                    if events:
-                        self.log.info(f"--- CloudWatch logs ({len(events)} lines) ---")
-                        for event in events:
-                            self.log.info(event["message"])
-                except logs_client.exceptions.ResourceNotFoundException:
-                    self.log.warning(f"Log stream not found: {log_stream}")
-        except Exception as e:
-            self.log.warning(f"Could not fetch CloudWatch logs: {e}")
-
-
-class ValidateEcsRunTaskOperator(EcsRunTaskOperatorWithMaxLogs):
-    def execute(self, context):
-        try:
-            # This will run the parent execute(), which also fetches the logs
-            return super().execute(context)
-        except Exception as e:
-            exit_code = None
-            if self.arn:
-                try:
-                    resp = self.hook.get_conn().describe_tasks(
-                        cluster=self.cluster, tasks=[self.arn]
-                    )
-                    exit_code = next(
-                        (
-                            c.get("exitCode")
-                            for c in resp["tasks"][0].get("containers", [])
-                            if c.get("name") == "pds-validate"
-                        ),
-                        None,
-                    )
-                except Exception:
-                    pass  # if we can't determine exit code, fall back to retrying
-
-            if exit_code == 1:
-                raise AirflowFailException(
-                    f"{e} (validate exited 1 — data validation failure, not retrying)"
-                ) from e
-            raise
-
-
-class HarvestEcsRunTaskOperator(EcsRunTaskOperatorWithMaxLogs):
-    """ECS operator for Harvest task that checks for failed files in summary.
-    
-    The harvest tool always exits 0 even when files fail to parse. This operator
-    parses CloudWatch logs to detect the [SUMMARY] line with failed file count
-    and fails the task if any files failed.
-    """
-    def execute(self, context: Any) -> str | None:
-        """Execute task synchronously, fetch logs, and check for failed files."""
-        # This will run the parent execute(), which also fetches the logs
-        result = super().execute(context)
-        
-        # Task succeeded (exit 0), but check if harvest had failed files
-        self._check_harvest_summary()
-        return result
-
-    def _check_harvest_summary(self):
-        """Parse CloudWatch logs and fail if any files failed to harvest."""
-        if not self.awslogs_group or not self.awslogs_stream_prefix:
-            return
-        try:
-            logs_client = AwsLogsHook(
-                aws_conn_id=self.aws_conn_id, region_name=self.awslogs_region
-            ).conn
-            if self.arn:
-                task_id = self.arn.rsplit("/", 1)[-1]
-                log_stream = f"{self.awslogs_stream_prefix}/{self.arn.split('/')[-3]}/{task_id}"
-                try:
-                    logs_resp = logs_client.get_log_events(
-                        logGroupName=self.awslogs_group,
-                        logStreamName=log_stream,
-                        startFromHead=True,
-                    )
-                    events = logs_resp.get("events", [])
-                    for event in events:
-                        msg = event["message"]
-                        if "[SUMMARY]" in msg and "Failed files:" in msg:
-                            # Extract failed file count
-                            parts = msg.split("Failed files:")
-                            if len(parts) > 1:
-                                try:
-                                    failed_count = int(parts[1].strip().split()[0])
-                                    if failed_count > 0:
-                                        raise AirflowFailException(
-                                            f"Harvest completed with {failed_count} failed files (missing from EFS)"
-                                        )
-                                except (ValueError, IndexError):
-                                    pass
-                except logs_client.exceptions.ResourceNotFoundException:
-                    self.log.warning(f"Log stream not found: {log_stream}")
-        except AirflowFailException:
-            raise
-        except Exception as e:
-            self.log.warning(f"Could not check harvest summary: {e}")
 
 # -------------------------------------------------------------------
 # ECS configuration (TEMPLATE — injected by Terraform)
@@ -168,62 +39,6 @@ def _read_product_list(s3_config_dir):
     key = "/".join(s3_config_dir.replace("s3://", "").split("/")[1:] + ["product_list.txt"])
     body = boto3.client("s3").get_object(Bucket=bucket, Key=key)["Body"].read()
     return [line for line in body.decode("utf-8").splitlines() if line]
-
-# -------------------------------------------------------------------
-# Extract product LIDVIDs from manifest file
-# -------------------------------------------------------------------
-def _extract_manifest_products(efs_config_dir):
-    """Read manifest file and extract S3 URLs."""
-    manifest_path = f"{efs_config_dir}/harvest_manifest.txt"
-    try:
-        with open(manifest_path, 'r') as f:
-            return [line.strip() for line in f if line.strip()]
-    except Exception as e:
-        print(f"Error reading manifest: {e}")
-        return []
-
-# -------------------------------------------------------------------
-# Parse CloudWatch logs to extract product LIDVIDs
-# -------------------------------------------------------------------
-def _parse_validate_logs(logs_client, log_group, log_stream):
-    """Extract validated product LIDVIDs from validate logs."""
-    validated_products = []
-    try:
-        logs_resp = logs_client.get_log_events(
-            logGroupName=log_group,
-            logStreamName=log_stream,
-            startFromHead=True,
-        )
-        events = logs_resp.get("events", [])
-        for event in events:
-            msg = event["message"]
-            if "Product_Observational" in msg or "Product_Bundle" in msg:
-                match = re.search(r'urn:nasa:pds:[\w\-\.]+:[\w\-\.]+:[\w\-\.]+:[\w\-\.]+', msg)
-                if match:
-                    validated_products.append(match.group(0))
-    except Exception as e:
-        print(f"Error parsing validate logs: {e}")
-    return validated_products
-
-def _parse_harvest_logs(logs_client, log_group, log_stream):
-    """Extract harvested product LIDVIDs from harvest logs."""
-    harvested_products = []
-    try:
-        logs_resp = logs_client.get_log_events(
-            logGroupName=log_group,
-            logStreamName=log_stream,
-            startFromHead=True,
-        )
-        events = logs_resp.get("events", [])
-        for event in events:
-            msg = event["message"]
-            if "Processing" in msg and ".xml" in msg:
-                match = re.search(r's3://[\w\-\.]+/[\w\-\./]+\.xml', msg)
-                if match:
-                    harvested_products.append(match.group(0))
-    except Exception as e:
-        print(f"Error parsing harvest logs: {e}")
-    return harvested_products
 
 # -------------------------------------------------------------------
 # DAG definition
@@ -517,7 +332,7 @@ def generate_summary_report(**context):
     s3_config_dir = dag_run.conf.get("s3_config_dir", "")
     
     # Extract manifest products
-    manifest_products = _extract_manifest_products(efs_config_dir)
+    manifest_products = extract_manifest_products(efs_config_dir)
     
     # Parse validate and harvest logs
     logs_hook = AwsLogsHook(aws_conn_id="aws_default", region_name=AWS_REGION)
@@ -543,7 +358,7 @@ def generate_summary_report(**context):
         )
         if log_streams_resp.get("logStreams"):
             latest_stream = log_streams_resp["logStreams"][0]["logStreamName"]
-            validated_products = _parse_validate_logs(logs_client, validate_log_group, latest_stream)
+            validated_products = parse_validate_logs(logs_client, validate_log_group, latest_stream)
     except Exception as e:
         print(f"Could not fetch validate logs: {e}")
     
@@ -558,7 +373,7 @@ def generate_summary_report(**context):
         )
         if log_streams_resp.get("logStreams"):
             latest_stream = log_streams_resp["logStreams"][0]["logStreamName"]
-            harvested_products = _parse_harvest_logs(logs_client, harvest_log_group, latest_stream)
+            harvested_products = parse_harvest_logs(logs_client, harvest_log_group, latest_stream)
     except Exception as e:
         print(f"Could not fetch harvest logs: {e}")
     
