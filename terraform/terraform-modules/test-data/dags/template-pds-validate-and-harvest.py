@@ -465,6 +465,20 @@ def generate_summary_report(**context):
         for item in items:
             status_by_name[build_manifest_key(item["file"])] = status
 
+    # What happened to these products in the registry. harvest reports only
+    # batch totals, never per-product lines, so this can only be stated when
+    # the totals leave no doubt: either everything was loaded or everything
+    # was skipped. Any mix is "unknown" rather than a guess about which
+    # product fell in which group.
+    if not harvest_count_known:
+        batch_harvest_status = "unknown"
+    elif harvest_count == received_count and not harvest_skipped:
+        batch_harvest_status = "loaded"
+    elif harvest_skipped == received_count and not harvest_count:
+        batch_harvest_status = "already_registered"
+    else:
+        batch_harvest_status = "unknown"
+
     lidvid_by_name = {
         build_manifest_key(item["file"]): item["lidvid"]
         for item in validate_passed + validate_failed + validate_skipped
@@ -480,12 +494,17 @@ def generate_summary_report(**context):
         build_manifest_key(url): relative_path(url, s3_prefix) for url in manifest_urls
     }
 
+    # "validate_status", not a bare "status": a product that passed
+    # validation has only been checked, not necessarily registered. Calling
+    # that "passed" on its own invites reading a validated-but-never-loaded
+    # product as fully ingested.
     products = [
         {
             "name": name,
             "path": path_by_name.get(name, name),
             "lidvid": lidvid_by_name.get(name),
-            "status": status_by_name[name],
+            "validate_status": status_by_name[name],
+            "harvest_status": batch_harvest_status,
         }
         for name in sorted(status_by_name)
     ]
@@ -523,6 +542,7 @@ def generate_summary_report(**context):
         },
         "s3_prefix": s3_prefix,
         "efs_prefix": common_directory([item["file"] for item in validate_passed]),
+        "harvest_status": batch_harvest_status,
         "products": products,
     }
 
@@ -545,7 +565,9 @@ def generate_summary_report(**context):
     # the batch event above. A separate event per product makes it
     # queryable. Only non-passing products are emitted, so a healthy batch
     # adds nothing to the log.
-    issues = [product for product in products if product["status"] != "passed"]
+    issues = [
+        product for product in products if product["validate_status"] != "passed"
+    ]
     for issue in issues[:MAX_PRODUCT_ISSUE_EVENTS]:
         print(
             "PDS_PRODUCT_ISSUE_JSON: "
@@ -558,7 +580,8 @@ def generate_summary_report(**context):
                     # not have to be reassembled from the batch event.
                     "s3_url": f"{s3_prefix}/{issue['path']}" if s3_prefix else issue["path"],
                     "lidvid": issue["lidvid"],
-                    "status": issue["status"],
+                    "validate_status": issue["validate_status"],
+                    "harvest_status": issue["harvest_status"],
                 },
                 separators=(",", ":"),
             )

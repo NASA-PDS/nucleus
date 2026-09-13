@@ -165,19 +165,33 @@ def format_human_report(summary: Dict, products: List[Dict]) -> str:
     for warning in integrity.get("warnings", []):
         lines.append(f"  WARNING  {warning}")
 
+    # Two columns, each headed, because "passed" alone does not say what
+    # passed. Validation checking a product out is a different fact from the
+    # registry holding it.
+    header = f"  {'VALIDATE':<14}{'HARVEST':<20}PRODUCT"
+
     def product_line(product):
         location = product.get("path") or product["name"]
-        return f"  {product['status']:<14}{location}  {product['lidvid'] or ''}".rstrip()
+        validate_status = product.get("validate_status", product.get("status", ""))
+        harvest_status = product.get("harvest_status", "")
+        return (
+            f"  {validate_status:<14}{harvest_status:<20}{location}  "
+            f"{product['lidvid'] or ''}"
+        ).rstrip()
 
-    issues = [product for product in products if product["status"] != "passed"]
+    def needs_attention(product):
+        return product.get("validate_status", product.get("status")) != "passed"
+
+    issues = [product for product in products if needs_attention(product)]
     lines += ["", f"PRODUCTS NEEDING ATTENTION ({len(issues)})", "-" * 60]
     if issues:
-        lines += [product_line(product) for product in issues]
+        lines += [header] + [product_line(product) for product in issues]
     else:
         lines.append("  none")
 
     lines += ["", f"ALL PRODUCTS ({len(products)})", "-" * 60]
-    lines += [product_line(product) for product in products]
+    if products:
+        lines += [header] + [product_line(product) for product in products]
     return "\n".join(lines)
 
 

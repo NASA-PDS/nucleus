@@ -123,6 +123,18 @@ class HarvestedCountTest(unittest.TestCase):
         self.assertIsNone(harvested_count({}))
 
 
+def _product(name, **overrides):
+    product = {
+        "name": name,
+        "path": name,
+        "lidvid": None,
+        "validate_status": "passed",
+        "harvest_status": "loaded",
+    }
+    product.update(overrides)
+    return product
+
+
 def _summary(**overrides):
     summary = {
         "batch_id": "manual__2026-09-13T04:46:52",
@@ -149,8 +161,8 @@ def _summary(**overrides):
 class FormatHumanReportTest(unittest.TestCase):
     def test_healthy_batch_says_none_need_attention(self):
         products = [
-            {"name": "a.xml", "lidvid": "urn:a::1.0", "status": "passed"},
-            {"name": "b.xml", "lidvid": "urn:b::1.0", "status": "passed"},
+            _product("a.xml", lidvid="urn:a::1.0"),
+            _product("b.xml", lidvid="urn:b::1.0"),
         ]
         report = format_human_report(_summary(), products)
 
@@ -161,9 +173,9 @@ class FormatHumanReportTest(unittest.TestCase):
 
     def test_lists_only_non_passing_products_as_issues(self):
         products = [
-            {"name": "a.xml", "lidvid": "urn:a::1.0", "status": "passed"},
-            {"name": "b.xml", "lidvid": "urn:b::1.0", "status": "failed"},
-            {"name": "c.xml", "lidvid": None, "status": "not_validated"},
+            _product("a.xml", lidvid="urn:a::1.0"),
+            _product("b.xml", lidvid="urn:b::1.0", validate_status="failed"),
+            _product("c.xml", validate_status="not_validated"),
         ]
         report = format_human_report(_summary(status="WARNING"), products)
         attention = report.split("PRODUCTS NEEDING ATTENTION (2)")[1].split("ALL PRODUCTS")[0]
@@ -184,13 +196,27 @@ class FormatHumanReportTest(unittest.TestCase):
         # Two products with the same file name in different subdirectories
         # must remain distinguishable in the report.
         products = [
-            {"name": "a.xml", "path": "le/a.xml", "lidvid": None, "status": "failed"},
-            {"name": "a.xml", "path": "re/a.xml", "lidvid": None, "status": "failed"},
+            _product("a.xml", path="le/a.xml", validate_status="failed"),
+            _product("a.xml", path="re/a.xml", validate_status="failed"),
         ]
         report = format_human_report(_summary(status="WARNING"), products)
 
         self.assertIn("le/a.xml", report)
         self.assertIn("re/a.xml", report)
+
+    def test_separates_what_validate_said_from_what_harvest_did(self):
+        # A product can pass validation and still not be in the registry.
+        # The report must not let one bare "passed" stand for both.
+        products = [
+            _product("a.xml", validate_status="passed",
+                     harvest_status="already_registered")
+        ]
+        report = format_human_report(_summary(status="WARNING"), products)
+
+        self.assertIn("VALIDATE", report)
+        self.assertIn("HARVEST", report)
+        self.assertIn("passed", report)
+        self.assertIn("already_registered", report)
 
     def test_spells_out_each_failure_reason(self):
         summary = _summary(status="FAILED")
