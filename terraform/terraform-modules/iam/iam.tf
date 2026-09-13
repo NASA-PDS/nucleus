@@ -55,7 +55,7 @@ resource "aws_iam_role" "pds_nucleus_alb_auth_lambda_execution_role" {
   }
   assume_role_policy   = data.aws_iam_policy_document.assume_role_lambda.json
   permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
-  
+
   tags = var.tags
 }
 
@@ -96,7 +96,7 @@ resource "aws_iam_role" "pds_nucleus_admin_role" {
   }
   assume_role_policy   = data.aws_iam_policy_document.pds_nucleus_airflow_assume_role.json
   permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
-  
+
   tags = var.tags
 }
 
@@ -123,7 +123,7 @@ resource "aws_iam_role" "pds_nucleus_op_role" {
   }
   assume_role_policy   = data.aws_iam_policy_document.pds_nucleus_airflow_assume_role.json
   permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
-  
+
   tags = var.tags
 }
 
@@ -151,7 +151,7 @@ resource "aws_iam_role" "pds_nucleus_user_role" {
   }
   assume_role_policy   = data.aws_iam_policy_document.pds_nucleus_airflow_assume_role.json
   permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
-  
+
   tags = var.tags
 }
 
@@ -179,7 +179,7 @@ resource "aws_iam_role" "pds_nucleus_viewer_role" {
   }
   assume_role_policy   = data.aws_iam_policy_document.pds_nucleus_airflow_assume_role.json
   permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
-  
+
   tags = var.tags
 }
 
@@ -310,7 +310,7 @@ resource "aws_iam_role" "pds_nucleus_ecs_task_role" {
   }
   assume_role_policy   = data.aws_iam_policy_document.ecs_task_role_assume_role.json
   permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
-  
+
   tags = var.tags
 }
 
@@ -417,7 +417,7 @@ resource "aws_iam_role" "pds_nucleus_harvest_ecs_task_role" {
   }
   assume_role_policy   = data.aws_iam_policy_document.harvest_ecs_task_role_assume_role[count.index].json
   permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
-  
+
   tags = var.tags
 }
 
@@ -506,7 +506,7 @@ resource "aws_iam_role" "pds_nucleus_ecs_task_execution_role" {
   }
   assume_role_policy   = data.aws_iam_policy_document.ecs_task_role_assume_role.json
   permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
-  
+
   tags = var.tags
 }
 
@@ -560,6 +560,22 @@ data "aws_iam_policy_document" "mwaa_inline_policy" {
     ]
     resources = [
       "arn:aws:ecs:*:${data.aws_caller_identity.current.account_id}:task-definition/pds*:*",
+      "arn:aws:ecs:*:${data.aws_caller_identity.current.account_id}:task/pds*/*"
+    ]
+  }
+
+  # Without this, EcsRunTaskOperator.on_kill() cannot stop the ECS task it
+  # started when Airflow gives up on the task instance (timeout, retry,
+  # manual clear, or the worker process itself being killed). The ECS task
+  # then keeps running orphaned, and a retry can race it -- e.g. two
+  # concurrent Config_Init or Harvest attempts writing to the same EFS
+  # batch directory or registry entry.
+  statement {
+    effect = "Allow"
+    actions = [
+      "ecs:StopTask"
+    ]
+    resources = [
       "arn:aws:ecs:*:${data.aws_caller_identity.current.account_id}:task/pds*/*"
     ]
   }
@@ -688,7 +704,7 @@ resource "aws_iam_role" "pds_nucleus_mwaa_execution_role" {
   }
   assume_role_policy   = data.aws_iam_policy_document.assume_role.json
   permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
-  
+
   tags = var.tags
 }
 
@@ -805,7 +821,7 @@ resource "aws_iam_role" "pds_nucleus_lambda_execution_role" {
   }
   assume_role_policy   = data.aws_iam_policy_document.assume_role_lambda.json
   permissions_boundary = data.aws_iam_policy.mcp_operator_policy.arn
-  
+
   tags = var.tags
 }
 

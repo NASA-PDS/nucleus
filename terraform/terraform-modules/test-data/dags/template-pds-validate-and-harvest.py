@@ -64,11 +64,9 @@ dag = DAG(
     # sequential chain (list_products >> ... >> print_end_time), so exactly
     # one task is ever running per active run -- max_active_tasks therefore
     # has to move together with max_active_runs, or it becomes the new
-    # binding cap on its own. Matched to default_pool's 128 slots (the mwaa
-    # environment is mw1.large -- see mwaa-env/variables.tf) rather than an
-    # arbitrary fraction of it.
-    max_active_runs=128,
-    max_active_tasks=128,
+    # binding cap on its own.
+    max_active_runs=24,
+    max_active_tasks=24,
     default_args={
         "retries": 5,
         "retry_delay": timedelta(minutes=2),
