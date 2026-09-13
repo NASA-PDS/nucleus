@@ -312,7 +312,7 @@ variable "database_name" {
 
 variable "airflow_version" {
   description = "PDS Nucleus Airflow Version"
-  default     = "3.2.1"
+  default     = "3.3.1"
   type        = string
 }
 
