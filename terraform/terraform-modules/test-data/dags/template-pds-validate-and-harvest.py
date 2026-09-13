@@ -5,6 +5,7 @@ import boto3
 import json
 from airflow import DAG
 from airflow.decorators import task
+from airflow.exceptions import AirflowFailException
 from airflow.operators.bash import BashOperator
 from airflow.providers.amazon.aws.operators.ecs import EcsRunTaskOperator
 from airflow.utils.trigger_rule import TriggerRule
@@ -73,6 +74,10 @@ dag = DAG(
         #                         type cannot be resolved. Affected fields will not be indexed.
         #   -a, --archive-status  Set the archive status for all products defaulting to staged
         "harvest_extra_args": "",
+        # Whether a data integrity failure in the summary should fail the DAG
+        # run. Turn off to let a batch finish green while its problems are
+        # still reported.
+        "fail_on_data_integrity_error": True,
     },
 )
 
@@ -358,9 +363,15 @@ def generate_summary_report(**context):
     # The manifest holds S3 URLs while validate logs EFS paths, so compare on
     # file name rather than on the full location.
     manifest_keys = {build_manifest_key(url) for url in manifest_urls}
-    validated_keys = {build_manifest_key(item["file"]) for item in validate_passed}
+    # Every product validate had something to say about, whatever the
+    # verdict. Counting only the passing ones would report a product that
+    # validate explicitly failed as one it never looked at.
+    assessed_keys = {
+        build_manifest_key(item["file"])
+        for item in validate_passed + validate_failed + validate_skipped
+    }
 
-    unexpected = sorted(validated_keys - manifest_keys)
+    unexpected = sorted(assessed_keys - manifest_keys)
 
     received_count = len(manifest_urls)
     passed_count = len(validate_passed)
@@ -377,7 +388,7 @@ def generate_summary_report(**context):
     # Only meaningful once validate has reported. Without its results every
     # product would be listed here, which reads as a data problem when the
     # real problem is the missing report.
-    not_validated = sorted(manifest_keys - validated_keys) if validate_reported else []
+    not_validated = sorted(manifest_keys - assessed_keys) if validate_reported else []
 
     # Harvest only reports a count if it emitted a [SUMMARY] line. Treat a
     # missing count as unknown rather than assuming it matched, so a silent
@@ -392,13 +403,53 @@ def generate_summary_report(**context):
     counts_match = received_count == passed_count and (
         not harvest_count_known or harvest_count == received_count
     )
-    all_match = (
-        counts_match
-        and validate_reported
-        and harvest_count_known
-        and not not_validated
-        and not unexpected
+
+    # Every product received should end up either newly loaded or recognised
+    # as already registered. A shortfall means harvest dropped some without
+    # saying so, which the loaded count alone would not reveal.
+    harvest_accounted = (
+        not harvest_count_known or harvest_count + harvest_skipped == received_count
     )
+
+    # Conditions that mean the batch cannot be trusted. Each is phrased as
+    # the finding itself so the DAG failure message says what is wrong.
+    failures = []
+    if not validate_reported:
+        failures.append("validate published no results, so nothing was verified")
+    if validate_failed:
+        failures.append(f"{len(validate_failed)} product(s) failed validation")
+    if not_validated:
+        failures.append(f"{len(not_validated)} product(s) were never validated")
+    if unexpected:
+        failures.append(
+            f"{len(unexpected)} validated product(s) were not in the manifest"
+        )
+    if not harvest_count_known:
+        failures.append("harvest reported no count, so the load is unverified")
+    if harvest_summary.get("failed_files"):
+        failures.append(
+            f"harvest failed on {harvest_summary['failed_files']} file(s)"
+        )
+    if not harvest_accounted:
+        failures.append(
+            f"harvest accounted for {(harvest_count or 0) + harvest_skipped} of "
+            f"{received_count} product(s)"
+        )
+
+    # Worth surfacing, but not wrong. Re-running an already-ingested batch
+    # legitimately loads nothing, and failing on that would make every
+    # repeat run red.
+    warnings = []
+    if harvest_count_known and not harvest_count and harvest_skipped:
+        warnings.append(
+            f"harvest skipped all {harvest_skipped} product(s) as already "
+            "registered, so this run loaded nothing new. Pass "
+            "harvest_extra_args='-O' to overwrite them."
+        )
+    if validate_skipped:
+        warnings.append(f"validate skipped {len(validate_skipped)} product(s)")
+
+    all_match = not failures and not warnings
 
     # One entry per product, holding only what cannot be derived: the file
     # name, its LIDVID and its status. The directory is identical for every
@@ -441,7 +492,7 @@ def generate_summary_report(**context):
 
     summary = {
         "batch_id": dag_run.run_id,
-        "status": "SUCCESS" if all_match else "WARNING",
+        "status": "FAILED" if failures else ("WARNING" if warnings else "SUCCESS"),
         "timing": {
             "start_time": dag_run.start_date.isoformat() if dag_run.start_date else None,
             "end_time": datetime.utcnow().isoformat(),
@@ -462,8 +513,11 @@ def generate_summary_report(**context):
             "validate_results_reported": validate_reported,
             "harvest_count_reported": harvest_count_known,
             "counts_match": counts_match,
+            "harvest_accounted": harvest_accounted,
             "not_validated": not_validated,
             "unexpected_products": unexpected,
+            "failures": failures,
+            "warnings": warnings,
             "all_match": all_match,
             "status": "COMPLETE" if all_match else "INCOMPLETE",
         },
@@ -522,13 +576,27 @@ def generate_summary_report(**context):
         f"not_validated={len(not_validated)} unexpected={len(unexpected)} "
         f"issues={len(issues)}"
     )
+    for warning in warnings:
+        print(f"WARNING: {warning}")
 
     # Channel 3: the human-readable report, for users who only have the
     # Airflow UI. It goes to XCom rather than the log because MWAA stores
     # task logs in CloudWatch, so printing it would duplicate the whole
     # report into CloudWatch alongside the JSON event.
+    # Pushed before any failure below, so the report is still there to read
+    # in the UI on a run that fails.
     ti.xcom_push(key="report", value=format_human_report(summary, products))
     ti.xcom_push(key="products", value=products)
+
+    # Fail the run on a bad batch, now that everything above has been
+    # reported. AirflowFailException rather than a plain raise: this verdict
+    # is computed from XComs that will not change, so the DAG-level retries
+    # would replay the same failure five times to no purpose.
+    if failures and context["params"]["fail_on_data_integrity_error"]:
+        raise AirflowFailException(
+            f"Batch {summary['batch_id']} failed data integrity: "
+            + "; ".join(failures)
+        )
 
     # Return only the counts. Airflow echoes the returned value into the
     # task log, so returning the full report would put it in CloudWatch too.
@@ -539,15 +607,17 @@ def generate_summary_report(**context):
         "s3_prefix": s3_prefix,
         # The checks behind the status, not just its verdict. Without these
         # an INCOMPLETE result gives no clue which reconciliation failed.
-        # Counts only: the lists themselves can be long and are already in
-        # the batch event.
+        # Counts only for the product lists, which can be long and are
+        # already in the batch event.
         "data_integrity": {
             "status": summary["data_integrity"]["status"],
             "validate_results_reported": validate_reported,
             "harvest_count_reported": harvest_count_known,
             "counts_match": counts_match,
+            "harvest_accounted": harvest_accounted,
             "not_validated": len(not_validated),
             "unexpected_products": len(unexpected),
+            "warnings": warnings,
         },
     }
 

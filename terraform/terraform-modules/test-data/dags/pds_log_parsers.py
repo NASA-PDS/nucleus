@@ -157,23 +157,13 @@ def format_human_report(summary: Dict, products: List[Dict]) -> str:
         row("Unexpected products", len(integrity["unexpected_products"])),
     ]
 
-    # Say plainly when a tool told us nothing, so an empty result is not read
-    # as a finding about the data.
-    if not integrity.get("validate_results_reported", True):
-        lines.append(
-            "  NOTE: validate published no results, so per-product validation"
-            " status is unknown."
-        )
-    if not integrity.get("harvest_count_reported", True):
-        lines.append(
-            "  NOTE: harvest reported no count, so the number registered is"
-            " unknown."
-        )
-    if counts["harvest_skipped"] and not counts["harvested"]:
-        lines.append(
-            f"  NOTE: harvest skipped all {counts['harvest_skipped']} products as"
-            " already registered, so this run loaded nothing new."
-        )
+    # The reasons behind the status, exactly as the summary task classified
+    # them. Deriving them a second time here would let the report and the
+    # DAG's pass/fail decision drift apart.
+    for failure in integrity.get("failures", []):
+        lines.append(f"  FAILED   {failure}")
+    for warning in integrity.get("warnings", []):
+        lines.append(f"  WARNING  {warning}")
 
     def product_line(product):
         location = product.get("path") or product["name"]

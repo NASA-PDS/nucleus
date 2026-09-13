@@ -192,37 +192,35 @@ class FormatHumanReportTest(unittest.TestCase):
         self.assertIn("le/a.xml", report)
         self.assertIn("re/a.xml", report)
 
-    def test_says_validate_reported_nothing_rather_than_blaming_products(self):
-        # The dangerous misreading: validate publishing no results looks
-        # identical to every product failing to validate.
-        summary = _summary(status="WARNING")
-        summary["data_integrity"]["validate_results_reported"] = False
+    def test_spells_out_each_failure_reason(self):
+        summary = _summary(status="FAILED")
         summary["data_integrity"]["status"] = "INCOMPLETE"
-        products = [{"name": "a.xml", "lidvid": None, "status": "unknown"}]
-
-        report = format_human_report(summary, products)
-
-        self.assertIn("validate published no results", report)
-        self.assertIn("unknown", report)
-
-    def test_says_harvest_skipped_everything_as_already_registered(self):
-        summary = _summary()
-        summary["counts"]["harvested"] = 0
-        summary["counts"]["harvest_skipped"] = 166
+        summary["data_integrity"]["failures"] = [
+            "validate published no results, so nothing was verified",
+            "harvest failed on 3 file(s)",
+        ]
 
         report = format_human_report(summary, [])
 
-        self.assertIn("already registered", report)
-        self.assertIn("166", report)
+        self.assertIn("FAILED   validate published no results", report)
+        self.assertIn("FAILED   harvest failed on 3 file(s)", report)
 
-    def test_no_notes_when_both_tools_reported(self):
-        summary = _summary()
-        summary["data_integrity"]["validate_results_reported"] = True
-        summary["data_integrity"]["harvest_count_reported"] = True
+    def test_shows_warnings_separately_from_failures(self):
+        summary = _summary(status="WARNING")
+        summary["data_integrity"]["warnings"] = [
+            "harvest skipped all 166 product(s) as already registered"
+        ]
 
         report = format_human_report(summary, [])
 
-        self.assertNotIn("NOTE:", report)
+        self.assertIn("WARNING  harvest skipped all 166", report)
+        self.assertNotIn("FAILED", report)
+
+    def test_clean_batch_reports_neither_failures_nor_warnings(self):
+        report = format_human_report(_summary(), [])
+
+        self.assertNotIn("FAILED", report)
+        self.assertNotIn("WARNING", report)
 
     def test_unreported_harvest_count_is_not_shown_as_zero(self):
         # None must not render as "0", which would read as "harvested none"
