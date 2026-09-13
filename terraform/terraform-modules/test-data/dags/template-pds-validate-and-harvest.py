@@ -387,10 +387,9 @@ def generate_summary_report(**context):
     # Log the summary
     summary_json = json.dumps(summary, indent=2)
     print(f"PDS_BATCH_SUMMARY_JSON: {json.dumps(summary)}")
-    print(f"
-=== BATCH SUMMARY REPORT ===")
+    print("\n=== BATCH SUMMARY REPORT ===")
     print(summary_json)
-    print(f"=== END SUMMARY REPORT ===")
+    print("=== END SUMMARY REPORT ===")
     
     return summary
 
