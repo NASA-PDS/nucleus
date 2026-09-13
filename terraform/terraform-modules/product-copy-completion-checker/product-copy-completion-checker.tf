@@ -251,7 +251,7 @@ resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function"
   runtime          = var.lambda_runtime
   handler          = "pds-nucleus-product-completion-checker.lambda_handler"
   timeout          = 900
-  memory_size      = 256
+  memory_size      = 512
   depends_on       = [data.archive_file.pds_nucleus_product_completion_checker_zip]
 
   # Guarantees this scheduled poller a slot even while the file event processors
@@ -260,7 +260,8 @@ resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function"
   # stacking a second claim query on a database that is evidently already busy;
   # the next tick picks the work up. Overlap was never unsafe -- the DISPATCHING
   # claim hands concurrent runs disjoint sets -- just wasteful.
-  reserved_concurrent_executions = 1
+  # Consider reserved_concurrent_executions = 2 if a 15-minute stall is unacceptable
+  reserved_concurrent_executions = 2
 
   environment {
     variables = {
