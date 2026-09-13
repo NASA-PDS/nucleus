@@ -4,6 +4,7 @@ import unittest
 
 from pds_log_parsers import (
     build_manifest_key,
+    harvested_count,
     parse_harvest_messages,
     parse_validate_messages,
 )
@@ -79,8 +80,44 @@ class ParseHarvestMessagesTest(unittest.TestCase):
         messages = ["[SUMMARY] Processed files: 160, Failed files: 6"]
         self.assertEqual(parse_harvest_messages(messages)["failed_files"], 6)
 
+    def test_ignores_log4j_method_and_line_number_metadata(self):
+        # harvest logs "<method>:<line>" before the marker. A generic
+        # "word: number" rule turns those into bogus counts such as
+        # {"printsummary": 298}.
+        messages = [
+            "05:00:01 [main] INFO  g.n.p.h.HarvestSummary printSummary:298 "
+            "[SUMMARY] Loaded files: 0, Skipped files: 166, Failed files: 0",
+            "05:00:01 [main] INFO  g.n.p.h.ConfigReader readConfigFile:191 "
+            "[SUMMARY] Total files: 166",
+        ]
+        summary = parse_harvest_messages(messages)
+
+        self.assertEqual(
+            summary,
+            {
+                "loaded_files": 0,
+                "skipped_files": 166,
+                "failed_files": 0,
+                "total_files": 166,
+            },
+        )
+
     def test_missing_summary_line_yields_empty_dict(self):
         self.assertEqual(parse_harvest_messages(["nothing here"]), {})
+
+
+class HarvestedCountTest(unittest.TestCase):
+    def test_prefers_loaded_over_processed(self):
+        # harvest counts a skipped file as processed, so "processed" would
+        # overstate how many products were actually registered.
+        summary = {"processed_files": 166, "loaded_files": 0, "skipped_files": 166}
+        self.assertEqual(harvested_count(summary), 0)
+
+    def test_falls_back_to_processed(self):
+        self.assertEqual(harvested_count({"processed_files": 166}), 166)
+
+    def test_unknown_when_nothing_reported(self):
+        self.assertIsNone(harvested_count({}))
 
 
 class BuildManifestKeyTest(unittest.TestCase):

@@ -60,9 +60,15 @@ def parse_validate_messages(messages: List[str]) -> Dict:
     return results
 
 
-# harvest emits a summary line containing counts of processed/failed files.
+_HARVEST_SUMMARY_MARKER = "[SUMMARY]"
+
+# Only count labels we recognise. harvest's log4j pattern prints
+# "<method>:<line>" (e.g. "printSummary:298") before the [SUMMARY] marker,
+# and a generic "word: number" rule captures those as bogus counts.
 _HARVEST_SUMMARY_FIELD_RE = re.compile(
-    r"(?P<label>[A-Za-z ]+?)\s*:\s*(?P<count>\d+)"
+    r"(?P<label>total|processed|loaded|skipped|failed|succeeded|registered)"
+    r"\s+(?P<noun>files|products|records)\s*:\s*(?P<count>\d+)",
+    re.IGNORECASE,
 )
 
 
@@ -73,18 +79,36 @@ def parse_harvest_messages(messages: List[str]) -> Dict:
         messages: raw CloudWatch log message strings from the harvest task.
 
     Returns:
-        Dict of lowercased, underscore-joined labels to integer counts.
-        Empty dict if no [SUMMARY] line was present.
+        Dict of "<label>_<noun>" keys to integer counts, e.g.
+        {"loaded_files": 166, "failed_files": 0}. Empty if no [SUMMARY]
+        line was present.
     """
     summary = {}
     for msg in messages:
-        if "[SUMMARY]" not in msg:
+        marker = msg.find(_HARVEST_SUMMARY_MARKER)
+        if marker == -1:
             continue
-        for match in _HARVEST_SUMMARY_FIELD_RE.finditer(msg):
-            label = match.group("label").strip().lower().replace(" ", "_")
-            if label:
-                summary[label] = int(match.group("count"))
+
+        # Parse only what follows the marker, so the logger's own
+        # "method:line" prefix cannot be read as a count.
+        body = msg[marker + len(_HARVEST_SUMMARY_MARKER) :]
+        for match in _HARVEST_SUMMARY_FIELD_RE.finditer(body):
+            key = f"{match.group('label').lower()}_{match.group('noun').lower()}"
+            summary[key] = int(match.group("count"))
     return summary
+
+
+def harvested_count(summary: Dict[str, int]):
+    """Pick the count of products harvest actually registered.
+
+    Prefers explicit "loaded" over "processed", because harvest counts a
+    skipped file as processed. Returns None when harvest reported nothing,
+    so callers can distinguish "zero" from "unknown".
+    """
+    for key in ("loaded_files", "registered_files", "succeeded_files", "processed_files"):
+        if key in summary:
+            return summary[key]
+    return None
 
 
 def build_manifest_key(path_or_url: str) -> str:

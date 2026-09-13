@@ -14,7 +14,7 @@ from pds_airflow_custom_operators import (
     ValidateEcsRunTaskOperator,
     HarvestEcsRunTaskOperator,
 )
-from pds_log_parsers import build_manifest_key
+from pds_log_parsers import build_manifest_key, harvested_count
 
 
 # -------------------------------------------------------------------
@@ -353,11 +353,15 @@ def generate_summary_report(**context):
     # Harvest only reports a count if it emitted a [SUMMARY] line. Treat a
     # missing count as unknown rather than assuming it matched, so a silent
     # harvest failure cannot be reported as SUCCESS.
-    harvested_count = harvest_summary.get("processed_files")
-    harvest_count_known = harvested_count is not None
+    harvest_count = harvested_count(harvest_summary)
+    harvest_count_known = harvest_count is not None
+
+    # harvest skips a product it considers already registered. That is not an
+    # error, but it does mean this run did not load it, so report it.
+    harvest_skipped = harvest_summary.get("skipped_files", 0)
 
     counts_match = received_count == passed_count and (
-        not harvest_count_known or harvested_count == received_count
+        not harvest_count_known or harvest_count == received_count
     )
     all_match = (
         counts_match
@@ -386,13 +390,15 @@ def generate_summary_report(**context):
             "skipped": validate_skipped,
         },
         "harvest": {
-            "count": harvested_count,
+            "count": harvest_count,
+            "skipped_count": harvest_skipped,
             "tool_summary": harvest_summary,
         },
         "data_integrity": {
             "received_count": received_count,
             "validated_count": passed_count,
-            "harvested_count": harvested_count,
+            "harvested_count": harvest_count,
+            "harvest_skipped_count": harvest_skipped,
             "harvest_count_reported": harvest_count_known,
             "counts_match": counts_match,
             "not_validated": not_validated,
