@@ -60,6 +60,15 @@ dag = DAG(
     schedule=None,
     catchup=False,
     start_date=datetime(2024, 1, 1),
+    # Airflow's defaults for both are 16. Every run of this DAG is a single
+    # sequential chain (list_products >> ... >> print_end_time), so exactly
+    # one task is ever running per active run -- max_active_tasks therefore
+    # has to move together with max_active_runs, or it becomes the new
+    # binding cap on its own. 32 is a conservative first step up from the
+    # default, not a sized-to-capacity value; raise further once ECS/Fargate
+    # and RDS Data API load at this level has been observed.
+    max_active_runs=32,
+    max_active_tasks=32,
     default_args={
         "retries": 5,
         "retry_delay": timedelta(minutes=2),
