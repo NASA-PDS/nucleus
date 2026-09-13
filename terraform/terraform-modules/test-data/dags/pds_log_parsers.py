@@ -133,6 +133,10 @@ def format_human_report(summary: Dict, products: List[Dict]) -> str:
         row("Status", summary["status"]),
         row("Started", summary["timing"]["start_time"] or "unknown"),
         row("Ended", summary["timing"]["end_time"]),
+        # Printed once. Every product path below is relative to this, so a
+        # reader can reconstruct the full S3 URL without it being repeated
+        # on all N lines.
+        row("S3 location", summary.get("s3_prefix") or "(mixed)"),
         "",
         "COUNTS",
         "-" * 60,
@@ -171,21 +175,19 @@ def format_human_report(summary: Dict, products: List[Dict]) -> str:
             " already registered, so this run loaded nothing new."
         )
 
+    def product_line(product):
+        location = product.get("path") or product["name"]
+        return f"  {product['status']:<14}{location}  {product['lidvid'] or ''}".rstrip()
+
     issues = [product for product in products if product["status"] != "passed"]
     lines += ["", f"PRODUCTS NEEDING ATTENTION ({len(issues)})", "-" * 60]
     if issues:
-        lines += [
-            f"  {product['status']:<14}{product['name']}  {product['lidvid'] or ''}".rstrip()
-            for product in issues
-        ]
+        lines += [product_line(product) for product in issues]
     else:
         lines.append("  none")
 
     lines += ["", f"ALL PRODUCTS ({len(products)})", "-" * 60]
-    lines += [
-        f"  {product['status']:<14}{product['name']}  {product['lidvid'] or ''}".rstrip()
-        for product in products
-    ]
+    lines += [product_line(product) for product in products]
     return "\n".join(lines)
 
 
@@ -216,6 +218,19 @@ def common_directory(paths: List[str]) -> str:
         if not segments:
             return ""
     return "/".join(segments)
+
+
+def relative_path(path_or_url: str, prefix: str) -> str:
+    """Return the part of a path below a shared prefix.
+
+    Storing the prefix once plus this remainder keeps a report lossless:
+    the original location is prefix + "/" + remainder. A bare file name
+    would not be, because products in different subdirectories all reduce
+    to the same name.
+    """
+    if prefix and path_or_url.startswith(prefix + "/"):
+        return path_or_url[len(prefix) + 1 :]
+    return path_or_url
 
 
 def build_manifest_key(path_or_url: str) -> str:

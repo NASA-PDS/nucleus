@@ -19,6 +19,7 @@ from pds_log_parsers import (
     common_directory,
     format_human_report,
     harvested_count,
+    relative_path,
 )
 
 
@@ -418,9 +419,20 @@ def generate_summary_report(**context):
         for item in validate_passed + validate_failed + validate_skipped
     }
 
+    # Each product's location below the shared prefix. Keeping this rather
+    # than only the file name makes the compression lossless: the full URL
+    # is s3_prefix + "/" + path. Products sitting in different
+    # subdirectories would otherwise all collapse to a bare file name with
+    # no way to tell where they came from.
+    s3_prefix = common_directory(manifest_urls)
+    path_by_name = {
+        build_manifest_key(url): relative_path(url, s3_prefix) for url in manifest_urls
+    }
+
     products = [
         {
             "name": name,
+            "path": path_by_name.get(name, name),
             "lidvid": lidvid_by_name.get(name),
             "status": status_by_name[name],
         }
@@ -455,7 +467,7 @@ def generate_summary_report(**context):
             "all_match": all_match,
             "status": "COMPLETE" if all_match else "INCOMPLETE",
         },
-        "s3_prefix": common_directory(manifest_urls),
+        "s3_prefix": s3_prefix,
         "efs_prefix": common_directory([item["file"] for item in validate_passed]),
         "products": products,
     }
@@ -487,6 +499,10 @@ def generate_summary_report(**context):
                 {
                     "batch_id": summary["batch_id"],
                     "name": issue["name"],
+                    # Spelled out in full here. These events are capped and
+                    # are what an operator acts on, so the location should
+                    # not have to be reassembled from the batch event.
+                    "s3_url": f"{s3_prefix}/{issue['path']}" if s3_prefix else issue["path"],
                     "lidvid": issue["lidvid"],
                     "status": issue["status"],
                 },
@@ -520,7 +536,19 @@ def generate_summary_report(**context):
         "batch_id": summary["batch_id"],
         "status": summary["status"],
         "counts": summary["counts"],
-        "data_integrity_status": summary["data_integrity"]["status"],
+        "s3_prefix": s3_prefix,
+        # The checks behind the status, not just its verdict. Without these
+        # an INCOMPLETE result gives no clue which reconciliation failed.
+        # Counts only: the lists themselves can be long and are already in
+        # the batch event.
+        "data_integrity": {
+            "status": summary["data_integrity"]["status"],
+            "validate_results_reported": validate_reported,
+            "harvest_count_reported": harvest_count_known,
+            "counts_match": counts_match,
+            "not_validated": len(not_validated),
+            "unexpected_products": len(unexpected),
+        },
     }
 
 

@@ -9,6 +9,7 @@ from pds_log_parsers import (
     harvested_count,
     parse_harvest_messages,
     parse_validate_messages,
+    relative_path,
 )
 
 
@@ -171,6 +172,26 @@ class FormatHumanReportTest(unittest.TestCase):
         self.assertIn("c.xml", attention)
         self.assertNotIn("a.xml", attention)
 
+    def test_shows_s3_location_once_in_header(self):
+        summary = _summary()
+        summary["s3_prefix"] = "s3://bucket/lroc/2009184"
+
+        report = format_human_report(summary, [])
+
+        self.assertIn("s3://bucket/lroc/2009184", report)
+
+    def test_lists_subdirectory_paths_not_bare_names(self):
+        # Two products with the same file name in different subdirectories
+        # must remain distinguishable in the report.
+        products = [
+            {"name": "a.xml", "path": "le/a.xml", "lidvid": None, "status": "failed"},
+            {"name": "a.xml", "path": "re/a.xml", "lidvid": None, "status": "failed"},
+        ]
+        report = format_human_report(_summary(status="WARNING"), products)
+
+        self.assertIn("le/a.xml", report)
+        self.assertIn("re/a.xml", report)
+
     def test_says_validate_reported_nothing_rather_than_blaming_products(self):
         # The dangerous misreading: validate publishing no results looks
         # identical to every product failing to validate.
@@ -239,6 +260,32 @@ class CommonDirectoryTest(unittest.TestCase):
 
     def test_empty_for_no_paths(self):
         self.assertEqual(common_directory([]), "")
+
+
+class RelativePathTest(unittest.TestCase):
+    def test_strips_the_shared_prefix(self):
+        self.assertEqual(
+            relative_path("s3://b/lroc/2009184/a.xml", "s3://b/lroc/2009184"),
+            "a.xml",
+        )
+
+    def test_keeps_the_subdirectory_below_the_prefix(self):
+        self.assertEqual(relative_path("s3://b/lroc/le/a.xml", "s3://b/lroc"), "le/a.xml")
+
+    def test_keeps_full_path_when_there_is_no_shared_prefix(self):
+        self.assertEqual(relative_path("s3://b/lroc/a.xml", ""), "s3://b/lroc/a.xml")
+
+    def test_does_not_strip_a_partial_segment_match(self):
+        # "s3://b/lroc2" is not a parent directory of "s3://b/lroc/a.xml".
+        self.assertEqual(
+            relative_path("s3://b/lroc/a.xml", "s3://b/lroc2"), "s3://b/lroc/a.xml"
+        )
+
+    def test_round_trips_back_to_the_original_url(self):
+        prefix = "s3://b/lroc/2009184"
+        url = "s3://b/lroc/2009184/le/a.xml"
+
+        self.assertEqual(f"{prefix}/{relative_path(url, prefix)}", url)
 
 
 class BuildManifestKeyTest(unittest.TestCase):
