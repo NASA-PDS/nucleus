@@ -2,6 +2,8 @@
 # Same as pds-basic-registry-load-use-case but without the Data_Archive task.
 
 import boto3
+import json
+import re
 from airflow import DAG
 from airflow.decorators import task
 from airflow.exceptions import AirflowFailException
@@ -166,6 +168,62 @@ def _read_product_list(s3_config_dir):
     key = "/".join(s3_config_dir.replace("s3://", "").split("/")[1:] + ["product_list.txt"])
     body = boto3.client("s3").get_object(Bucket=bucket, Key=key)["Body"].read()
     return [line for line in body.decode("utf-8").splitlines() if line]
+
+# -------------------------------------------------------------------
+# Extract product LIDVIDs from manifest file
+# -------------------------------------------------------------------
+def _extract_manifest_products(efs_config_dir):
+    """Read manifest file and extract S3 URLs."""
+    manifest_path = f"{efs_config_dir}/harvest_manifest.txt"
+    try:
+        with open(manifest_path, 'r') as f:
+            return [line.strip() for line in f if line.strip()]
+    except Exception as e:
+        print(f"Error reading manifest: {e}")
+        return []
+
+# -------------------------------------------------------------------
+# Parse CloudWatch logs to extract product LIDVIDs
+# -------------------------------------------------------------------
+def _parse_validate_logs(logs_client, log_group, log_stream):
+    """Extract validated product LIDVIDs from validate logs."""
+    validated_products = []
+    try:
+        logs_resp = logs_client.get_log_events(
+            logGroupName=log_group,
+            logStreamName=log_stream,
+            startFromHead=True,
+        )
+        events = logs_resp.get("events", [])
+        for event in events:
+            msg = event["message"]
+            if "Product_Observational" in msg or "Product_Bundle" in msg:
+                match = re.search(r'urn:nasa:pds:[\w\-\.]+:[\w\-\.]+:[\w\-\.]+:[\w\-\.]+', msg)
+                if match:
+                    validated_products.append(match.group(0))
+    except Exception as e:
+        print(f"Error parsing validate logs: {e}")
+    return validated_products
+
+def _parse_harvest_logs(logs_client, log_group, log_stream):
+    """Extract harvested product LIDVIDs from harvest logs."""
+    harvested_products = []
+    try:
+        logs_resp = logs_client.get_log_events(
+            logGroupName=log_group,
+            logStreamName=log_stream,
+            startFromHead=True,
+        )
+        events = logs_resp.get("events", [])
+        for event in events:
+            msg = event["message"]
+            if "Processing" in msg and ".xml" in msg:
+                match = re.search(r's3://[\w\-\.]+/[\w\-\./]+\.xml', msg)
+                if match:
+                    harvested_products.append(match.group(0))
+    except Exception as e:
+        print(f"Error parsing harvest logs: {e}")
+    return harvested_products
 
 # -------------------------------------------------------------------
 # DAG definition
@@ -446,6 +504,118 @@ config_init_cleanup = EcsRunTaskOperator(
 )
 
 # -------------------------------------------------------------------
+# SUMMARY REPORT
+# -------------------------------------------------------------------
+@task(task_id="Generate_Summary_Report", trigger_rule=TriggerRule.ALL_DONE, dag=dag)
+def generate_summary_report(**context):
+    """Generate comprehensive summary report with product tracking."""
+    dag_run = context["dag_run"]
+    ti = context["task_instance"]
+    
+    batch_id = dag_run.run_id
+    efs_config_dir = dag_run.conf.get("efs_config_dir", "")
+    s3_config_dir = dag_run.conf.get("s3_config_dir", "")
+    
+    # Extract manifest products
+    manifest_products = _extract_manifest_products(efs_config_dir)
+    
+    # Parse validate and harvest logs
+    logs_hook = AwsLogsHook(aws_conn_id="aws_default", region_name=AWS_REGION)
+    logs_client = logs_hook.conn
+    
+    validate_log_group = "/pds/ecs/validate-${pds_node_name}"
+    validate_log_stream_prefix = "ecs/pds-validate"
+    
+    harvest_log_group = "/pds/ecs/harvest-${pds_node_name}"
+    harvest_log_stream_prefix = "ecs/pds-registry-loader-harvest"
+    
+    validated_products = []
+    harvested_products = []
+    
+    # Try to find and parse validate logs
+    try:
+        log_streams_resp = logs_client.describe_log_streams(
+            logGroupName=validate_log_group,
+            logStreamNamePrefix=validate_log_stream_prefix,
+            orderBy="LastEventTime",
+            descending=True,
+            limit=1
+        )
+        if log_streams_resp.get("logStreams"):
+            latest_stream = log_streams_resp["logStreams"][0]["logStreamName"]
+            validated_products = _parse_validate_logs(logs_client, validate_log_group, latest_stream)
+    except Exception as e:
+        print(f"Could not fetch validate logs: {e}")
+    
+    # Try to find and parse harvest logs
+    try:
+        log_streams_resp = logs_client.describe_log_streams(
+            logGroupName=harvest_log_group,
+            logStreamNamePrefix=harvest_log_stream_prefix,
+            orderBy="LastEventTime",
+            descending=True,
+            limit=1
+        )
+        if log_streams_resp.get("logStreams"):
+            latest_stream = log_streams_resp["logStreams"][0]["logStreamName"]
+            harvested_products = _parse_harvest_logs(logs_client, harvest_log_group, latest_stream)
+    except Exception as e:
+        print(f"Could not fetch harvest logs: {e}")
+    
+    # Calculate data integrity
+    manifest_set = set(manifest_products)
+    validated_set = set(validated_products)
+    harvested_set = set(harvested_products)
+    
+    missing_from_validation = list(manifest_set - validated_set)
+    missing_from_harvest = list(validated_set - harvested_set)
+    all_match = (len(manifest_set) == len(validated_set) == len(harvested_set) and 
+                 manifest_set == validated_set == harvested_set)
+    
+    # Generate summary report
+    summary = {
+        "batch_id": batch_id,
+        "batch_size": len(manifest_products),
+        "timing": {
+            "start_time": dag_run.start_date.isoformat() if dag_run.start_date else None,
+            "end_time": datetime.utcnow().isoformat(),
+        },
+        "manifest": {
+            "count": len(manifest_products),
+            "s3_urls": manifest_products,
+        },
+        "validation": {
+            "count": len(validated_products),
+            "lidvids": validated_products,
+        },
+        "harvest": {
+            "count": len(harvested_products),
+            "s3_urls": harvested_products,
+        },
+        "data_integrity": {
+            "manifest_count": len(manifest_products),
+            "validated_count": len(validated_products),
+            "harvested_count": len(harvested_products),
+            "all_match": all_match,
+            "missing_from_validation": missing_from_validation,
+            "missing_from_harvest": missing_from_harvest,
+            "status": "COMPLETE" if all_match else "INCOMPLETE",
+        },
+        "status": "SUCCESS" if all_match else "WARNING",
+    }
+    
+    # Log the summary as a single CloudWatch event
+    summary_json = json.dumps(summary, indent=2)
+    print(f"PDS_BATCH_SUMMARY_JSON: {json.dumps(summary)}")
+    print(f"\n=== BATCH SUMMARY REPORT ===")
+    print(summary_json)
+    print(f"=== END SUMMARY REPORT ===")
+    
+    return summary
+
+summary_report = generate_summary_report()
+
+# -------------------------------------------------------------------
 # WORKFLOW
 # -------------------------------------------------------------------
 (
@@ -457,5 +627,6 @@ config_init_cleanup = EcsRunTaskOperator(
     >> harvest
     >> config_s3_to_efs_copy_cleanup
     >> config_init_cleanup
+    >> summary_report
     >> print_end_time
 )
