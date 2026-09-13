@@ -35,6 +35,11 @@ AWS_REGION          = "${aws_region}"
 # framing that Airflow adds around the message.
 MAX_SUMMARY_EVENT_BYTES = 200_000
 
+# Cap on per-product issue events. When a whole batch is broken, every
+# product is an issue, and emitting one event each would flood the log with
+# the same finding repeated. The batch event already carries the full list.
+MAX_PRODUCT_ISSUE_EVENTS = 25
+
 # -------------------------------------------------------------------
 # Read the batch's product list (used below for the XCom-visible task)
 # -------------------------------------------------------------------
@@ -354,11 +359,24 @@ def generate_summary_report(**context):
     manifest_keys = {build_manifest_key(url) for url in manifest_urls}
     validated_keys = {build_manifest_key(item["file"]) for item in validate_passed}
 
-    not_validated = sorted(manifest_keys - validated_keys)
     unexpected = sorted(validated_keys - manifest_keys)
 
     received_count = len(manifest_urls)
     passed_count = len(validate_passed)
+
+    # Validate publishes its XComs only after a successful run, and its
+    # parser yields nothing if the expected report lines are absent. Empty
+    # results therefore mean "validate reported nothing", which is not the
+    # same as "these products failed validation". Track the difference so
+    # the report cannot accuse 166 good products of not being validated.
+    validate_reported = bool(
+        validate_passed or validate_failed or validate_skipped or validate_summary
+    )
+
+    # Only meaningful once validate has reported. Without its results every
+    # product would be listed here, which reads as a data problem when the
+    # real problem is the missing report.
+    not_validated = sorted(manifest_keys - validated_keys) if validate_reported else []
 
     # Harvest only reports a count if it emitted a [SUMMARY] line. Treat a
     # missing count as unknown rather than assuming it matched, so a silent
@@ -375,6 +393,7 @@ def generate_summary_report(**context):
     )
     all_match = (
         counts_match
+        and validate_reported
         and harvest_count_known
         and not not_validated
         and not unexpected
@@ -384,7 +403,8 @@ def generate_summary_report(**context):
     # name, its LIDVID and its status. The directory is identical for every
     # product in a batch, so it is recorded once as a prefix instead of being
     # repeated on all 166 entries.
-    status_by_name = {name: "not_validated" for name in manifest_keys}
+    default_status = "not_validated" if validate_reported else "unknown"
+    status_by_name = {name: default_status for name in manifest_keys}
     for status, items in (
         ("passed", validate_passed),
         ("failed", validate_failed),
@@ -427,6 +447,7 @@ def generate_summary_report(**context):
             "harvest": harvest_summary,
         },
         "data_integrity": {
+            "validate_results_reported": validate_reported,
             "harvest_count_reported": harvest_count_known,
             "counts_match": counts_match,
             "not_validated": not_validated,
@@ -459,7 +480,7 @@ def generate_summary_report(**context):
     # queryable. Only non-passing products are emitted, so a healthy batch
     # adds nothing to the log.
     issues = [product for product in products if product["status"] != "passed"]
-    for issue in issues:
+    for issue in issues[:MAX_PRODUCT_ISSUE_EVENTS]:
         print(
             "PDS_PRODUCT_ISSUE_JSON: "
             + json.dumps(
@@ -471,6 +492,12 @@ def generate_summary_report(**context):
                 },
                 separators=(",", ":"),
             )
+        )
+    if len(issues) > MAX_PRODUCT_ISSUE_EVENTS:
+        print(
+            f"{len(issues)} products need attention; "
+            f"logged the first {MAX_PRODUCT_ISSUE_EVENTS}. "
+            "The batch event above lists them all."
         )
 
     print(
