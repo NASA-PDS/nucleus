@@ -1,6 +1,7 @@
 # PDS Basic Registry Load Use Case DAG (Airflow 3 compatible, TEMPLATE)
 
 from airflow import DAG
+from airflow.api.common.trigger_dag import trigger_dag
 from airflow.operators.bash import BashOperator
 from airflow.providers.amazon.aws.operators.ecs import EcsRunTaskOperator
 from airflow.utils.trigger_rule import TriggerRule
@@ -41,6 +42,43 @@ dag = DAG(
         "harvest_extra_args": "",
     },
 )
+
+# Harvest_Data runs with trigger_rule=ALL_DONE (below), so it fires even when
+# Validate_Products failed. If harvest itself then fails, an in-place task
+# retry often can't fix it -- the EFS copy or the manifest it read may need
+# to be regenerated too -- so the whole DAG restarts from Config_Init
+# instead of just retrying Harvest_Data, up to this many times.
+MAX_DAG_RESTARTS_ON_HARVEST_FAILURE = 3
+
+
+def _restart_dag_on_harvest_failure(context):
+    """on_failure_callback for Harvest_Data: restart the whole DAG rather than
+    just this task. Fires once, after Harvest_Data's own retries (set to 0
+    below -- see the comment there) are exhausted, i.e. on final failure only.
+
+    dag_run.conf carries a restart counter forward across attempts so this
+    can't loop forever.
+    """
+    dag_run = context["dag_run"]
+    conf = dict(dag_run.conf or {})
+    attempt = int(conf.get("dag_restart_attempt", 0))
+
+    if attempt >= MAX_DAG_RESTARTS_ON_HARVEST_FAILURE:
+        print(
+            f"Harvest failed after {attempt} whole-DAG restart(s); "
+            f"giving up (max {MAX_DAG_RESTARTS_ON_HARVEST_FAILURE})."
+        )
+        return
+
+    conf["dag_restart_attempt"] = attempt + 1
+    new_run_id = f"{dag_run.run_id}__restart{attempt + 1}"
+    print(
+        f"Harvest failed; restarting whole DAG as {new_run_id} "
+        f"(attempt {attempt + 1} of {MAX_DAG_RESTARTS_ON_HARVEST_FAILURE})"
+    )
+
+    trigger_dag(dag_id=dag_run.dag_id, run_id=new_run_id, conf=conf)
+
 
 # -------------------------------------------------------------------
 # Utility tasks
@@ -175,7 +213,16 @@ harvest = EcsRunTaskOperator(
             }
         ]
     },
+    # ALL_DONE: harvest runs even when Validate_Products failed -- a
+    # validation failure on some products shouldn't block harvest from
+    # loading the ones that did pass.
     trigger_rule=TriggerRule.ALL_DONE,
+    # 0, not the DAG-level default of 5: an in-place retry of just this task
+    # is not the recovery path here -- see _restart_dag_on_harvest_failure,
+    # which restarts the whole DAG (up to 3x) instead once this task's
+    # single attempt fails.
+    retries=0,
+    on_failure_callback=_restart_dag_on_harvest_failure,
     dag=dag,
 )
 
