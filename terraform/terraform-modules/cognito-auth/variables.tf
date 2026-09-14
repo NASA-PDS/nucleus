@@ -93,6 +93,21 @@ variable "pds_nucleus_viewer_role_arn" {
   sensitive = true
 }
 
+variable "pds_db_cluster_arn" {
+  description = "Aurora cluster ARN, for the /nucleus/products search route"
+  type        = string
+}
+
+variable "pds_db_secret_arn" {
+  description = "RDS credentials secret ARN, for the /nucleus/products search route"
+  type        = string
+}
+
+variable "pds_tracking_database_names" {
+  description = "product_tracking lives once per node/data-source database; the search route queries each of these and merges results"
+  type        = list(string)
+}
+
 variable "nucleus_auth_alb_security_group_id" {
   description = "The ID of the PDS Nucleus authentication ALB security group id"
   type        = string

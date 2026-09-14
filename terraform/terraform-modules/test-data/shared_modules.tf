@@ -25,3 +25,17 @@ resource "aws_s3_object" "pds_log_parsers" {
 
   tags = var.tags
 }
+
+#-----------------------------------------------
+# Shared PDS Registry Client Module
+#-----------------------------------------------
+
+resource "aws_s3_object" "pds_registry_client" {
+  bucket      = var.mwaa_dag_s3_bucket_name
+  key         = "dags/pds_registry_client.py"
+  acl         = "private"
+  source      = "terraform-modules/test-data/dags/pds_registry_client.py"
+  source_hash = filemd5("terraform-modules/test-data/dags/pds_registry_client.py")
+
+  tags = var.tags
+}

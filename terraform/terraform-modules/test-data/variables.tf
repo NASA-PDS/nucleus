@@ -111,6 +111,21 @@ variable "pds_nucleus_files_to_save_in_database_sqs_queue_urls" {
   }
 }
 
+variable "pds_db_cluster_arn" {
+  description = "Aurora cluster ARN, passed into the validate-and-harvest DAG template so Generate_Summary_Report can write to product_tracking via the RDS Data API"
+  type        = string
+}
+
+variable "pds_db_secret_arn" {
+  description = "RDS credentials secret ARN, passed into the validate-and-harvest DAG template so Generate_Summary_Report can write to product_tracking via the RDS Data API"
+  type        = string
+}
+
+variable "pds_registry_search_url_prefix" {
+  description = "Prefix of the public PDS registry search API, passed into the validate-and-harvest DAG template's params default"
+  type        = string
+}
+
 variable "tags" {
   description = "Resource tags"
   type        = map(string)

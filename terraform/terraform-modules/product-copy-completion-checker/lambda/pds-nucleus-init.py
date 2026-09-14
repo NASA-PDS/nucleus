@@ -60,7 +60,12 @@ def lambda_handler(event, context):
         create_database(db_name)
 
         if reset_tables:
-            logger.warning(f"reset_tables requested: dropping all tables in {db_name}")
+            # product_tracking is deliberately excluded: reset_tables resets
+            # the pipeline's working/dispatch state for a scratch environment,
+            # but product_tracking is durable history, independent of that
+            # state (see create_product_tracking_table's docstring) -- a
+            # reset of the dispatch tables should not also erase it.
+            logger.warning(f"reset_tables requested: dropping all tables except product_tracking in {db_name}")
             drop_product_table(db_name)
             drop_datafile_table(db_name)
             drop_product_datafile_mapping_table(db_name)
@@ -74,6 +79,8 @@ def lambda_handler(event, context):
         create_product_archive_table(db_name)
         create_datafile_archive_table(db_name)
         create_product_datafile_mapping_archive_table(db_name)
+        create_product_tracking_table(db_name)
+        rename_product_tracking_completion_status_to_status(db_name)
 
         return f"Processed lambda request ID: {context.aws_request_id}"
     except Exception as e:
@@ -231,3 +238,86 @@ def create_product_datafile_mapping_archive_table(db_name):
     """
     response = _execute(sql, db_name)
     logger.debug(f"create_product_datafile_mapping_archive_table: {str(response)}")
+
+
+def create_product_tracking_table(db_name):
+    """Durable, searchable record of a product's journey through the pipeline.
+
+    Deliberately separate from product/product_archive: those two exist for
+    the completion checker's own dispatch bookkeeping and get deleted/purged
+    on their own lifecycle, so neither can hold data meant to outlive a
+    batch. Three independent writers upsert this table at three different
+    times, each touching only the columns it knows -- file arrival sets
+    ingestion_source and advances status to RECEIVED; batch dispatch
+    advances status to SENT_TO_NUCLEUS; batch completion sets
+    validate_status/harvest_status/registry_status/registry_url and
+    advances status to DATA_INTEGRITY_CHECKED. `status` therefore tracks
+    pipeline *stage* only; the outcome at each stage lives in the other,
+    dedicated columns. Every column except the primary key is nullable
+    until its writer has run.
+    """
+    sql = """
+        CREATE TABLE IF NOT EXISTS product_tracking
+        (
+            s3_url_of_product_label VARCHAR(1500) CHARACTER SET latin1,
+            lidvid                  VARCHAR(255)  NULL,
+            pds_node                VARCHAR(10),
+            ingestion_source        VARCHAR(10)  NULL,
+            status                  VARCHAR(50)  NULL,
+            validate_status         VARCHAR(50)  NULL,
+            harvest_status          VARCHAR(50)  NULL,
+            registry_status         VARCHAR(20)  NULL,
+            registry_url            VARCHAR(500) NULL,
+            batch_number            VARCHAR(255) NULL,
+            dag_run_id              VARCHAR(255) NULL,
+            first_seen_epoch_time   BIGINT,
+            last_updated_epoch_time BIGINT,
+            PRIMARY KEY (s3_url_of_product_label),
+            INDEX idx_lidvid (lidvid),
+            INDEX idx_node_status (pds_node, validate_status, harvest_status)
+        );
+    """
+    response = _execute(sql, db_name)
+    logger.debug(f"create_product_tracking_table: {str(response)}")
+
+
+def rename_product_tracking_completion_status_to_status(db_name):
+    """Idempotently rename product_tracking.completion_status to status,
+    remapping its old dispatch-state values to the new pipeline-stage
+    vocabulary (RECEIVED / SENT_TO_NUCLEUS / DATA_INTEGRITY_CHECKED).
+
+    create_product_tracking_table()'s CREATE TABLE IF NOT EXISTS only
+    defines the new `status` column for a brand-new table; a table already
+    running in production still has the old completion_status column and
+    needs this migration. Guarded on information_schema, like
+    add_ingestion_source_column() previously was for `product`, so a second
+    deploy -- once the rename has already happened -- is a no-op rather
+    than an error against a column that no longer exists.
+    """
+    check_sql = """
+        SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = :db_name_param
+          AND TABLE_NAME = 'product_tracking'
+          AND COLUMN_NAME = 'completion_status';
+    """
+    response = rds_data.execute_statement(
+        resourceArn=db_clust_arn,
+        secretArn=db_secret_arn,
+        database=db_name,
+        sql=check_sql,
+        parameters=[{'name': 'db_name_param', 'value': {'stringValue': db_name}}],
+    )
+    old_column_present = response['records'][0][0]['longValue'] > 0
+    if not old_column_present:
+        logger.debug(f"rename_product_tracking_completion_status_to_status: already migrated (or new table) in {db_name}")
+        return
+
+    _execute("ALTER TABLE product_tracking CHANGE COLUMN completion_status status VARCHAR(50) NULL;", db_name)
+    # COMPLETE meant "successfully dispatched to Nucleus" -- the direct
+    # predecessor of SENT_TO_NUCLEUS. INCOMPLETE meant "dispatch attempt
+    # failed, back to square one" -- equivalent to never having reached a
+    # stage yet, i.e. NULL, matching how a freshly-received row already
+    # starts (see upsert_ingestion_source in the s3-file-event-processor).
+    _execute("UPDATE product_tracking SET status = 'SENT_TO_NUCLEUS' WHERE status = 'COMPLETE';", db_name)
+    _execute("UPDATE product_tracking SET status = NULL WHERE status = 'INCOMPLETE';", db_name)
+    logger.info(f"rename_product_tracking_completion_status_to_status: migrated {db_name}")

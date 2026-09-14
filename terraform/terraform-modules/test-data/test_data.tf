@@ -103,6 +103,15 @@ data "template_file" "pds-validate-and-harvest-dag-template" {
     pds_nucleus_ecs_security_groups    = jsonencode([var.pds_nucleus_security_group_id])
     pds_validate_and_harvest_dag_id    = "${var.pds_data_source_node_names[count.index]}_${var.pds_data_source_names[count.index]}-pds-validate-and-harvest"
     aws_region                         = var.region
+    # For Generate_Summary_Report's write to product_tracking. DB name
+    # matches db_name_for_data_source() in pds-nucleus-init.py exactly.
+    pds_db_cluster_arn                 = var.pds_db_cluster_arn
+    pds_db_secret_arn                  = var.pds_db_secret_arn
+    pds_db_name                        = "pds_nucleus_${lower(var.pds_data_source_node_names[count.index])}_${lower(var.pds_data_source_names[count.index])}"
+    # Default only -- the Lambda passes the authoritative value via
+    # dag_run.conf at trigger time; this is the fallback for a manual
+    # "Trigger DAG w/ config" run.
+    pds_registry_search_url_prefix_default = var.pds_registry_search_url_prefix
   }
 }
 

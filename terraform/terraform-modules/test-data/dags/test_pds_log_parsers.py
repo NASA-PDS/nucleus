@@ -337,6 +337,48 @@ class FormatHumanReportTest(unittest.TestCase):
 
         self.assertIn("not reported", report)
 
+    def test_shows_registry_column_and_counts(self):
+        summary = _summary()
+        summary["counts"]["registry_checked"] = 2
+        summary["counts"]["registry_confirmed"] = 1
+        summary["counts"]["registry_harvest_mismatch"] = 1
+        products = [
+            _product("a.xml", lidvid="urn:a::1.0", registry_status="confirmed"),
+            _product("b.xml", lidvid="urn:b::1.0", registry_status="not_found"),
+        ]
+
+        report = format_human_report(summary, products)
+
+        self.assertIn("REGISTRY", report)
+        self.assertIn("Registry checked", report)
+        self.assertIn("confirmed", report)
+        self.assertIn("not_found", report)
+
+    def test_flags_a_harvest_registry_mismatch_even_when_validation_passed(self):
+        # The actionable case this feature exists to surface: harvest says
+        # loaded, but the live registry disagrees.
+        products = [
+            _product("a.xml", lidvid="urn:a::1.0",
+                     harvest_status="loaded", registry_status="not_found"),
+        ]
+
+        report = format_human_report(_summary(status="WARNING"), products)
+        attention = report.split("PRODUCTS NEEDING ATTENTION")[1].split("ALL PRODUCTS")[0]
+
+        self.assertIn("a.xml", attention)
+
+    def test_does_not_flag_a_product_that_was_never_registry_checked(self):
+        # registry_status absent/"not_checked" must not itself read as a
+        # mismatch -- that would flag every product from before this
+        # feature existed, or every batch with the check disabled.
+        products = [
+            _product("a.xml", lidvid="urn:a::1.0", harvest_status="loaded"),
+        ]
+
+        report = format_human_report(_summary(), products)
+
+        self.assertIn("PRODUCTS NEEDING ATTENTION (0)", report)
+
 
 class CommonDirectoryTest(unittest.TestCase):
     def test_returns_shared_directory(self):

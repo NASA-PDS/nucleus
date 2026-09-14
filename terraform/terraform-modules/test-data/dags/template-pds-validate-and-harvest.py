@@ -22,6 +22,7 @@ from pds_log_parsers import (
     format_human_report,
     harvested_count,
 )
+from pds_registry_client import registry_url_for, verify_products_against_registry
 
 
 # -------------------------------------------------------------------
@@ -32,6 +33,18 @@ ECS_LAUNCH_TYPE     = "FARGATE"
 ECS_SUBNETS         = ${pds_nucleus_ecs_subnets}
 ECS_SECURITY_GROUPS = ${pds_nucleus_ecs_security_groups}
 AWS_REGION          = "${aws_region}"
+
+# -------------------------------------------------------------------
+# Database configuration (TEMPLATE — injected by Terraform). Used only by
+# Generate_Summary_Report, to write product_tracking via the RDS Data API.
+# -------------------------------------------------------------------
+DB_CLUSTER_ARN = "${pds_db_cluster_arn}"
+DB_SECRET_ARN  = "${pds_db_secret_arn}"
+DB_NAME        = "${pds_db_name}"
+PDS_NODE_NAME  = "${pds_node_name}"
+REGISTRY_SEARCH_URL_PREFIX_DEFAULT = "${pds_registry_search_url_prefix_default}"
+
+rds_data = boto3.client("rds-data")
 
 # A CloudWatch log event may not exceed 256 KB. Leave headroom for the log
 # framing that Airflow adds around the message.
@@ -60,6 +73,7 @@ dag = DAG(
     schedule=None,
     catchup=False,
     start_date=datetime(2024, 1, 1),
+    tags=["pds", "nucleus", "${pds_node_name}"],
     # Airflow's defaults for both are 16. Every run of this DAG is a single
     # sequential chain (list_products >> ... >> print_end_time), so exactly
     # one task is ever running per active run -- max_active_tasks therefore
@@ -91,6 +105,18 @@ dag = DAG(
         # run. Turn off to let a batch finish green while its problems are
         # still reported.
         "fail_on_data_integrity_error": True,
+        # Registry verification: an independent check of the live public PDS
+        # registry, not just Nucleus's own harvest result. Editable here so
+        # it can be disabled from the UI with no redeploy if the registry
+        # API becomes unreachable or starts rate-limiting Nucleus.
+        "registry_check_enabled": True,
+        "registry_check_max_workers": 8,
+        "registry_check_timeout_seconds": 5,
+        # Fallback only -- the trigger's conf carries the authoritative,
+        # Terraform-configured value (see pds_registry_search_url_prefix in
+        # terraform.tfvars); this default only applies to a manual
+        # "Trigger DAG w/ config" run.
+        "registry_search_url_prefix": REGISTRY_SEARCH_URL_PREFIX_DEFAULT,
     },
 )
 
@@ -347,6 +373,92 @@ config_init_cleanup = EcsRunTaskOperator(
     dag=dag,
 )
 
+def _upsert_product_tracking(products):
+    """Write the batch-completion facts (lidvid, statuses, registry URL) into
+    product_tracking, alongside whatever the file-arrival and batch-dispatch
+    writers already put there -- same first-write-wins-vs-always-overwrite
+    split as those two: everything written here is the current state of the
+    batch's result, so it's always overwritten on a re-run, unlike
+    ingestion_source. Only products with a known S3 URL are written -- that
+    column is the table's primary key.
+
+    A write failure here is logged and swallowed, not raised: this table is
+    a search/reporting aid, not the data-integrity check itself (that's the
+    registry-vs-harvest comparison above, which already fails the DAG on
+    its own terms).
+    """
+    rows = [p for p in products if p["s3_url"]]
+    if not rows:
+        return
+
+    sql = """
+            INSERT INTO product_tracking
+            (
+                s3_url_of_product_label,
+                lidvid,
+                pds_node,
+                status,
+                validate_status,
+                harvest_status,
+                registry_status,
+                registry_url,
+                batch_number,
+                dag_run_id,
+                first_seen_epoch_time,
+                last_updated_epoch_time)
+            VALUES(
+                :s3_url_of_product_label_param,
+                :lidvid_param,
+                :pds_node_param,
+                'DATA_INTEGRITY_CHECKED',
+                :validate_status_param,
+                :harvest_status_param,
+                :registry_status_param,
+                :registry_url_param,
+                :batch_number_param,
+                :dag_run_id_param,
+                :first_seen_epoch_time_param,
+                :last_updated_epoch_time_param
+                )
+            ON DUPLICATE KEY UPDATE
+                lidvid = VALUES(lidvid),
+                status = VALUES(status),
+                validate_status = VALUES(validate_status),
+                harvest_status = VALUES(harvest_status),
+                registry_status = VALUES(registry_status),
+                registry_url = VALUES(registry_url),
+                batch_number = VALUES(batch_number),
+                dag_run_id = VALUES(dag_run_id),
+                last_updated_epoch_time = VALUES(last_updated_epoch_time)
+            """
+
+    ts = int(datetime.utcnow().timestamp() * 1000)
+    param_sets = [
+        [
+            {"name": "s3_url_of_product_label_param", "value": {"stringValue": p["s3_url"]}},
+            {"name": "lidvid_param",                   "value": {"stringValue": p["lidvid"]} if p["lidvid"] else {"isNull": True}},
+            {"name": "pds_node_param",                 "value": {"stringValue": PDS_NODE_NAME}},
+            {"name": "validate_status_param",          "value": {"stringValue": p["validate_status"]}},
+            {"name": "harvest_status_param",            "value": {"stringValue": p["harvest_status"]}},
+            {"name": "registry_status_param",           "value": {"stringValue": p["registry_status"]}},
+            {"name": "registry_url_param",              "value": {"stringValue": p["registry_url"]} if p["registry_url"] else {"isNull": True}},
+            {"name": "batch_number_param",               "value": {"stringValue": p["batch_number"]} if p["batch_number"] else {"isNull": True}},
+            {"name": "dag_run_id_param",                 "value": {"stringValue": p["dag_run_id"]}},
+            {"name": "first_seen_epoch_time_param",      "value": {"longValue": ts}},
+            {"name": "last_updated_epoch_time_param",    "value": {"longValue": ts}},
+        ]
+        for p in rows
+    ]
+
+    rds_data.batch_execute_statement(
+        resourceArn=DB_CLUSTER_ARN,
+        secretArn=DB_SECRET_ARN,
+        database=DB_NAME,
+        sql=sql,
+        parameterSets=param_sets,
+    )
+
+
 # -------------------------------------------------------------------
 # SUMMARY REPORT
 # -------------------------------------------------------------------
@@ -544,6 +656,57 @@ def generate_summary_report(**context):
         for name in sorted(status_by_name)
     ]
 
+    # Registry verification: independent of Nucleus's own harvest result,
+    # confirm each product is actually discoverable in the live public PDS
+    # registry. Checked for every product with a known lidvid, regardless
+    # of validate/harvest outcome -- even a product that failed validation
+    # or whose batch harvest status is "unknown" may already be in the
+    # registry from a prior run, and that's worth knowing either way. The
+    # only gate is the registry_check_enabled kill switch.
+    registry_check_enabled = context["params"].get("registry_check_enabled", True)
+    registry_max_workers = context["params"].get("registry_check_max_workers", 8)
+    registry_timeout = context["params"].get("registry_check_timeout_seconds", 5)
+    # conf (set by the trigger) is authoritative; params is only the
+    # fallback for a manual "Trigger DAG w/ config" run.
+    registry_search_url_prefix = conf.get("registry_search_url_prefix") or context["params"].get(
+        "registry_search_url_prefix"
+    )
+
+    to_verify = products if registry_check_enabled else []
+    registry_status_by_name = verify_products_against_registry(
+        to_verify, registry_search_url_prefix, max_workers=registry_max_workers, timeout=registry_timeout
+    )
+    for product in products:
+        product["registry_status"] = registry_status_by_name.get(product["name"], "not_checked")
+        product["registry_url"] = (
+            registry_url_for(product["lidvid"], registry_search_url_prefix) if product["lidvid"] else None
+        )
+
+    registry_checked = len(registry_status_by_name)
+    registry_confirmed = sum(1 for s in registry_status_by_name.values() if s == "confirmed")
+    registry_not_found = sum(1 for s in registry_status_by_name.values() if s == "not_found")
+    registry_unknown = sum(1 for s in registry_status_by_name.values() if s == "unknown")
+    # The actionable signal: harvest says this product is loaded/registered,
+    # but the live registry doesn't confirm it. Always a hard failure, not a
+    # warning -- by the time this task runs, Config_S3_To_Efs_Copy_Cleanup
+    # and Config_Init_Cleanup have already run after Harvest, so there is
+    # already a real gap since harvest finished, not an immediate check.
+    registry_harvest_mismatch = sum(
+        1
+        for p in products
+        if p["harvest_status"] in ("loaded", "already_registered")
+        and p["registry_status"] not in ("confirmed", "not_checked")
+    )
+    if registry_harvest_mismatch:
+        failures.append(
+            f"registry did not confirm {registry_harvest_mismatch} of {registry_checked} "
+            "harvest-claimed product(s)"
+        )
+
+    # Recomputed: all_match was already set above, before this batch's
+    # registry-mismatch failure (if any) existed.
+    all_match = not failures and not warnings
+
     summary = {
         "batch_number": batch_number,
         "dag_run_id": dag_run_id,
@@ -559,6 +722,11 @@ def generate_summary_report(**context):
             "validation_skipped": len(validate_skipped),
             "harvested": harvest_count,
             "harvest_skipped": harvest_skipped,
+            "registry_checked": registry_checked,
+            "registry_confirmed": registry_confirmed,
+            "registry_not_found": registry_not_found,
+            "registry_unknown": registry_unknown,
+            "registry_harvest_mismatch": registry_harvest_mismatch,
         },
         "tool_summaries": {
             "validate": validate_summary,
@@ -624,6 +792,8 @@ def generate_summary_report(**context):
                     "lidvid": product["lidvid"],
                     "validate_status": product["validate_status"],
                     "harvest_status": product["harvest_status"],
+                    "registry_status": product["registry_status"],
+                    "registry_url": product["registry_url"],
                 },
                 separators=(",", ":"),
             )
@@ -649,6 +819,15 @@ def generate_summary_report(**context):
     )
     for warning in warnings:
         print(f"WARNING: {warning}")
+
+    # Searchable record of this batch's result, independent of CloudWatch --
+    # see product_tracking. Best-effort: a write failure here is not a
+    # data-integrity problem with the batch itself, so it's logged and
+    # swallowed rather than failing a run that is otherwise fine.
+    try:
+        _upsert_product_tracking(products)
+    except Exception as e:
+        print(f"WARNING: failed to write product_tracking: {e}")
 
     # Channel 3: the human-readable report, for users who only have the
     # Airflow UI. It goes to XCom rather than the log because MWAA stores

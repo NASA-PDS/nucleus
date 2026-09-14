@@ -107,6 +107,11 @@ variable "pds_nucleus_opensearch_url" {
   sensitive   = true
 }
 
+variable "pds_registry_search_url_prefix" {
+  description = "Prefix of the public PDS registry search API; the Lambda appends a lidvid to build a per-product lookup URL, and passes this same prefix through to each DAG run's conf for the Airflow registry-verification check."
+  type        = string
+}
+
 variable "pds_nucleus_opensearch_registry_names" {
   description = "List of PDS Nucleus OpenSearch Registry Names"
   type        = list(string)
@@ -161,7 +166,7 @@ variable "airflow_env_name" {
 
 variable "product_batch_size" {
   description = "Size of the product batch to send to Nucleus DAG to process per given DAG invocation. Kept in sync with the PRODUCT_BATCH_SIZE fallback default in pds-nucleus-product-completion-checker.py. Increasing this significantly may hit RDS Data API response size (~1 MiB) and statement/parameter size limits used by the IN (:p0 ... :pN) clauses in mark_products_* and archive_completed_products; load-test before raising."
-  default     = 200
+  default     = 500
   type        = number
 }
 

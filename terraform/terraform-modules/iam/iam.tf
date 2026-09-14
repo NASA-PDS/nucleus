@@ -45,6 +45,12 @@ data "aws_iam_policy_document" "alb_auth_lambda_execution_role_policy" {
       "arn:aws:logs:*:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${var.pds_nucleus_auth_alb_function_name}:log-stream:*"
     ]
   }
+
+  # No RDS Data API grant here: the /nucleus/products search route calls
+  # get_rds_data_client(iam_role_arn, ...), which assumes the caller's
+  # Cognito-group-mapped role (Admin/Op/User/Viewer, see
+  # pds_nucleus_airflow_admin_policy etc.) -- not this Lambda's own
+  # execution role. The RDS Data API grants belong there instead.
 }
 
 resource "aws_iam_role" "pds_nucleus_alb_auth_lambda_execution_role" {
@@ -86,6 +92,31 @@ data "aws_iam_policy_document" "pds_nucleus_airflow_admin_policy" {
       "arn:aws:airflow:${var.region}:${data.aws_caller_identity.current.account_id}:role/pds-nucleus-airflow-env/Admin"
     ]
   }
+
+  # For the /nucleus/products search route: this is the role search_products
+  # actually assumes (via iam_role_arn, the Cognito-group-mapped role), not
+  # the ALB-auth Lambda's own execution role -- that grant alone doesn't
+  # cover these RDS Data API calls.
+  statement {
+    effect = "Allow"
+    actions = [
+      "rds-data:ExecuteStatement",
+      "rds-data:BatchExecuteStatement"
+    ]
+    resources = [
+      "arn:aws:rds:*:${data.aws_caller_identity.current.account_id}:cluster:${var.rds_cluster_id}"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "secretsmanager:GetSecretValue"
+    ]
+    resources = [
+      "arn:aws:secretsmanager:*:${data.aws_caller_identity.current.account_id}:secret:pds/nucleus/rds/*"
+    ]
+  }
 }
 
 resource "aws_iam_role" "pds_nucleus_admin_role" {
@@ -111,6 +142,28 @@ data "aws_iam_policy_document" "pds_nucleus_airflow_op_policy" {
     ]
     resources = [
       "arn:aws:airflow:${var.region}:${data.aws_caller_identity.current.account_id}:role/pds-nucleus-airflow-env/Op"
+    ]
+  }
+
+  # See pds_nucleus_airflow_admin_policy above for why this is here.
+  statement {
+    effect = "Allow"
+    actions = [
+      "rds-data:ExecuteStatement",
+      "rds-data:BatchExecuteStatement"
+    ]
+    resources = [
+      "arn:aws:rds:*:${data.aws_caller_identity.current.account_id}:cluster:${var.rds_cluster_id}"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "secretsmanager:GetSecretValue"
+    ]
+    resources = [
+      "arn:aws:secretsmanager:*:${data.aws_caller_identity.current.account_id}:secret:pds/nucleus/rds/*"
     ]
   }
 }
@@ -141,6 +194,28 @@ data "aws_iam_policy_document" "pds_nucleus_airflow_user_policy" {
       "arn:aws:airflow:${var.region}:${data.aws_caller_identity.current.account_id}:role/pds-nucleus-airflow-env/User"
     ]
   }
+
+  # See pds_nucleus_airflow_admin_policy above for why this is here.
+  statement {
+    effect = "Allow"
+    actions = [
+      "rds-data:ExecuteStatement",
+      "rds-data:BatchExecuteStatement"
+    ]
+    resources = [
+      "arn:aws:rds:*:${data.aws_caller_identity.current.account_id}:cluster:${var.rds_cluster_id}"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "secretsmanager:GetSecretValue"
+    ]
+    resources = [
+      "arn:aws:secretsmanager:*:${data.aws_caller_identity.current.account_id}:secret:pds/nucleus/rds/*"
+    ]
+  }
 }
 
 resource "aws_iam_role" "pds_nucleus_user_role" {
@@ -166,6 +241,28 @@ data "aws_iam_policy_document" "pds_nucleus_airflow_viewer_policy" {
     ]
     resources = [
       "arn:aws:airflow:${var.region}:${data.aws_caller_identity.current.account_id}:role/pds-nucleus-airflow-env/Viewer"
+    ]
+  }
+
+  # See pds_nucleus_airflow_admin_policy above for why this is here.
+  statement {
+    effect = "Allow"
+    actions = [
+      "rds-data:ExecuteStatement",
+      "rds-data:BatchExecuteStatement"
+    ]
+    resources = [
+      "arn:aws:rds:*:${data.aws_caller_identity.current.account_id}:cluster:${var.rds_cluster_id}"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "secretsmanager:GetSecretValue"
+    ]
+    resources = [
+      "arn:aws:secretsmanager:*:${data.aws_caller_identity.current.account_id}:secret:pds/nucleus/rds/*"
     ]
   }
 }
@@ -577,6 +674,30 @@ data "aws_iam_policy_document" "mwaa_inline_policy" {
     ]
     resources = [
       "arn:aws:ecs:*:${data.aws_caller_identity.current.account_id}:task/pds*/*"
+    ]
+  }
+
+  # For Generate_Summary_Report's write to product_tracking -- same cluster/
+  # secret every other Lambda in this pipeline already uses via the RDS
+  # Data API; MWAA had no database access at all before this.
+  statement {
+    effect = "Allow"
+    actions = [
+      "rds-data:ExecuteStatement",
+      "rds-data:BatchExecuteStatement"
+    ]
+    resources = [
+      "arn:aws:rds:*:${data.aws_caller_identity.current.account_id}:cluster:${var.rds_cluster_id}"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "secretsmanager:GetSecretValue"
+    ]
+    resources = [
+      "arn:aws:secretsmanager:*:${data.aws_caller_identity.current.account_id}:secret:pds/nucleus/rds/*"
     ]
   }
 

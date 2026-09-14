@@ -170,6 +170,9 @@ def format_human_report(summary: Dict, products: List[Dict]) -> str:
             counts["harvested"] if counts["harvested"] is not None else "not reported",
         ),
         row("Harvest skipped", counts["harvest_skipped"]),
+        row("Registry checked", counts.get("registry_checked", 0)),
+        row("Registry confirmed", counts.get("registry_confirmed", 0)),
+        row("Registry mismatch", counts.get("registry_harvest_mismatch", 0)),
         "",
         "DATA INTEGRITY",
         "-" * 60,
@@ -186,10 +189,10 @@ def format_human_report(summary: Dict, products: List[Dict]) -> str:
     for warning in integrity.get("warnings", []):
         lines.append(f"  WARNING  {warning}")
 
-    # Two columns, each headed, because "passed" alone does not say what
-    # passed. Validation checking a product out is a different fact from the
-    # registry holding it.
-    header = f"  {'VALIDATE':<14}{'HARVEST':<20}PRODUCT"
+    # Three columns, each headed, because "passed" alone does not say what
+    # passed. Validation checking a product out, harvest loading it, and the
+    # live registry actually holding it are three different facts.
+    header = f"  {'VALIDATE':<14}{'HARVEST':<20}{'REGISTRY':<14}PRODUCT"
 
     # Products carry their full S3 URL so an entry means something on its
     # own. The report already prints the shared prefix as a heading, so it
@@ -202,13 +205,27 @@ def format_human_report(summary: Dict, products: List[Dict]) -> str:
         location = relative_path(location, prefix)
         validate_status = product.get("validate_status", product.get("status", ""))
         harvest_status = product.get("harvest_status", "")
+        registry_status = product.get("registry_status", "")
         return (
-            f"  {validate_status:<14}{harvest_status:<20}{location}  "
+            f"  {validate_status:<14}{harvest_status:<20}{registry_status:<14}{location}  "
             f"{product['lidvid'] or ''}"
         ).rstrip()
 
     def needs_attention(product):
-        return product.get("validate_status", product.get("status")) != "passed"
+        if product.get("validate_status", product.get("status")) != "passed":
+            return True
+        # The actionable case this feature exists to surface: harvest
+        # claims the product is loaded/registered, but the live registry
+        # doesn't confirm it -- worth a look even though validation passed.
+        harvest_status = product.get("harvest_status")
+        registry_status = product.get("registry_status")
+        if harvest_status in ("loaded", "already_registered") and registry_status not in (
+            "confirmed",
+            "not_checked",
+            None,
+        ):
+            return True
+        return False
 
     issues = [product for product in products if needs_attention(product)]
     lines += ["", f"PRODUCTS NEEDING ATTENTION ({len(issues)})", "-" * 60]

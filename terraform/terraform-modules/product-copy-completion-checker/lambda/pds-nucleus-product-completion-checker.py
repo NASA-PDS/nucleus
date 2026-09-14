@@ -64,6 +64,11 @@ OPENSEARCH_CRED_URL = os.environ["OPENSEARCH_CREDENTIAL_RELATIVE_URL"]
 REPLACE_PREFIX_WITH = os.environ["REPLACE_PREFIX_WITH"]
 HARVEST_REPLACE_PREFIX = os.environ["HARVEST_REPLACE_PREFIX"]
 
+# Owned here, not hardcoded in the DAG template: passed through to Airflow via
+# trigger_airflow()'s payload so the DAG's registry check uses the same,
+# Terraform-configured prefix rather than duplicating it as a DAG constant.
+PDS_REGISTRY_SEARCH_URL_PREFIX = os.environ["PDS_REGISTRY_SEARCH_URL_PREFIX"]
+
 PRODUCT_BATCH_SIZE = int(os.environ.get("PRODUCT_BATCH_SIZE", "500"))
 
 # fetch_data_files() looks up data files with one query per chunk instead of
@@ -282,8 +287,80 @@ def _set_product_status(products, status, with_timestamp=True, clear_claim=False
     )
 
 
-def mark_products_complete(products):   _set_product_status(products, 'COMPLETE')
-def mark_products_incomplete(products): _set_product_status(products, 'INCOMPLETE', with_timestamp=False, clear_claim=True)
+def mark_products_complete(products):
+    _set_product_status(products, 'COMPLETE')
+    _upsert_tracking_sent_to_nucleus(products)
+
+
+def mark_products_incomplete(products):
+    # No product_tracking write here: there is no clean SENT_TO_NUCLEUS-
+    # equivalent stage for "dispatch attempt failed" -- the row just stays
+    # at whatever stage it already reached (typically still RECEIVED,
+    # since this path runs before a product has ever been dispatched
+    # successfully), which is already the correct state to leave it in.
+    _set_product_status(products, 'INCOMPLETE', with_timestamp=False, clear_claim=True)
+
+
+def _upsert_tracking_sent_to_nucleus(products):
+    """Advance product_tracking.status to SENT_TO_NUCLEUS for a successfully
+    dispatched batch, alongside the existing write to product above.
+
+    Always overwritten on duplicate -- unlike RECEIVED (set once, at file
+    arrival, and never regressed after), reaching this function means a
+    real dispatch just happened, so SENT_TO_NUCLEUS is correct to write
+    even if the product had already been dispatched before (e.g. a
+    reprocessed/re-harvested product legitimately re-enters the pipeline).
+
+    One parameter set per product via batch_execute_statement (a multi-row
+    insert, not an IN-clause update, since each row's s3 url differs) --
+    same pattern as save_product_data_file_mappings_in_database in the
+    sibling s3-file-event-processor Lambda.
+    """
+    if not products:
+        return
+
+    sql = """
+            INSERT INTO product_tracking
+            (
+                s3_url_of_product_label,
+                status,
+                pds_node,
+                first_seen_epoch_time,
+                last_updated_epoch_time)
+            VALUES(
+                :s3_url_of_product_label_param,
+                'SENT_TO_NUCLEUS',
+                :pds_node_param,
+                :first_seen_epoch_time_param,
+                :last_updated_epoch_time_param
+                )
+            ON DUPLICATE KEY UPDATE
+                status = VALUES(status),
+                last_updated_epoch_time = VALUES(last_updated_epoch_time)
+            """
+
+    ts = int(time.time() * 1000)
+    param_sets = [
+        [
+            {"name": "s3_url_of_product_label_param", "value": {"stringValue": p}},
+            {"name": "pds_node_param",                  "value": {"stringValue": PDS_NODE}},
+            {"name": "first_seen_epoch_time_param",     "value": {"longValue": ts}},
+            {"name": "last_updated_epoch_time_param",   "value": {"longValue": ts}},
+        ]
+        for p in products
+    ]
+
+    try:
+        rds.batch_execute_statement(
+            resourceArn=DB_CLUSTER_ARN,
+            secretArn=DB_SECRET_ARN,
+            database=DB_NAME,
+            sql=sql,
+            parameterSets=param_sets,
+        )
+    except Exception as e:
+        logger.exception(f"Error upserting product_tracking status. Exception: {str(e)}")
+        raise e
 
 
 def archive_completed_products(products):
@@ -335,13 +412,25 @@ def archive_completed_products(products):
         """,
         # 4. delete active mappings
         f"DELETE FROM product_data_file_mapping WHERE s3_url_of_product_label IN ({placeholders})",
-        # 5. delete orphaned data_file rows
+        # 5. delete orphaned data_file rows -- but only if no OTHER, still-
+        # active product also maps to it. Step 4 already removed this
+        # batch's own mappings above, so anything still in
+        # product_data_file_mapping at this point belongs to a different,
+        # not-yet-archived product. Without this guard, a data file shared
+        # between two products gets deleted the moment the first product is
+        # archived, permanently stranding the second: its NOT EXISTS check
+        # in claim_completed_products() would find that data_file missing
+        # forever, even though the file genuinely exists in S3.
         f"""
             DELETE FROM data_file
             WHERE s3_url_of_data_file IN (
                 SELECT DISTINCT m.s3_url_of_data_file
                 FROM product_data_file_mapping_archive m
                 WHERE m.s3_url_of_product_label IN ({placeholders})
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM product_data_file_mapping m2
+                WHERE m2.s3_url_of_data_file = data_file.s3_url_of_data_file
             )
         """,
         # 6. delete active product rows last
@@ -500,6 +589,7 @@ def trigger_airflow(batch, s3_config_dir, efs_config_dir):
         "s3_config_dir": s3_config_dir,
         "efs_config_dir": efs_config_dir,
         "pds_hot_archive_bucket_name": HOT_ARCHIVE_BUCKET,
+        "registry_search_url_prefix": PDS_REGISTRY_SEARCH_URL_PREFIX,
     }
 
     # batch is already a globally-unique name; using it as the Airflow run_id
