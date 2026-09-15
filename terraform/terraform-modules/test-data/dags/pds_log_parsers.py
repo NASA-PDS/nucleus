@@ -24,7 +24,7 @@ _VALIDATE_RESULT_RE = re.compile(
 # The literal "product(s)" keeps this from matching the running progress
 # lines, which read "N product validation(s) completed".
 _VALIDATE_SUMMARY_RE = re.compile(
-    r"(?<!\S)(?P<count>\d+)\s+product\(s\)\s+(?P<status>passed|failed|skipped|total)\s*$"
+    r"(?<!\S)(?P<count>\d+)\s{1,10}product\(s\)\s{1,10}(?P<status>passed|failed|skipped|total)\s*$"
 )
 
 
