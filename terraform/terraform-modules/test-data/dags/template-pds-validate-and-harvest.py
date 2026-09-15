@@ -4,11 +4,11 @@
 import boto3
 import json
 from airflow import DAG
-from airflow.api.common.trigger_dag import trigger_dag
 from airflow.decorators import task
-from airflow.exceptions import AirflowFailException
+from airflow.exceptions import AirflowFailException, AirflowSkipException
 from airflow.operators.bash import BashOperator
 from airflow.providers.amazon.aws.operators.ecs import EcsRunTaskOperator
+from airflow.providers.standard.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.utils.trigger_rule import TriggerRule
 from datetime import datetime, timedelta
 
@@ -58,36 +58,6 @@ MAX_SUMMARY_EVENT_BYTES = 200_000
 # instead of just retrying Harvest_Data, up to this many times.
 MAX_DAG_RESTARTS_ON_HARVEST_FAILURE = 3
 
-
-def _restart_dag_on_harvest_failure(context):
-    """on_failure_callback for Harvest_Data: restart the whole DAG rather than
-    just this task. Fires once, after Harvest_Data's own retries (set to 0
-    below -- see the comment there) are exhausted, i.e. on final failure only.
-
-    dag_run.conf carries a restart counter forward across attempts so this
-    can't loop forever; batch_number stays the same across restarts (it's
-    still the same logical batch), only the run_id and the counter change.
-    """
-    dag_run = context["dag_run"]
-    conf = dict(dag_run.conf or {})
-    attempt = int(conf.get("dag_restart_attempt", 0))
-
-    if attempt >= MAX_DAG_RESTARTS_ON_HARVEST_FAILURE:
-        print(
-            f"Harvest failed after {attempt} whole-DAG restart(s); "
-            f"giving up (max {MAX_DAG_RESTARTS_ON_HARVEST_FAILURE})."
-        )
-        return
-
-    conf["dag_restart_attempt"] = attempt + 1
-    new_run_id = f"{dag_run.run_id}__restart{attempt + 1}"
-    print(
-        f"Harvest failed; restarting whole DAG as {new_run_id} "
-        f"(attempt {attempt + 1} of {MAX_DAG_RESTARTS_ON_HARVEST_FAILURE})"
-    )
-
-    trigger_dag(dag_id=dag_run.dag_id, run_id=new_run_id, conf=conf)
-
 # Cap on per-product events (channel 2 below emits one per product, not just
 # failures). Sized well above any realistic product_batch_size so normal runs
 # never hit it; it exists only so a misconfigured batch of many thousands of
@@ -117,8 +87,8 @@ dag = DAG(
     # one task is ever running per active run -- max_active_tasks therefore
     # has to move together with max_active_runs, or it becomes the new
     # binding cap on its own.
-    max_active_runs=24,
-    max_active_tasks=24,
+    max_active_runs=40,
+    max_active_tasks=40,
     default_args={
         "retries": 5,
         "retry_delay": timedelta(minutes=2),
@@ -221,7 +191,14 @@ config_init = EcsRunTaskOperator(
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,
     deferrable=False,
-    waiter_delay=1,
+    # 6s, not 1s: every EcsRunTaskOperator in this DAG polls ECS
+    # DescribeTasks at this interval while waiting. At 1s, ~20 concurrent
+    # DAG runs (each with one such operator active, since max_active_tasks
+    # tracks max_active_runs) pushed the combined poll rate past ECS's
+    # account-level DescribeTasks throttle limit, failing tasks with
+    # ThrottlingException. 6s matches boto3's own built-in ECS waiter
+    # default, which exists for the same reason.
+    waiter_delay=6,
     dag=dag,
 )
 
@@ -253,7 +230,7 @@ config_s3_to_efs_copy = EcsRunTaskOperator(
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,
     deferrable=False,
-    waiter_delay=1,
+    waiter_delay=6,
     dag=dag,
 )
 
@@ -288,7 +265,7 @@ validate = ValidateEcsRunTaskOperator(
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,
     deferrable=False,
-    waiter_delay=1,
+    waiter_delay=6,
     # No explicit retries override: ValidateEcsRunTaskOperator already
     # distinguishes real data-validation failures (no retry, fails fast)
     # from genuine infra failures (retried per the DAG-level default).
@@ -334,7 +311,7 @@ harvest = HarvestEcsRunTaskOperator(
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,
     deferrable=False,
-    waiter_delay=1,
+    waiter_delay=6,
     # execute() pulls max available CloudWatch logs
     # and checks the [SUMMARY] line for failed files. If any files failed,
     # the task fails (since files missing from EFS indicate upstream copy failure).
@@ -344,11 +321,65 @@ harvest = HarvestEcsRunTaskOperator(
     # loading the ones that did pass.
     trigger_rule=TriggerRule.ALL_DONE,
     # 0, not the DAG-level default of 5: an in-place retry of just this task
-    # is not the recovery path here -- see _restart_dag_on_harvest_failure,
+    # is not the recovery path here -- see _prepare_harvest_restart below,
     # which restarts the whole DAG (up to 3x) instead once this task's
     # single attempt fails.
     retries=0,
-    on_failure_callback=_restart_dag_on_harvest_failure,
+    dag=dag,
+)
+
+
+@task(task_id="Prepare_Harvest_Restart", trigger_rule=TriggerRule.ONE_FAILED, dag=dag)
+def _prepare_harvest_restart(**context):
+    """
+    Runs only when Harvest_Data fails (trigger_rule=ONE_FAILED). Computes the
+    conf and run_id for restarting the whole DAG, or skips (via
+    AirflowSkipException, which also skips the downstream
+    TriggerDagRunOperator -- its default trigger_rule is ALL_SUCCESS) once
+    MAX_DAG_RESTARTS_ON_HARVEST_FAILURE is reached, so this can't loop
+    forever.
+
+    This used to be a plain on_failure_callback that called trigger_dag()
+    directly. That's an ORM/direct-DB call, and Airflow 3's task execution
+    model runs callback and task code alike in an isolated worker process
+    with no direct DB access -- it raised "Direct database access via the
+    ORM is not allowed in Airflow 3.0" the first time this actually fired.
+    TriggerDagRunOperator, unlike a raw trigger_dag() call, goes through
+    the supported Task Execution API, so the restart is done as a real
+    downstream task instead of a callback.
+
+    dag_run.conf carries the restart counter forward across attempts;
+    batch_number stays the same across restarts (it's still the same
+    logical batch), only the run_id and the counter change.
+    """
+    dag_run = context["dag_run"]
+    conf = dict(dag_run.conf or {})
+    attempt = int(conf.get("dag_restart_attempt", 0))
+
+    if attempt >= MAX_DAG_RESTARTS_ON_HARVEST_FAILURE:
+        print(
+            f"Harvest failed after {attempt} whole-DAG restart(s); "
+            f"giving up (max {MAX_DAG_RESTARTS_ON_HARVEST_FAILURE})."
+        )
+        raise AirflowSkipException("Max harvest-restart attempts reached")
+
+    conf["dag_restart_attempt"] = attempt + 1
+    new_run_id = f"{dag_run.run_id}__restart{attempt + 1}"
+    print(
+        f"Harvest failed; restarting whole DAG as {new_run_id} "
+        f"(attempt {attempt + 1} of {MAX_DAG_RESTARTS_ON_HARVEST_FAILURE})"
+    )
+    return {"conf": conf, "run_id": new_run_id}
+
+
+_harvest_restart_prep = _prepare_harvest_restart()
+
+restart_dag_on_harvest_failure = TriggerDagRunOperator(
+    task_id="Restart_Whole_Dag_On_Harvest_Failure",
+    trigger_dag_id="${pds_validate_and_harvest_dag_id}",
+    trigger_run_id=_harvest_restart_prep["run_id"],
+    conf=_harvest_restart_prep["conf"],
+    wait_for_completion=False,
     dag=dag,
 )
 
@@ -384,7 +415,7 @@ config_s3_to_efs_copy_cleanup = EcsRunTaskOperator(
     number_logs_exception=500,
     trigger_rule=TriggerRule.ALL_DONE,
     deferrable=False,
-    waiter_delay=1,
+    waiter_delay=6,
     dag=dag,
 )
 
@@ -418,7 +449,7 @@ config_init_cleanup = EcsRunTaskOperator(
     number_logs_exception=500,
     trigger_rule=TriggerRule.ALL_DONE,
     deferrable=False,
-    waiter_delay=1,
+    waiter_delay=6,
     dag=dag,
 )
 
@@ -939,3 +970,9 @@ summary_report = generate_summary_report()
     >> summary_report
     >> print_end_time
 )
+
+# Separate branch off Harvest_Data, alongside the ALL_DONE cleanup chain
+# above: only runs when Harvest_Data itself fails (trigger_rule=ONE_FAILED
+# on Prepare_Harvest_Restart), restarting the whole DAG rather than retrying
+# just this task.
+harvest >> _harvest_restart_prep >> restart_dag_on_harvest_failure

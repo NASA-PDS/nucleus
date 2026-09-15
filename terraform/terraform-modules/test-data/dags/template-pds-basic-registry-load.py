@@ -1,9 +1,11 @@
 # PDS Basic Registry Load Use Case DAG (Airflow 3 compatible, TEMPLATE)
 
 from airflow import DAG
-from airflow.api.common.trigger_dag import trigger_dag
+from airflow.decorators import task
+from airflow.exceptions import AirflowSkipException
 from airflow.operators.bash import BashOperator
 from airflow.providers.amazon.aws.operators.ecs import EcsRunTaskOperator
+from airflow.providers.standard.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.utils.trigger_rule import TriggerRule
 from datetime import datetime, timedelta
 
@@ -51,13 +53,28 @@ dag = DAG(
 MAX_DAG_RESTARTS_ON_HARVEST_FAILURE = 3
 
 
-def _restart_dag_on_harvest_failure(context):
-    """on_failure_callback for Harvest_Data: restart the whole DAG rather than
-    just this task. Fires once, after Harvest_Data's own retries (set to 0
-    below -- see the comment there) are exhausted, i.e. on final failure only.
+@task(task_id="Prepare_Harvest_Restart", trigger_rule=TriggerRule.ONE_FAILED, dag=dag)
+def _prepare_harvest_restart(**context):
+    """
+    Runs only when Harvest_Data fails (trigger_rule=ONE_FAILED). Computes the
+    conf and run_id for restarting the whole DAG, or skips (via
+    AirflowSkipException, which also skips the downstream
+    TriggerDagRunOperator -- its default trigger_rule is ALL_SUCCESS) once
+    MAX_DAG_RESTARTS_ON_HARVEST_FAILURE is reached, so this can't loop
+    forever.
 
-    dag_run.conf carries a restart counter forward across attempts so this
-    can't loop forever.
+    This used to be a plain on_failure_callback that called trigger_dag()
+    directly. That's an ORM/direct-DB call, and Airflow 3's task execution
+    model runs callback and task code alike in an isolated worker process
+    with no direct DB access -- it raises "Direct database access via the
+    ORM is not allowed in Airflow 3.0" the moment it actually fires (found
+    via the sibling template-pds-validate-and-harvest.py DAG hitting exactly
+    this). TriggerDagRunOperator, unlike a raw trigger_dag() call, goes
+    through the supported Task Execution API, so the restart is done as a
+    real downstream task instead of a callback.
+
+    dag_run.conf carries the restart counter forward across attempts so
+    this can't loop forever.
     """
     dag_run = context["dag_run"]
     conf = dict(dag_run.conf or {})
@@ -68,7 +85,7 @@ def _restart_dag_on_harvest_failure(context):
             f"Harvest failed after {attempt} whole-DAG restart(s); "
             f"giving up (max {MAX_DAG_RESTARTS_ON_HARVEST_FAILURE})."
         )
-        return
+        raise AirflowSkipException("Max harvest-restart attempts reached")
 
     conf["dag_restart_attempt"] = attempt + 1
     new_run_id = f"{dag_run.run_id}__restart{attempt + 1}"
@@ -76,8 +93,19 @@ def _restart_dag_on_harvest_failure(context):
         f"Harvest failed; restarting whole DAG as {new_run_id} "
         f"(attempt {attempt + 1} of {MAX_DAG_RESTARTS_ON_HARVEST_FAILURE})"
     )
+    return {"conf": conf, "run_id": new_run_id}
 
-    trigger_dag(dag_id=dag_run.dag_id, run_id=new_run_id, conf=conf)
+
+_harvest_restart_prep = _prepare_harvest_restart()
+
+restart_dag_on_harvest_failure = TriggerDagRunOperator(
+    task_id="Restart_Whole_Dag_On_Harvest_Failure",
+    trigger_dag_id="${pds_nucleus_basic_registry_dag_id}",
+    trigger_run_id=_harvest_restart_prep["run_id"],
+    conf=_harvest_restart_prep["conf"],
+    wait_for_completion=False,
+    dag=dag,
+)
 
 
 # -------------------------------------------------------------------
@@ -218,11 +246,10 @@ harvest = EcsRunTaskOperator(
     # loading the ones that did pass.
     trigger_rule=TriggerRule.ALL_DONE,
     # 0, not the DAG-level default of 5: an in-place retry of just this task
-    # is not the recovery path here -- see _restart_dag_on_harvest_failure,
+    # is not the recovery path here -- see _prepare_harvest_restart above,
     # which restarts the whole DAG (up to 3x) instead once this task's
     # single attempt fails.
     retries=0,
-    on_failure_callback=_restart_dag_on_harvest_failure,
     dag=dag,
 )
 
@@ -332,3 +359,9 @@ config_init_cleanup = EcsRunTaskOperator(
         >> config_init_cleanup
         >> print_end_time
 )
+
+# Separate branch off Harvest_Data, alongside the ALL_DONE cleanup chain
+# above: only runs when Harvest_Data itself fails (trigger_rule=ONE_FAILED
+# on Prepare_Harvest_Restart), restarting the whole DAG rather than retrying
+# just this task.
+harvest >> _harvest_restart_prep >> restart_dag_on_harvest_failure

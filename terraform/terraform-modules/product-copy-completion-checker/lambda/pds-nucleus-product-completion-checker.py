@@ -71,6 +71,12 @@ PDS_REGISTRY_SEARCH_URL_PREFIX = os.environ["PDS_REGISTRY_SEARCH_URL_PREFIX"]
 
 PRODUCT_BATCH_SIZE = int(os.environ.get("PRODUCT_BATCH_SIZE", "500"))
 
+# Delay between successive batch dispatches within one invocation's drain
+# loop (lambda_handler), so a large backlog doesn't fire DAG triggers (and
+# the ECS task-launch/poll traffic each one starts) back-to-back with no
+# pacing at all.
+DRAIN_LOOP_PACING_SECONDS = float(os.environ.get("DRAIN_LOOP_PACING_SECONDS", "1"))
+
 # fetch_data_files() looks up data files with one query per chunk instead of
 # one per product. A 500-product IN clause is only ~95 KB at realistic PDS
 # URL lengths (comfortably under the Data API's request size limit), but
@@ -167,6 +173,14 @@ def lambda_handler(event, context):
 
         if len(products) < PRODUCT_BATCH_SIZE:
             break  # fewer than limit → queue is drained
+
+        # Pace successive DAG triggers. An unpaced drain loop fires
+        # trigger_airflow() as fast as it can loop -- fine for a handful of
+        # batches, but against a large backlog it's what drove ECS
+        # DescribeTasks (and, per the same throttle-error handling just
+        # added to trigger_airflow, potentially MWAA's own trigger API)
+        # past their account-level rate limits.
+        time.sleep(DRAIN_LOOP_PACING_SECONDS)
 
     return {
         "status": "SUCCESS",
@@ -582,6 +596,19 @@ def upload_text(s3_dir, name, content):
 # MWAA Trigger
 # -------------------------------------------------------------------
 
+_THROTTLING_ERROR_CODES = {
+    "ThrottlingException",
+    "Throttling",
+    "TooManyRequestsException",
+    "RequestLimitExceeded",
+    "ProvisionedThroughputExceededException",
+}
+
+
+def _is_throttling_error(client_error: ClientError) -> bool:
+    return client_error.response.get("Error", {}).get("Code") in _THROTTLING_ERROR_CODES
+
+
 def _decode_mwaa_cli_response(raw):
     """
     Decodes an MWAA CLI response body (JSON envelope with base64-encoded
@@ -596,6 +623,33 @@ def _decode_mwaa_cli_response(raw):
         return raw.decode("utf-8", errors="replace")
 
 
+# MWAA CLI tokens are valid for 60 seconds (AWS-documented). Cached and
+# reused across batches within one invocation instead of refetched per
+# batch -- the drain loop below can dispatch dozens of batches per
+# invocation, and CreateCliToken is a control-plane API call with its own
+# throttle limit, the same class of problem as the ECS DescribeTasks
+# throttling this pipeline hit under burst load.
+_MWAA_TOKEN_TTL_SECONDS = 60
+_MWAA_TOKEN_REFRESH_MARGIN_SECONDS = 10
+_mwaa_token_cache = {"host": None, "token": None, "expires_at": 0.0}
+
+
+def _get_mwaa_cli_token():
+    now = time.monotonic()
+    if now < _mwaa_token_cache["expires_at"]:
+        return _mwaa_token_cache["host"], _mwaa_token_cache["token"]
+
+    response = mwaa.create_cli_token(Name=MWAA_ENV_NAME)
+    _mwaa_token_cache["host"] = response["WebServerHostname"]
+    _mwaa_token_cache["token"] = response["CliToken"]
+    _mwaa_token_cache["expires_at"] = now + _MWAA_TOKEN_TTL_SECONDS - _MWAA_TOKEN_REFRESH_MARGIN_SECONDS
+    return _mwaa_token_cache["host"], _mwaa_token_cache["token"]
+
+
+def _invalidate_mwaa_cli_token():
+    _mwaa_token_cache["expires_at"] = 0.0
+
+
 def _trigger_airflow_once(run_id, cmd):
     """
     Makes one MWAA CLI trigger attempt. Returns once the DAG run is
@@ -603,15 +657,15 @@ def _trigger_airflow_once(run_id, cmd):
     non-2xx/error response, so the caller's retry loop can decide whether
     that's transient (network) or terminal (bad response).
     """
-    token = mwaa.create_cli_token(Name=MWAA_ENV_NAME)
-    conn = http.client.HTTPSConnection(token["WebServerHostname"], timeout=30)
+    host, cli_token = _get_mwaa_cli_token()
+    conn = http.client.HTTPSConnection(host, timeout=30)
     try:
         conn.request(
             "POST",
             "/aws_mwaa/cli/",
             cmd,
             headers={
-                "Authorization": f"Bearer {token['CliToken']}",
+                "Authorization": f"Bearer {cli_token}",
                 "Content-Type": "text/plain",
             },
         )
@@ -662,10 +716,17 @@ def trigger_airflow(batch, s3_config_dir, efs_config_dir):
         try:
             _trigger_airflow_once(run_id, cmd)
             return
-        except (socket_timeout, TimeoutError, ConnectionError) as e:
+        except (socket_timeout, TimeoutError, ConnectionError, ClientError) as e:
+            # A ClientError that isn't throttling (e.g. a permissions error)
+            # won't be fixed by retrying -- fail fast the same as any other
+            # non-retryable error below.
+            if isinstance(e, ClientError) and not _is_throttling_error(e):
+                logger.exception("MWAA trigger failed (non-retryable)")
+                raise
+            _invalidate_mwaa_cli_token()
             if attempt < max_retries - 1:
                 wait_time = 2 ** attempt  # exponential backoff: 1s, 2s, 4s
-                logger.warning(f"MWAA trigger attempt {attempt + 1} timed out: {e}. Retrying in {wait_time}s...")
+                logger.warning(f"MWAA trigger attempt {attempt + 1} failed transiently: {e}. Retrying in {wait_time}s...")
                 time.sleep(wait_time)
             else:
                 logger.exception(f"MWAA trigger failed after {max_retries} attempts")

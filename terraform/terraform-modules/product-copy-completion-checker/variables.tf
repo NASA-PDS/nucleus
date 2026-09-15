@@ -170,6 +170,12 @@ variable "product_batch_size" {
   type        = number
 }
 
+variable "drain_loop_pacing_seconds" {
+  description = "Delay, in seconds, between successive batch dispatches within one completion-checker invocation's drain loop. Kept in sync with the DRAIN_LOOP_PACING_SECONDS fallback default in pds-nucleus-product-completion-checker.py. Exists so a large backlog can't fire DAG triggers (and the ECS task-launch/poll traffic each one starts) back-to-back with no pacing; lower with caution."
+  default     = 1
+  type        = number
+}
+
 variable "region" {
   description = "AWS Region"
   type        = string
