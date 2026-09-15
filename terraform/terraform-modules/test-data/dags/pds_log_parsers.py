@@ -22,10 +22,14 @@ _VALIDATE_RESULT_RE = re.compile(
 # validate summary block:
 #       166        product(s) passed
 # The literal "product(s)" keeps this from matching the running progress
-# lines, which read "N product validation(s) completed".
-_VALIDATE_SUMMARY_RE = re.compile(
-    r"(?<!\S)(?P<count>\d+)\s{1,10}product\(s\)\s{1,10}(?P<status>passed|failed|skipped|total)\s*$"
-)
+# lines, which read "N product validation(s) completed". Only the gap up
+# to "product(s)" is matched by regex; the trailing status word is checked
+# against _VALIDATE_SUMMARY_STATUSES as a plain string comparison below,
+# rather than folding it into the regex as a second quantified whitespace
+# group + alternation, which is what triggered a super-linear-backtracking
+# warning on this pattern.
+_VALIDATE_SUMMARY_RE = re.compile(r"(?<!\S)(?P<count>\d+)\s+product\(s\)")
+_VALIDATE_SUMMARY_STATUSES = {"passed", "failed", "skipped", "total"}
 
 
 def parse_validate_messages(messages: List[str]) -> Dict:
@@ -55,7 +59,9 @@ def parse_validate_messages(messages: List[str]) -> Dict:
 
         summary_match = _VALIDATE_SUMMARY_RE.search(msg)
         if summary_match:
-            summary[summary_match.group("status")] = int(summary_match.group("count"))
+            status = msg[summary_match.end():].strip()
+            if status in _VALIDATE_SUMMARY_STATUSES:
+                summary[status] = int(summary_match.group("count"))
 
     results["summary"] = summary
     return results
