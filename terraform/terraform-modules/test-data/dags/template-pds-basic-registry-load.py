@@ -6,6 +6,7 @@ from airflow.exceptions import AirflowSkipException
 from airflow.operators.bash import BashOperator
 from airflow.providers.amazon.aws.operators.ecs import EcsRunTaskOperator
 from airflow.providers.standard.operators.trigger_dagrun import TriggerDagRunOperator
+from airflow.utils.task_group import TaskGroup
 from airflow.utils.trigger_rule import TriggerRule
 from datetime import datetime, timedelta
 
@@ -53,59 +54,52 @@ dag = DAG(
 MAX_DAG_RESTARTS_ON_HARVEST_FAILURE = 3
 
 
-@task(task_id="Prepare_Harvest_Restart", trigger_rule=TriggerRule.ONE_FAILED, dag=dag)
-def _prepare_harvest_restart(**context):
-    """
-    Runs only when Harvest_Data fails (trigger_rule=ONE_FAILED). Computes the
-    conf and run_id for restarting the whole DAG, or skips (via
-    AirflowSkipException, which also skips the downstream
-    TriggerDagRunOperator -- its default trigger_rule is ALL_SUCCESS) once
-    MAX_DAG_RESTARTS_ON_HARVEST_FAILURE is reached, so this can't loop
-    forever.
+# Grouped so the grid view shows one collapsed row instead of two -- these
+# two tasks are skipped on every normal run (trigger_rule=ONE_FAILED only
+# engages them when Harvest_Data fails), and a pair of skip icons on every
+# single column was pure visual noise for the common case.
+with TaskGroup(group_id="Harvest_Restart_On_Failure", dag=dag) as harvest_restart_group:
 
-    This used to be a plain on_failure_callback that called trigger_dag()
-    directly. That's an ORM/direct-DB call, and Airflow 3's task execution
-    model runs callback and task code alike in an isolated worker process
-    with no direct DB access -- it raises "Direct database access via the
-    ORM is not allowed in Airflow 3.0" the moment it actually fires (found
-    via the sibling template-pds-validate-and-harvest.py DAG hitting exactly
-    this). TriggerDagRunOperator, unlike a raw trigger_dag() call, goes
-    through the supported Task Execution API, so the restart is done as a
-    real downstream task instead of a callback.
+    @task(task_id="Prepare_Harvest_Restart", trigger_rule=TriggerRule.ONE_FAILED, dag=dag)
+    def _prepare_harvest_restart(**context):
+        """
+        Runs only when Harvest_Data fails (trigger_rule=ONE_FAILED). Computes the
+        conf and run_id for restarting the whole DAG, or skips (via
+        AirflowSkipException, which also skips the downstream
+        TriggerDagRunOperator -- its default trigger_rule is ALL_SUCCESS) once
+        MAX_DAG_RESTARTS_ON_HARVEST_FAILURE is reached, so this can't loop
+        forever.
+        """
+        dag_run = context["dag_run"]
+        conf = dict(dag_run.conf or {})
+        attempt = int(conf.get("dag_restart_attempt", 0))
 
-    dag_run.conf carries the restart counter forward across attempts so
-    this can't loop forever.
-    """
-    dag_run = context["dag_run"]
-    conf = dict(dag_run.conf or {})
-    attempt = int(conf.get("dag_restart_attempt", 0))
+        if attempt >= MAX_DAG_RESTARTS_ON_HARVEST_FAILURE:
+            print(
+                f"Harvest failed after {attempt} whole-DAG restart(s); "
+                f"giving up (max {MAX_DAG_RESTARTS_ON_HARVEST_FAILURE})."
+            )
+            raise AirflowSkipException("Max harvest-restart attempts reached")
 
-    if attempt >= MAX_DAG_RESTARTS_ON_HARVEST_FAILURE:
+        conf["dag_restart_attempt"] = attempt + 1
+        new_run_id = f"{dag_run.run_id}__restart{attempt + 1}"
         print(
-            f"Harvest failed after {attempt} whole-DAG restart(s); "
-            f"giving up (max {MAX_DAG_RESTARTS_ON_HARVEST_FAILURE})."
+            f"Harvest failed; restarting whole DAG as {new_run_id} "
+            f"(attempt {attempt + 1} of {MAX_DAG_RESTARTS_ON_HARVEST_FAILURE})"
         )
-        raise AirflowSkipException("Max harvest-restart attempts reached")
+        return {"conf": conf, "run_id": new_run_id}
 
-    conf["dag_restart_attempt"] = attempt + 1
-    new_run_id = f"{dag_run.run_id}__restart{attempt + 1}"
-    print(
-        f"Harvest failed; restarting whole DAG as {new_run_id} "
-        f"(attempt {attempt + 1} of {MAX_DAG_RESTARTS_ON_HARVEST_FAILURE})"
+
+    _harvest_restart_prep = _prepare_harvest_restart()
+
+    restart_dag_on_harvest_failure = TriggerDagRunOperator(
+        task_id="Restart_Whole_Dag_On_Harvest_Failure",
+        trigger_dag_id="${pds_nucleus_basic_registry_dag_id}",
+        trigger_run_id=_harvest_restart_prep["run_id"],
+        conf=_harvest_restart_prep["conf"],
+        wait_for_completion=False,
+        dag=dag,
     )
-    return {"conf": conf, "run_id": new_run_id}
-
-
-_harvest_restart_prep = _prepare_harvest_restart()
-
-restart_dag_on_harvest_failure = TriggerDagRunOperator(
-    task_id="Restart_Whole_Dag_On_Harvest_Failure",
-    trigger_dag_id="${pds_nucleus_basic_registry_dag_id}",
-    trigger_run_id=_harvest_restart_prep["run_id"],
-    conf=_harvest_restart_prep["conf"],
-    wait_for_completion=False,
-    dag=dag,
-)
 
 
 # -------------------------------------------------------------------
@@ -364,4 +358,4 @@ config_init_cleanup = EcsRunTaskOperator(
 # above: only runs when Harvest_Data itself fails (trigger_rule=ONE_FAILED
 # on Prepare_Harvest_Restart), restarting the whole DAG rather than retrying
 # just this task.
-harvest >> _harvest_restart_prep >> restart_dag_on_harvest_failure
+harvest >> harvest_restart_group
