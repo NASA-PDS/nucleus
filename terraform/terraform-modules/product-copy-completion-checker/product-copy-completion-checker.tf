@@ -219,11 +219,6 @@ resource "aws_lambda_event_source_mapping" "event_source_mapping" {
   maximum_batching_window_in_seconds   = 1
   function_response_types              = ["ReportBatchItemFailures"]
 
-  # Cap the fan-out. Uncapped, a large backlog drop scales all four mappings
-  # toward the account concurrency limit, which the completion checkers draw
-  # from too -- so products finish arriving just as the thing that dispatches
-  # them gets throttled.
-  #
   # scaling_config rather than reserved_concurrent_executions on the function:
   # reserved concurrency lets the poller over-invoke and be throttled, which
   # still increments each message's receive count and walks it toward the DLQ.
@@ -258,8 +253,8 @@ resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function"
   # are consuming the account's concurrency, and keeps it to one run at a time.
   # A tick arriving while the previous run is still going is dropped rather than
   # stacking a second claim query on a database that is evidently already busy;
-  # the next tick picks the work up. Overlap was never unsafe -- the DISPATCHING
-  # claim hands concurrent runs disjoint sets -- just wasteful.
+  # the next tick picks the work up.
+  #
   # Consider reserved_concurrent_executions = 2 if a 15-minute stall is unacceptable
   reserved_concurrent_executions = 2
 
