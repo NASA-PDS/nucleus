@@ -83,13 +83,22 @@ dag = DAG(
     catchup=False,
     start_date=datetime(2024, 1, 1),
     tags=["pds", "nucleus", "${pds_node_name}"],
-    # Airflow's defaults for both are 16. Every run of this DAG is a single
-    # sequential chain (list_products >> ... >> print_end_time), so exactly
-    # one task is ever running per active run -- max_active_tasks therefore
-    # has to move together with max_active_runs, or it becomes the new
-    # binding cap on its own.
-    max_active_runs=40,
-    max_active_tasks=40,
+    # Every run of this DAG is a single sequential chain (list_products >>
+    # ... >> print_end_time), so exactly one task is ever running per active
+    # run -- max_active_tasks therefore has to move together with
+    # max_active_runs, or it becomes the new binding cap on its own.
+    #
+    # 25 = the ECS Fargate capacity actually budgeted to this pipeline,
+    # divided across the DAGs currently running against it. Account vCPU
+    # quota is 256; each task uses 4 vCPU, so 64 tasks is the account's hard
+    # ceiling; ~50 of that is earmarked for this pipeline (other services
+    # share the same account/cluster); with only PDS_IMG backlog + realtime
+    # actually active right now, that's 50 / 2 = 25 per DAG. Revisit this
+    # division when another node (e.g. SBN) starts running -- or better,
+    # replace it with a shared Airflow Pool sized to the real 50-task budget
+    # so it doesn't need re-dividing by hand every time a node is added.
+    max_active_runs=25,
+    max_active_tasks=25,
     default_args={
         "retries": 5,
         "retry_delay": timedelta(minutes=2),
@@ -191,7 +200,10 @@ config_init = EcsRunTaskOperator(
     awslogs_region=AWS_REGION,
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,
-    deferrable=False,
+    # No custom log parsing depends on this one running synchronously
+    # (unlike Validate_Products/Harvest_Data), so it's safe to free the
+    # MWAA worker slot while ECS runs this.
+    deferrable=True,
     # 6s, not 1s: every EcsRunTaskOperator in this DAG polls ECS
     # DescribeTasks at this interval while waiting. At 1s, ~20 concurrent
     # DAG runs (each with one such operator active, since max_active_tasks
@@ -230,7 +242,7 @@ config_s3_to_efs_copy = EcsRunTaskOperator(
     awslogs_region=AWS_REGION,
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,
-    deferrable=False,
+    deferrable=True,
     waiter_delay=6,
     dag=dag,
 )
@@ -421,7 +433,7 @@ config_s3_to_efs_copy_cleanup = EcsRunTaskOperator(
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,
     trigger_rule=TriggerRule.ALL_DONE,
-    deferrable=False,
+    deferrable=True,
     waiter_delay=6,
     dag=dag,
 )
@@ -455,7 +467,7 @@ config_init_cleanup = EcsRunTaskOperator(
     awslogs_fetch_interval=timedelta(seconds=1),
     number_logs_exception=500,
     trigger_rule=TriggerRule.ALL_DONE,
-    deferrable=False,
+    deferrable=True,
     waiter_delay=6,
     dag=dag,
 )
