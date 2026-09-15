@@ -243,7 +243,11 @@ def get_rds_data_client(role_arn, user):
         # Lambda invocation open until the function's own timeout.
         config = Config(user_agent=user, connect_timeout=5, read_timeout=25)
 
-        rds_data = boto3.client(
+        # Built per-request from the caller's just-assumed IAM-role
+        # credentials (different Cognito users land on different roles), so
+        # it can't be hoisted to module scope and reused across invocations
+        # like a fixed-identity client (e.g. `sts` above).
+        rds_data = boto3.client(  # NOSONAR
             'rds-data',
             aws_access_key_id=credentials.get('AccessKeyId'),
             aws_secret_access_key=credentials.get('SecretAccessKey'),
