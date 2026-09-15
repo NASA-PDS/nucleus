@@ -22,14 +22,32 @@ _VALIDATE_RESULT_RE = re.compile(
 # validate summary block:
 #       166        product(s) passed
 # The literal "product(s)" keeps this from matching the running progress
-# lines, which read "N product validation(s) completed". Only the gap up
-# to "product(s)" is matched by regex; the trailing status word is checked
-# against _VALIDATE_SUMMARY_STATUSES as a plain string comparison below,
-# rather than folding it into the regex as a second quantified whitespace
-# group + alternation, which is what triggered a super-linear-backtracking
-# warning on this pattern.
-_VALIDATE_SUMMARY_RE = re.compile(r"(?<!\S)(?P<count>\d+)\s+product\(s\)")
+# lines, which read "N product validation(s) completed". Parsed with plain
+# string operations (find/split), not a regex with a quantifier adjacent to
+# other matchable content -- every regex shape tried here, even with bounded
+# repetition, kept tripping python:S8786 (non-linear backtracking), since
+# the rule flags the pattern shape itself rather than measuring the actual
+# bound.
+_VALIDATE_SUMMARY_MARKER = "product(s)"
 _VALIDATE_SUMMARY_STATUSES = {"passed", "failed", "skipped", "total"}
+
+
+def _parse_validate_summary_line(msg: str):
+    """Returns (count, status) if msg is a validate summary line, else None."""
+    marker_index = msg.find(_VALIDATE_SUMMARY_MARKER)
+    if marker_index == -1:
+        return None
+
+    before = msg[:marker_index].split()
+    after = msg[marker_index + len(_VALIDATE_SUMMARY_MARKER):].split()
+    if not before or len(after) != 1:
+        return None
+
+    count_str, status = before[-1], after[0]
+    if not count_str.isdigit() or status not in _VALIDATE_SUMMARY_STATUSES:
+        return None
+
+    return int(count_str), status
 
 
 def parse_validate_messages(messages: List[str]) -> Dict:
@@ -57,11 +75,10 @@ def parse_validate_messages(messages: List[str]) -> Dict:
             )
             continue
 
-        summary_match = _VALIDATE_SUMMARY_RE.search(msg)
-        if summary_match:
-            status = msg[summary_match.end():].strip()
-            if status in _VALIDATE_SUMMARY_STATUSES:
-                summary[status] = int(summary_match.group("count"))
+        parsed = _parse_validate_summary_line(msg)
+        if parsed:
+            count, status = parsed
+            summary[status] = count
 
     results["summary"] = summary
     return results
