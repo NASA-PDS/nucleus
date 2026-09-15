@@ -14,6 +14,7 @@ import logging
 import requests
 import boto3
 from datetime import timezone, datetime
+from zoneinfo import ZoneInfo
 import re
 from botocore.config import Config
 import urllib.parse
@@ -197,6 +198,28 @@ PRODUCT_TRACKING_COLUMNS = [
     "registry_status", "registry_url", "batch_number", "dag_run_id",
     "last_updated_epoch_time",
 ]
+
+# Human-readable labels for table headers and search-form placeholders.
+# Falls back to the raw column name (see _column_label) for anything not
+# listed here, so a new column added later doesn't break rendering.
+PDS_COLUMN_LABELS = {
+    "s3_url_of_product_label": "S3 Product Label",
+    "lidvid": "LIDVID",
+    "pds_node": "PDS Node",
+    "ingestion_source": "Ingestion Source",
+    "status": "Status",
+    "validate_status": "Validate Status",
+    "harvest_status": "Harvest Status",
+    "registry_status": "Registry Status",
+    "registry_url": "Registry URL",
+    "batch_number": "Batch Number",
+    "dag_run_id": "DAG Run ID",
+    "last_updated_epoch_time": "Last Updated",
+}
+
+
+def _column_label(col):
+    return PDS_COLUMN_LABELS.get(col, col)
 
 
 def get_rds_data_client(role_arn, user):
@@ -488,7 +511,7 @@ def _summary_panel_html(summary):
     pie = _pie_chart_html([
         ("All good", summary["all_good_count"], "#2e7d32"),
         ("Issues found", summary["issues_count"], "#c62828"),
-        ("In progress", summary["in_progress_count"], "#9e9e9e"),
+        ("In progress", summary["in_progress_count"], "#1570ef"),
     ])
 
     return (
@@ -524,19 +547,118 @@ def _pagination_links_html(query_params, page, has_more):
     return '<div style="margin-top:12px;">' + " &nbsp;|&nbsp; ".join(parts) + '</div>'
 
 
+# Columns whose value is a state word, worth showing as a color-coded badge
+# rather than plain text -- same green/red/gray vocabulary as the pie chart.
+PDS_STATUS_COLUMNS = {"status", "validate_status", "harvest_status", "registry_status"}
+# ingestion_source is categorical, not good/bad, so it gets its own two
+# colors (purple/teal) rather than borrowing the status palette's meaning.
+PDS_CATEGORY_COLUMNS = {"ingestion_source"}
+
+PDS_PAGE_STYLE = """
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+         background: #f4f5f7; color: #1d2939; margin: 0; }
+  .pds-header { background: #0d1b2a; color: #fff; padding: 14px 24px; }
+  .pds-header h1 { margin: 0; font-size: 19px; font-weight: 600; }
+  .pds-content { padding: 20px 24px; }
+  .pds-panel { background: #fff; border: 1px solid #d0d5dd; border-radius: 6px;
+               padding: 16px 20px; margin-bottom: 18px; }
+  form.pds-search input { padding: 6px 8px; margin: 0 6px 6px 0; border: 1px solid #d0d5dd;
+                           border-radius: 4px; font-size: 13px; }
+  form.pds-search button { padding: 6px 16px; background: #1570ef; color: #fff; border: none;
+                            border-radius: 4px; cursor: pointer; font-size: 13px; }
+  form.pds-search button:hover { background: #175cd3; }
+  table.pds-table { border-collapse: collapse; width: 100%; background: #fff; font-size: 13px; }
+  table.pds-table th { background: #eaecf0; text-align: left; padding: 8px 10px;
+                        border-bottom: 2px solid #d0d5dd; white-space: nowrap; }
+  table.pds-table td { padding: 6px 10px; border-bottom: 1px solid #eaecf0; }
+  table.pds-table tr:nth-child(even) td { background: #f9fafb; }
+  table.pds-table tr:hover td { background: #eef4ff; }
+  .pds-badge { display: inline-block; padding: 2px 9px; border-radius: 10px;
+               font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .pds-badge-green  { background: #d1fadf; color: #027a48; }
+  .pds-badge-red    { background: #fee4e2; color: #b42318; }
+  .pds-badge-purple { background: #ede9fe; color: #6941c6; }
+  .pds-badge-teal   { background: #ccfbf1; color: #0f766e; }
+  .pds-badge-blue  { background: #d1e9ff; color: #175cd3; }
+  .pds-badge-gray  { background: #eaecf0; color: #475467; }
+  .pds-pagination a { color: #1570ef; text-decoration: none; }
+  .pds-pagination a:hover { text-decoration: underline; }
+  .pds-result-count { color: #667085; font-size: 13px; margin: 4px 0 10px; }
+</style>
+"""
+
+
+def _badge_class(value):
+    if value in ("passed", "loaded", "confirmed", "DATA_INTEGRITY_CHECKED"):
+        return "pds-badge-green"
+    if value in ("failed", "not_found"):
+        return "pds-badge-red"
+    if value in ("already_registered", "SENT_TO_NUCLEUS", "RECEIVED"):
+        return "pds-badge-blue"
+    return "pds-badge-gray"
+
+
+def _category_class(value):
+    if value == "backlog":
+        return "pds-badge-purple"
+    if value == "realtime":
+        return "pds-badge-teal"
+    return "pds-badge-gray"
+
+
+PDS_PACIFIC_TZ = ZoneInfo("America/Los_Angeles")
+
+
+def _format_epoch_ms(value):
+    """Renders an epoch-milliseconds column as both UTC and Pacific time,
+    since a server-rendered page has no way to know the viewer's own
+    timezone. ZoneInfo (not a fixed UTC-7/-8 offset) so Pacific correctly
+    reflects PST/PDT depending on the date, not just whichever is current
+    when this code was written.
+    """
+    try:
+        dt_utc = datetime.fromtimestamp(int(value) / 1000, tz=timezone.utc)
+    except (TypeError, ValueError, OSError):
+        return html.escape(str(value)) if value is not None else ""
+    dt_pacific = dt_utc.astimezone(PDS_PACIFIC_TZ)
+    utc_str = dt_utc.strftime("%Y-%m-%d %H:%M:%S UTC")
+    pacific_str = dt_pacific.strftime("%Y-%m-%d %H:%M:%S %Z")
+    return html.escape(f"{utc_str} / {pacific_str}")
+
+
 def _products_html_response(headers, query_params, products, summary):
     def cell(value):
         return html.escape(str(value)) if value is not None else ""
 
+    # registry_url is server-computed (registry_url_for(), built from a
+    # trusted Terraform-configured prefix + an escaped lidvid), never from
+    # user input -- still, only linkify it if it genuinely looks like an
+    # http(s) URL, so nothing else in this column could ever become a
+    # javascript: link or similar by accident.
+    def cell_for_column(col, value):
+        if col == "registry_url" and isinstance(value, str) and value.startswith(("http://", "https://")):
+            escaped = html.escape(value)
+            return f'<a href="{escaped}" target="_blank" rel="noopener noreferrer">{escaped}</a>'
+        if col == "last_updated_epoch_time":
+            return _format_epoch_ms(value)
+        if col in PDS_STATUS_COLUMNS:
+            text = cell(value) or "—"
+            return f'<span class="pds-badge {_badge_class(value)}">{text}</span>'
+        if col in PDS_CATEGORY_COLUMNS:
+            text = cell(value) or "—"
+            return f'<span class="pds-badge {_category_class(value)}">{text}</span>'
+        return cell(value)
+
     filter_fields = list(PRODUCT_TRACKING_FILTERABLE_COLUMNS.keys())
     form_inputs = "".join(
-        f'<input type="text" name="{f}" placeholder="{f}" '
+        f'<input type="text" name="{f}" placeholder="{cell(_column_label(f))}" '
         f'value="{cell(_single_query_param(query_params, f))}"> '
         for f in filter_fields
     )
-    header_row = "".join(f"<th>{cell(col)}</th>" for col in PRODUCT_TRACKING_COLUMNS)
+    header_row = "".join(f"<th>{cell(_column_label(col))}</th>" for col in PRODUCT_TRACKING_COLUMNS)
     body_rows = "".join(
-        "<tr>" + "".join(f"<td>{cell(p.get(col))}</td>" for col in PRODUCT_TRACKING_COLUMNS) + "</tr>"
+        "<tr>" + "".join(f"<td>{cell_for_column(col, p.get(col))}</td>" for col in PRODUCT_TRACKING_COLUMNS) + "</tr>"
         for p in products
     )
 
@@ -547,13 +669,18 @@ def _products_html_response(headers, query_params, products, summary):
     has_more = len(products) >= PRODUCT_TRACKING_PAGE_SIZE
 
     body = (
-        "<html><body>"
-        "<h3>PDS Nucleus Product Tracking</h3>"
-        f"{_summary_panel_html(summary)}"
-        f'<form method="get">{form_inputs}<button type="submit">Search</button></form>'
-        f"<p>{len(products)} result(s) on this page (up to {PRODUCT_TRACKING_PAGE_SIZE} per database per page)</p>"
-        f'<table border="1" cellpadding="4"><tr>{header_row}</tr>{body_rows}</table>'
-        f"{_pagination_links_html(query_params, page, has_more)}"
+        "<html><head>" + PDS_PAGE_STYLE + "</head><body>"
+        '<div class="pds-header"><h1>PDS Nucleus Product Tracking</h1></div>'
+        '<div class="pds-content">'
+        f'<div class="pds-panel">{_summary_panel_html(summary)}</div>'
+        f'<div class="pds-panel">'
+        f'<form class="pds-search" method="get">{form_inputs}<button type="submit">Search</button></form>'
+        f'<div class="pds-result-count">{len(products)} result(s) on this page '
+        f'(up to {PRODUCT_TRACKING_PAGE_SIZE} per database per page)</div>'
+        f'<table class="pds-table"><tr>{header_row}</tr>{body_rows}</table>'
+        f'<div class="pds-pagination">{_pagination_links_html(query_params, page, has_more)}</div>'
+        '</div>'
+        '</div>'
         "</body></html>"
     )
     headers['Content-Type'] = ['text/html']
