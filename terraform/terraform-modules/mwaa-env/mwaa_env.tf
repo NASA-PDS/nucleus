@@ -14,7 +14,7 @@ resource "aws_mwaa_environment" "pds_nucleus_airflow_env" {
   requirements_s3_path = var.airflow_requirements_path
 
   min_workers           = 1
-  max_workers           = 10
+  max_workers           = 15
   webserver_access_mode = "PUBLIC_ONLY"
 
   network_configuration {

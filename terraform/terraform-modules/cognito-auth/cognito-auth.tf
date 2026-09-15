@@ -114,6 +114,9 @@ resource "aws_lambda_function" "pds_nucleus_auth_alb_function" {
       AWS_ACCOUNT_ID       = data.aws_caller_identity.current.account_id
       COGNITO_USER_POOL_ID = var.cognito_user_pool_id
       AIRFLOW_ENV_NAME     = var.airflow_env_name
+      DB_CLUSTER_ARN               = var.pds_db_cluster_arn
+      DB_SECRET_ARN                = var.pds_db_secret_arn
+      PDS_TRACKING_DATABASE_NAMES  = jsonencode(var.pds_tracking_database_names)
     }
   }
 

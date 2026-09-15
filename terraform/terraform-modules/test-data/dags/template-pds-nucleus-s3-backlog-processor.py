@@ -34,6 +34,7 @@ with DAG(
     schedule=None,
     catchup=False,
     start_date=datetime(2024, 1, 1),
+    tags=["pds", "nucleus", "${pds_node_name}"],
     default_args={
         "retries": 5,
         "retry_delay": timedelta(minutes=2),

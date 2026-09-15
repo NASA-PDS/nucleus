@@ -20,8 +20,11 @@ db_clust_arn  = os.environ.get('DB_CLUSTER_ARN')
 db_secret_arn = os.environ.get('DB_SECRET_ARN')
 pds_node      = os.environ.get('PDS_NODE_NAME')
 db_name       = os.environ.get('DB_NAME')
+pool_size     = int(os.environ.get('RDS_DATA_API_POOL_SIZE', '10'))
 
-rds_data = boto3.client('rds-data')
+rds_data = boto3.client('rds-data', config=boto3.session.Config(
+    max_pool_connections=pool_size
+))
 
 def _process_record(record):
     s3_event = json.loads(record.get("body"))
@@ -30,13 +33,15 @@ def _process_record(record):
     if s3_event.get("backlog") == 'true':
         s3_bucket = s3_event.get("s3_bucket")
         s3_key    = s3_event.get("s3_key")
+        ingestion_source = "backlog"
     else:
         s3_bucket = s3_event['Records'][0]["s3"]["bucket"]["name"]
         s3_key    = s3_event['Records'][0]["s3"]["object"]["key"]
+        ingestion_source = "realtime"
 
     logger.info(f"s3_bucket: {s3_bucket}, s3_key: {s3_key}")
     s3_url_of_file = f"s3://{s3_bucket}/{s3_key}"
-    handle_file_types(s3_url_of_file, s3_bucket, s3_key)
+    handle_file_types(s3_url_of_file, s3_bucket, s3_key, ingestion_source)
 
 
 def lambda_handler(event, context):
@@ -56,7 +61,7 @@ def lambda_handler(event, context):
     return {'batchItemFailures': failures}
 
 
-def handle_file_types(s3_url_of_file, s3_bucket, s3_key):
+def handle_file_types(s3_url_of_file, s3_bucket, s3_key, ingestion_source):
     """ Invokes functions based on the file type """
 
     try:
@@ -65,10 +70,19 @@ def handle_file_types(s3_url_of_file, s3_bucket, s3_key):
             logger.debug(f"Received product file: {s3_url_of_file}")
             save_product_completion_status_in_database(s3_url_of_file, "INCOMPLETE")
             save_files_for_product_label(s3_url_of_file, s3_bucket, s3_key)
+            # Only here, not the data-file branch below: s3_url_of_file IS the
+            # product label in this branch. In the data-file branch, the
+            # "label" is a guessed product_dir + "/product.xml" (see the TODO
+            # above) -- not reliable enough to key a tracking-table write on.
+            upsert_ingestion_source(s3_url_of_file, ingestion_source)
 
         # Data file received
         elif not s3_url_of_file.lower().endswith("/"):  # Not a directory
             logger.info(f"Received data file: {s3_url_of_file}")
+            # Extract product directory and create product if it doesn't exist
+            product_dir = s3_url_of_file.rsplit('/', 1)[0]
+            product_label_url = f"{product_dir}/product.xml"
+            save_product_completion_status_in_database(product_label_url, "INCOMPLETE")
             save_data_file_in_database(s3_url_of_file)
 
     except Exception as e:
@@ -166,6 +180,66 @@ def save_product_completion_status_in_database(s3_url_of_product_label, completi
     except Exception as e:
         logger.error(f"Error writing to product table. Exception: {str(e)}")
         raise e
+
+
+def upsert_ingestion_source(s3_url_of_product_label, ingestion_source):
+    """ Records which path (backlog vs realtime) first delivered this product,
+    and advances product_tracking.status to RECEIVED.
+
+    First-write-wins: ingestion_source, status and first_seen_epoch_time are
+    all excluded from ON DUPLICATE KEY UPDATE. This is not just about
+    preserving how the product first arrived -- status specifically must
+    never regress. A duplicate/replay of this same S3 event can arrive
+    after the product has already advanced to SENT_TO_NUCLEUS or
+    DATA_INTEGRITY_CHECKED by the other two writers; unconditionally
+    setting status=RECEIVED here would incorrectly walk it backwards.
+    last_updated_epoch_time still advances on every write, matching the
+    pattern used elsewhere in this file (e.g.
+    save_product_completion_status_in_database).
+    """
+
+    sql = """
+            INSERT INTO product_tracking
+            (
+                s3_url_of_product_label,
+                ingestion_source,
+                status,
+                pds_node,
+                first_seen_epoch_time,
+                last_updated_epoch_time)
+            VALUES(
+                :s3_url_of_product_label_param,
+                :ingestion_source_param,
+                'RECEIVED',
+                :pds_node_param,
+                :first_seen_epoch_time_param,
+                :last_updated_epoch_time_param
+                )
+            ON DUPLICATE KEY UPDATE
+                last_updated_epoch_time = VALUES(last_updated_epoch_time)
+            """
+
+    ts = round(time.time() * 1000)
+    param_set = [
+        {'name': 's3_url_of_product_label_param', 'value': {'stringValue': s3_url_of_product_label}},
+        {'name': 'ingestion_source_param',         'value': {'stringValue': ingestion_source}},
+        {'name': 'pds_node_param',                 'value': {'stringValue': pds_node}},
+        {'name': 'first_seen_epoch_time_param',    'value': {'longValue': ts}},
+        {'name': 'last_updated_epoch_time_param',  'value': {'longValue': ts}},
+    ]
+
+    try:
+        response = rds_data.execute_statement(
+            resourceArn=db_clust_arn,
+            secretArn=db_secret_arn,
+            database=db_name,
+            sql=sql,
+            parameters=param_set)
+        logger.debug(str(response))
+
+    except Exception:
+        logger.exception("Error writing to product_tracking table")
+        raise
 
 
 def save_data_file_in_database(s3_url_of_data_file):

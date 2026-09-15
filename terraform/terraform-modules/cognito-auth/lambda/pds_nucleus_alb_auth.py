@@ -9,12 +9,15 @@ https://github.com/aws-samples/alb-sso-mwaa
 
 import os
 import json
+import html
 import logging
 import requests
 import boto3
 from datetime import timezone, datetime
+from zoneinfo import ZoneInfo
 import re
 from botocore.config import Config
+import urllib.parse
 import urllib.request
 from jose import jwt
 
@@ -30,6 +33,25 @@ AWS_REGION = os.getenv("AWS_REGION")
 AWS_ACCOUNT_ID = os.getenv("AWS_ACCOUNT_ID")
 COGNITO_USER_POOL_ID = os.getenv("COGNITO_USER_POOL_ID")
 AIRFLOW_ENV_NAME = os.getenv("AIRFLOW_ENV_NAME")
+
+# For the /nucleus/products search route.
+DB_CLUSTER_ARN = os.getenv("DB_CLUSTER_ARN")
+DB_SECRET_ARN = os.getenv("DB_SECRET_ARN")
+PDS_TRACKING_DATABASE_NAMES = json.loads(os.environ.get("PDS_TRACKING_DATABASE_NAMES", "[]"))
+PRODUCT_TRACKING_PAGE_SIZE = 100
+
+# Columns a caller may filter on. An explicit allowlist, not f-string
+# interpolation of arbitrary query-string keys, keeps this from becoming a
+# SQL injection point through the column name itself.
+PRODUCT_TRACKING_FILTERABLE_COLUMNS = {
+    "lidvid": "=",
+    "s3_url_of_product_label": "LIKE",
+    "status": "=",
+    "validate_status": "=",
+    "harvest_status": "=",
+    "registry_status": "=",
+    "pds_node": "=",
+}
 
 COGNITO_GROUP_TO_ROLE_MAP = json.loads(os.environ.get('COGNITO_GROUP_TO_ROLE_MAP', '{}'))
 
@@ -56,27 +78,7 @@ def lambda_handler(event, context):
     headers = event['multiValueHeaders']
 
     if 'x-amzn-oidc-data' in headers:
-        encoded_jwt = headers['x-amzn-oidc-data'][0]
-        encoded_access_token = headers['x-amzn-oidc-accesstoken'][0]
-
-        user_claims = validate_jwt_and_get_jwt_claims(encoded_jwt, 'oidc-data')
-        decoded_access_token = validate_jwt_and_get_jwt_claims(encoded_access_token, 'oidc-accesstoken')
-
-        # Check for invalid tokens
-        if  user_claims is None or decoded_access_token is None:
-            logger.error("Invalid token")
-            return close(headers, "Unauthorized", status_code=401)
-
-        iam_role_arn = get_iam_role_arn(decoded_access_token)
-
-        if iam_role_arn is None:
-            logger.error("Invalid token")
-            return close(headers, "Unauthorized", status_code=401)
-
-        if path.lower().startswith('/nucleus') or path == '/aws_mwaa/aws-console-sso':
-            redirect = login(headers=headers, query_params=query_params, user_claims=user_claims, iam_role_arn=iam_role_arn)
-        else:
-            redirect = close(headers, f"Bad request: {path}, {query_params}, {headers}", status_code=400)
+        redirect = _route_authenticated_request(path, query_params, headers)
     elif path == '/logout':
         redirect = logout(headers=headers, query_params=query_params)
     else:
@@ -86,6 +88,38 @@ def lambda_handler(event, context):
         redirect = close(headers, f"Runtime error", status_code=500)
 
     return redirect
+
+
+def _route_authenticated_request(path, query_params, headers):
+    """
+    Validates the ALB-injected OIDC headers and dispatches to the handler
+    for the requested path. Split out of lambda_handler to keep each
+    function's branching simple enough to follow.
+    """
+    encoded_jwt = headers['x-amzn-oidc-data'][0]
+    encoded_access_token = headers['x-amzn-oidc-accesstoken'][0]
+
+    user_claims = validate_jwt_and_get_jwt_claims(encoded_jwt, 'oidc-data')
+    decoded_access_token = validate_jwt_and_get_jwt_claims(encoded_access_token, 'oidc-accesstoken')
+
+    # Check for invalid tokens
+    if user_claims is None or decoded_access_token is None:
+        logger.error("Invalid token")
+        return close(headers, "Unauthorized", status_code=401)
+
+    iam_role_arn = get_iam_role_arn(decoded_access_token)
+
+    if iam_role_arn is None:
+        logger.error("Invalid token")
+        return close(headers, "Unauthorized", status_code=401)
+
+    if path.lower() == '/nucleus/products':
+        user_name = user_claims.get('username', "") if user_claims else ""
+        return search_products(headers=headers, query_params=query_params,
+                                iam_role_arn=iam_role_arn, user=user_name)
+    if path.lower().startswith('/nucleus') or path == '/aws_mwaa/aws-console-sso':
+        return login(headers=headers, query_params=query_params, user_claims=user_claims, iam_role_arn=iam_role_arn)
+    return close(headers, f"Bad request: {path}, {query_params}, {headers}", status_code=400)
 
 
 def logout(headers, query_params):
@@ -164,6 +198,517 @@ def get_mwaa_client(role_arn, user):
     except Exception as error:
         logger.error(str(error))
     return mwaa
+
+
+PRODUCT_TRACKING_COLUMNS = [
+    "s3_url_of_product_label", "lidvid", "pds_node", "ingestion_source",
+    "status", "validate_status", "harvest_status",
+    "registry_status", "registry_url", "batch_number", "dag_run_id",
+    "last_updated_epoch_time",
+]
+
+# Human-readable labels for table headers and search-form placeholders.
+# Falls back to the raw column name (see _column_label) for anything not
+# listed here, so a new column added later doesn't break rendering.
+PDS_COLUMN_LABELS = {
+    "s3_url_of_product_label": "S3 Product Label",
+    "lidvid": "LIDVID",
+    "pds_node": "PDS Node",
+    "ingestion_source": "Ingestion Source",
+    "status": "Status",
+    "validate_status": "Validate Status",
+    "harvest_status": "Harvest Status",
+    "registry_status": "Registry Status",
+    "registry_url": "Registry URL",
+    "batch_number": "Batch Number",
+    "dag_run_id": "DAG Run ID",
+    "last_updated_epoch_time": "Last Updated",
+}
+
+
+def _column_label(col):
+    return PDS_COLUMN_LABELS.get(col, col)
+
+
+def get_rds_data_client(role_arn, user):
+    """
+    Returns an RDS Data API client under the given IAM role, same pattern as
+    get_mwaa_client above.
+    """
+    rds_data = None
+    try:
+        response = sts.assume_role(RoleArn=role_arn, RoleSessionName=user, DurationSeconds=900)
+        credentials = response.get('Credentials')
+        # Explicit timeouts so a hung RDS Data API call can't hold the
+        # Lambda invocation open until the function's own timeout.
+        config = Config(user_agent=user, connect_timeout=5, read_timeout=25)
+
+        # Built per-request from the caller's just-assumed IAM-role
+        # credentials (different Cognito users land on different roles), so
+        # it can't be hoisted to module scope and reused across invocations
+        # like a fixed-identity client (e.g. `sts` above).
+        rds_data = boto3.client(  # NOSONAR
+            'rds-data',
+            aws_access_key_id=credentials.get('AccessKeyId'),
+            aws_secret_access_key=credentials.get('SecretAccessKey'),
+            aws_session_token=credentials.get('SessionToken'),
+            region_name=AWS_REGION,
+            config=config)
+    except Exception:
+        logger.exception("Failed to create RDS Data API client")
+    return rds_data
+
+
+def _single_query_param(query_params, key):
+    """ multiValueQueryStringParameters values are lists; take the first. """
+    if not query_params or key not in query_params:
+        return None
+    values = query_params[key]
+    return values[0] if values else None
+
+
+def _build_where_clause(query_params):
+    """
+    Builds a parameterized WHERE clause from an allowlisted set of filters,
+    shared by both the row query and the summary/pie-chart query so the
+    summary always reflects whatever the caller is currently filtered to.
+
+    Column names come only from PRODUCT_TRACKING_FILTERABLE_COLUMNS, never
+    from the query string itself, so this can't become a SQL injection point
+    through the column name; values are always bound parameters.
+    """
+    where_parts = []
+    parameters = []
+    for column, operator in PRODUCT_TRACKING_FILTERABLE_COLUMNS.items():
+        value = _single_query_param(query_params, column)
+        if not value:
+            continue
+        param_name = f"{column}_param"
+        if operator == "LIKE":
+            where_parts.append(f"{column} LIKE :{param_name}")
+            parameters.append({"name": param_name, "value": {"stringValue": f"%{value}%"}})
+        else:
+            where_parts.append(f"{column} = :{param_name}")
+            parameters.append({"name": param_name, "value": {"stringValue": value}})
+    return (" WHERE " + " AND ".join(where_parts)) if where_parts else "", parameters
+
+
+def _current_page(query_params):
+    """1-indexed; anything malformed or below 1 falls back to page 1."""
+    raw = _single_query_param(query_params, "page")
+    try:
+        page = int(raw)
+    except (TypeError, ValueError):
+        return 1
+    return page if page >= 1 else 1
+
+
+def _build_product_tracking_query(query_params):
+    """
+    Builds a parameterized, paginated SELECT from an allowlisted set of
+    filters. Ordered by most-recently-updated first, so page N means the
+    same thing on every request rather than an arbitrary row order.
+
+    Pagination is applied per database, not globally across the merged
+    result -- each database contributes up to PRODUCT_TRACKING_PAGE_SIZE
+    rows per page. Simpler than a true cross-database cursor, and with the
+    row counts this table sees, "page 3" being approximate across combined
+    databases is an acceptable trade for not needing distributed paging.
+    """
+    where_sql, parameters = _build_where_clause(query_params)
+    page = _current_page(query_params)
+    offset = (page - 1) * PRODUCT_TRACKING_PAGE_SIZE
+
+    parameters = list(parameters) + [
+        {"name": "limit_param", "value": {"longValue": PRODUCT_TRACKING_PAGE_SIZE}},
+        {"name": "offset_param", "value": {"longValue": offset}},
+    ]
+    sql = (
+        f"SELECT {', '.join(PRODUCT_TRACKING_COLUMNS)} FROM product_tracking"
+        f"{where_sql} ORDER BY last_updated_epoch_time DESC "
+        "LIMIT :limit_param OFFSET :offset_param"
+    )
+    return sql, parameters
+
+
+PRODUCT_TRACKING_SUMMARY_COLUMNS = [
+    "total", "backlog_count", "realtime_count", "validated_count",
+    "harvested_count", "registry_checked_count", "all_good_count", "issues_count",
+]
+
+
+def _build_product_tracking_summary_query(query_params):
+    """
+    One aggregate query per database (no row fan-out) computing every
+    number the summary panel and pie chart need, filtered by the same
+    criteria as the current search.
+    """
+    where_sql, parameters = _build_where_clause(query_params)
+    sql = f"""
+        SELECT
+            COUNT(*) AS total,
+            SUM(CASE WHEN ingestion_source = 'backlog' THEN 1 ELSE 0 END) AS backlog_count,
+            SUM(CASE WHEN ingestion_source = 'realtime' THEN 1 ELSE 0 END) AS realtime_count,
+            SUM(CASE WHEN validate_status = 'passed' THEN 1 ELSE 0 END) AS validated_count,
+            SUM(CASE WHEN harvest_status IN ('loaded', 'already_registered') THEN 1 ELSE 0 END) AS harvested_count,
+            SUM(CASE WHEN registry_status IS NOT NULL AND registry_status <> 'not_checked' THEN 1 ELSE 0 END) AS registry_checked_count,
+            SUM(CASE WHEN status = 'DATA_INTEGRITY_CHECKED'
+                      AND validate_status = 'passed'
+                      AND harvest_status IN ('loaded', 'already_registered')
+                      AND registry_status = 'confirmed'
+                 THEN 1 ELSE 0 END) AS all_good_count,
+            SUM(CASE WHEN status = 'DATA_INTEGRITY_CHECKED'
+                      AND NOT (validate_status = 'passed'
+                               AND harvest_status IN ('loaded', 'already_registered')
+                               AND registry_status = 'confirmed')
+                 THEN 1 ELSE 0 END) AS issues_count
+        FROM product_tracking{where_sql}
+    """
+    return sql, parameters
+
+
+def _compute_product_tracking_summary(rds_data, query_params):
+    """Sums the per-database aggregate counts into one summary dict."""
+    sql, parameters = _build_product_tracking_summary_query(query_params)
+    totals = dict.fromkeys(PRODUCT_TRACKING_SUMMARY_COLUMNS, 0)
+
+    for database in PDS_TRACKING_DATABASE_NAMES:
+        try:
+            response = rds_data.execute_statement(
+                resourceArn=DB_CLUSTER_ARN,
+                secretArn=DB_SECRET_ARN,
+                database=database,
+                sql=sql,
+                parameters=parameters,
+            )
+            records = response.get("records", [])
+            if not records:
+                continue
+            row = _field_value_row(records[0], PRODUCT_TRACKING_SUMMARY_COLUMNS)
+            for col in PRODUCT_TRACKING_SUMMARY_COLUMNS:
+                # COUNT(*) comes back as a proper longValue, but MySQL's
+                # SUM(CASE WHEN ... THEN 1 ELSE 0 END) returns a DECIMAL,
+                # which the RDS Data API represents as a stringValue (e.g.
+                # "45", possibly "45.0000") -- += against the int
+                # accumulator below would raise TypeError for every SUM()
+                # column if not coerced here. float() first since int()
+                # rejects a decimal-point string directly.
+                totals[col] += int(float(row.get(col) or 0))
+        except Exception:
+            logger.exception(f"product_tracking summary query failed for {database}")
+
+    # Anything that hasn't reached DATA_INTEGRITY_CHECKED yet, derived
+    # rather than queried again -- status can only be NULL, RECEIVED,
+    # SENT_TO_NUCLEUS or DATA_INTEGRITY_CHECKED, and the checked stage
+    # already splits cleanly into all_good_count + issues_count above.
+    totals["in_progress_count"] = totals["total"] - totals["all_good_count"] - totals["issues_count"]
+    return totals
+
+
+def _field_value(field):
+    if field.get("isNull"):
+        return None
+    for key in ("stringValue", "longValue", "doubleValue", "booleanValue"):
+        if key in field:
+            return field[key]
+    return None
+
+
+def _record_to_dict(record):
+    return {col: _field_value(field) for col, field in zip(PRODUCT_TRACKING_COLUMNS, record)}
+
+
+def _field_value_row(record, columns):
+    """Same idea as _record_to_dict, but against an arbitrary column list --
+    used for the summary query, whose columns differ from PRODUCT_TRACKING_COLUMNS."""
+    return {col: _field_value(field) for col, field in zip(columns, record)}
+
+
+def search_products(headers, query_params, iam_role_arn, user):
+    """
+    Runs a filtered search against product_tracking, across every
+    node/data-source database, and renders the merged results.
+
+    Real WHERE-clause search/filter, not a log query language -- reuses the
+    same Cognito-authenticated, role-mapped identity already proven above
+    for MWAA login, just pointed at a SQL query instead of a redirect.
+    """
+    rds_data = get_rds_data_client(iam_role_arn, user)
+    if rds_data is None:
+        return close(headers, "Search failed. Please check your Cognito user groups with the help of PDS Engineering Node.",
+                     status_code=401)
+
+    sql, parameters = _build_product_tracking_query(query_params)
+
+    products = []
+    for database in PDS_TRACKING_DATABASE_NAMES:
+        try:
+            response = rds_data.execute_statement(
+                resourceArn=DB_CLUSTER_ARN,
+                secretArn=DB_SECRET_ARN,
+                database=database,
+                sql=sql,
+                parameters=parameters,
+            )
+            products.extend(_record_to_dict(r) for r in response.get("records", []))
+        except Exception:
+            logger.exception(f"product_tracking query failed for {database}")
+
+    accept = (headers.get("accept") or headers.get("Accept") or [""])[0]
+    if "application/json" in accept:
+        return _products_json_response(headers, products)
+
+    summary = _compute_product_tracking_summary(rds_data, query_params)
+    return _products_html_response(headers, query_params, products, summary)
+
+
+def _products_json_response(headers, products):
+    headers['Content-Type'] = ['application/json']
+    return {
+        'statusCode': 200,
+        'multiValueHeaders': headers,
+        'body': json.dumps(products),
+        'isBase64Encoded': False,
+    }
+
+
+def _pie_chart_html(segments):
+    """
+    Renders a pie chart as a plain CSS conic-gradient plus a text legend --
+    no JS, no external charting library, consistent with this file's
+    zero-new-dependency convention. `segments` is a list of
+    (label, count, color) tuples.
+    """
+    total = sum(count for _, count, _ in segments)
+    if total <= 0:
+        return "<p>No data yet.</p>"
+
+    stops = []
+    cursor = 0.0
+    for _, count, color in segments:
+        pct = count / total * 100
+        stops.append(f"{color} {cursor:.2f}% {(cursor + pct):.2f}%")
+        cursor += pct
+    gradient = ", ".join(stops)
+
+    legend_rows = "".join(
+        f'<div style="margin-bottom:4px;">'
+        f'<span style="display:inline-block;width:12px;height:12px;background:{color};'
+        f'margin-right:6px;border-radius:2px;"></span>'
+        f'{html.escape(label)}: {count} ({(count / total * 100):.1f}%)'
+        f'</div>'
+        for label, count, color in segments
+    )
+    return (
+        '<div style="display:flex;align-items:center;gap:24px;">'
+        f'<div style="width:160px;height:160px;border-radius:50%;'
+        f'background:conic-gradient({gradient});flex-shrink:0;"></div>'
+        f'<div>{legend_rows}</div>'
+        '</div>'
+    )
+
+
+def _summary_panel_html(summary):
+    def stat(label, count):
+        return f'<div style="margin-bottom:2px;"><b>{count}</b> {html.escape(label)}</div>'
+
+    stats = "".join([
+        stat("received total", summary["total"]),
+        stat("received via backlog", summary["backlog_count"]),
+        stat("received via realtime", summary["realtime_count"]),
+        stat("validated (passed)", summary["validated_count"]),
+        stat("harvested", summary["harvested_count"]),
+        stat("registry integrity checked", summary["registry_checked_count"]),
+        stat("all good end-to-end", summary["all_good_count"]),
+    ])
+
+    pie = _pie_chart_html([
+        ("All good", summary["all_good_count"], "#2e7d32"),
+        ("Issues found", summary["issues_count"], "#c62828"),
+        ("In progress", summary["in_progress_count"], "#1570ef"),
+    ])
+
+    return (
+        '<div style="display:flex;gap:40px;flex-wrap:wrap;margin:12px 0 20px;">'
+        f'<div>{stats}</div>'
+        f'<div>{pie}</div>'
+        '</div>'
+    )
+
+
+def _pagination_links_html(query_params, page, has_more):
+    """Next/previous links that preserve the current filters, just changing
+    `page`. No total-page-count shown -- with pagination applied per
+    database (see _build_product_tracking_query), an exact global total
+    isn't something a single query can give cheaply, so this only offers
+    "there are more" / "go back", not "page 4 of 9"."""
+    def link_for(target_page, label):
+        params = {k: _single_query_param(query_params, k) for k in PRODUCT_TRACKING_FILTERABLE_COLUMNS}
+        params["page"] = str(target_page)
+        # URL-encode the values for the query string itself (not
+        # html.escape, which is for HTML text/attributes, not URLs) --
+        # then html.escape the assembled query string once, since it's
+        # about to be embedded in an href="..." attribute.
+        qs = "&".join(f"{k}={urllib.parse.quote(v, safe='')}" for k, v in params.items() if v)
+        return f'<a href="?{html.escape(qs)}">{label}</a>'
+
+    parts = []
+    if page > 1:
+        parts.append(link_for(page - 1, "&laquo; Previous"))
+    parts.append(f"Page {page}")
+    if has_more:
+        parts.append(link_for(page + 1, "Next &raquo;"))
+    return '<div style="margin-top:12px;">' + " &nbsp;|&nbsp; ".join(parts) + '</div>'
+
+
+# Columns whose value is a state word, worth showing as a color-coded badge
+# rather than plain text -- same green/red/gray vocabulary as the pie chart.
+PDS_STATUS_COLUMNS = {"status", "validate_status", "harvest_status", "registry_status"}
+# ingestion_source is categorical, not good/bad, so it gets its own two
+# colors (purple/teal) rather than borrowing the status palette's meaning.
+PDS_CATEGORY_COLUMNS = {"ingestion_source"}
+
+PDS_PAGE_STYLE = """
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+         background: #f4f5f7; color: #1d2939; margin: 0; }
+  .pds-header { background: #0d1b2a; color: #fff; padding: 14px 24px; }
+  .pds-header h1 { margin: 0; font-size: 19px; font-weight: 600; }
+  .pds-content { padding: 20px 24px; }
+  .pds-panel { background: #fff; border: 1px solid #d0d5dd; border-radius: 6px;
+               padding: 16px 20px; margin-bottom: 18px; }
+  form.pds-search input { padding: 6px 8px; margin: 0 6px 6px 0; border: 1px solid #d0d5dd;
+                           border-radius: 4px; font-size: 13px; }
+  form.pds-search button { padding: 6px 16px; background: #1570ef; color: #fff; border: none;
+                            border-radius: 4px; cursor: pointer; font-size: 13px; }
+  form.pds-search button:hover { background: #175cd3; }
+  table.pds-table { border-collapse: collapse; width: 100%; background: #fff; font-size: 13px; }
+  table.pds-table th { background: #eaecf0; text-align: left; padding: 8px 10px;
+                        border-bottom: 2px solid #d0d5dd; white-space: nowrap; }
+  table.pds-table td { padding: 6px 10px; border-bottom: 1px solid #eaecf0; }
+  table.pds-table tr:nth-child(even) td { background: #f9fafb; }
+  table.pds-table tr:hover td { background: #eef4ff; }
+  .pds-badge { display: inline-block; padding: 2px 9px; border-radius: 10px;
+               font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .pds-badge-green  { background: #d1fadf; color: #027a48; }
+  .pds-badge-red    { background: #fee4e2; color: #b42318; }
+  .pds-badge-purple { background: #ede9fe; color: #6941c6; }
+  .pds-badge-teal   { background: #ccfbf1; color: #0f766e; }
+  .pds-badge-blue  { background: #d1e9ff; color: #175cd3; }
+  .pds-badge-gray  { background: #eaecf0; color: #475467; }
+  .pds-pagination a { color: #1570ef; text-decoration: none; }
+  .pds-pagination a:hover { text-decoration: underline; }
+  .pds-result-count { color: #667085; font-size: 13px; margin: 4px 0 10px; }
+</style>
+"""
+
+
+def _badge_class(value):
+    if value in ("passed", "loaded", "confirmed", "DATA_INTEGRITY_CHECKED"):
+        return "pds-badge-green"
+    if value in ("failed", "not_found"):
+        return "pds-badge-red"
+    if value in ("already_registered", "SENT_TO_NUCLEUS", "RECEIVED"):
+        return "pds-badge-blue"
+    return "pds-badge-gray"
+
+
+def _category_class(value):
+    if value == "backlog":
+        return "pds-badge-purple"
+    if value == "realtime":
+        return "pds-badge-teal"
+    return "pds-badge-gray"
+
+
+PDS_PACIFIC_TZ = ZoneInfo("America/Los_Angeles")
+
+
+def _format_epoch_ms(value):
+    """Renders an epoch-milliseconds column as both UTC and Pacific time,
+    since a server-rendered page has no way to know the viewer's own
+    timezone. ZoneInfo (not a fixed UTC-7/-8 offset) so Pacific correctly
+    reflects PST/PDT depending on the date, not just whichever is current
+    when this code was written.
+    """
+    try:
+        dt_utc = datetime.fromtimestamp(int(value) / 1000, tz=timezone.utc)
+    except (TypeError, ValueError, OSError):
+        return html.escape(str(value)) if value is not None else ""
+    dt_pacific = dt_utc.astimezone(PDS_PACIFIC_TZ)
+    utc_str = dt_utc.strftime("%Y-%m-%d %H:%M:%S UTC")
+    pacific_str = dt_pacific.strftime("%Y-%m-%d %H:%M:%S %Z")
+    return html.escape(f"{utc_str} / {pacific_str}")
+
+
+def _products_html_response(headers, query_params, products, summary):
+    def cell(value):
+        return html.escape(str(value)) if value is not None else ""
+
+    # registry_url is server-computed (registry_url_for(), built from a
+    # trusted Terraform-configured prefix + an escaped lidvid), never from
+    # user input -- still, only linkify it if it genuinely looks like an
+    # http(s) URL, so nothing else in this column could ever become a
+    # javascript: link or similar by accident.
+    def cell_for_column(col, value):
+        if col == "registry_url" and isinstance(value, str) and value.startswith(("http://", "https://")):
+            escaped = html.escape(value)
+            return f'<a href="{escaped}" target="_blank" rel="noopener noreferrer">{escaped}</a>'
+        if col == "last_updated_epoch_time":
+            return _format_epoch_ms(value)
+        if col in PDS_STATUS_COLUMNS:
+            text = cell(value) or "—"
+            return f'<span class="pds-badge {_badge_class(value)}">{text}</span>'
+        if col in PDS_CATEGORY_COLUMNS:
+            text = cell(value) or "—"
+            return f'<span class="pds-badge {_category_class(value)}">{text}</span>'
+        return cell(value)
+
+    filter_fields = list(PRODUCT_TRACKING_FILTERABLE_COLUMNS.keys())
+    form_inputs = "".join(
+        f'<input type="text" name="{f}" placeholder="{cell(_column_label(f))}" '
+        f'value="{cell(_single_query_param(query_params, f))}"> '
+        for f in filter_fields
+    )
+    header_row = "".join(f"<th>{cell(_column_label(col))}</th>" for col in PRODUCT_TRACKING_COLUMNS)
+    body_rows = "".join(
+        "<tr>" + "".join(f"<td>{cell_for_column(col, p.get(col))}</td>" for col in PRODUCT_TRACKING_COLUMNS) + "</tr>"
+        for p in products
+    )
+
+    page = _current_page(query_params)
+    # A combined result at least as large as one database's page suggests
+    # there may be more; not exact (see _pagination_links_html's docstring),
+    # but good enough to show/hide "Next".
+    has_more = len(products) >= PRODUCT_TRACKING_PAGE_SIZE
+
+    body = (
+        '<html><head><meta charset="utf-8">' + PDS_PAGE_STYLE + "</head><body>"
+        '<div class="pds-header"><h1>PDS Nucleus Product Tracking</h1></div>'
+        '<div class="pds-content">'
+        f'<div class="pds-panel">{_summary_panel_html(summary)}</div>'
+        f'<div class="pds-panel">'
+        f'<form class="pds-search" method="get">{form_inputs}<button type="submit">Search</button></form>'
+        f'<div class="pds-result-count">{len(products)} result(s) on this page '
+        f'(up to {PRODUCT_TRACKING_PAGE_SIZE} per database per page)</div>'
+        f'<table class="pds-table"><tr>{header_row}</tr>{body_rows}</table>'
+        f'<div class="pds-pagination">{_pagination_links_html(query_params, page, has_more)}</div>'
+        '</div>'
+        '</div>'
+        "</body></html>"
+    )
+    # Explicit charset -- without it, a browser that can't sniff one from
+    # the response falls back to Latin-1/Windows-1252, mangling the
+    # UTF-8-encoded "—" placeholder (and anything else non-ASCII) into
+    # "â€"" mojibake.
+    headers['Content-Type'] = ['text/html; charset=utf-8']
+    return {
+        'statusCode': 200,
+        'multiValueHeaders': headers,
+        'body': body,
+        'isBase64Encoded': False,
+    }
+
 
 def get_json_webkey_with_kid(kid):
     """
@@ -265,8 +810,8 @@ def parse_groups(groups):
 
 
 def close(headers, message, status_code=200):
-    body = f'<html><body><h3>{message}</h3></body></html>'
-    headers['Content-Type'] = ['text/html']
+    body = f'<html><head><meta charset="utf-8"></head><body><h3>{message}</h3></body></html>'
+    headers['Content-Type'] = ['text/html; charset=utf-8']
     return {
         'statusCode': status_code,
         'multiValueHeaders': headers,
