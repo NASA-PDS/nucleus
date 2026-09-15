@@ -78,31 +78,7 @@ def lambda_handler(event, context):
     headers = event['multiValueHeaders']
 
     if 'x-amzn-oidc-data' in headers:
-        encoded_jwt = headers['x-amzn-oidc-data'][0]
-        encoded_access_token = headers['x-amzn-oidc-accesstoken'][0]
-
-        user_claims = validate_jwt_and_get_jwt_claims(encoded_jwt, 'oidc-data')
-        decoded_access_token = validate_jwt_and_get_jwt_claims(encoded_access_token, 'oidc-accesstoken')
-
-        # Check for invalid tokens
-        if  user_claims is None or decoded_access_token is None:
-            logger.error("Invalid token")
-            return close(headers, "Unauthorized", status_code=401)
-
-        iam_role_arn = get_iam_role_arn(decoded_access_token)
-
-        if iam_role_arn is None:
-            logger.error("Invalid token")
-            return close(headers, "Unauthorized", status_code=401)
-
-        if path.lower() == '/nucleus/products':
-            user_name = user_claims.get('username', "") if user_claims else ""
-            redirect = search_products(headers=headers, query_params=query_params,
-                                        iam_role_arn=iam_role_arn, user=user_name)
-        elif path.lower().startswith('/nucleus') or path == '/aws_mwaa/aws-console-sso':
-            redirect = login(headers=headers, query_params=query_params, user_claims=user_claims, iam_role_arn=iam_role_arn)
-        else:
-            redirect = close(headers, f"Bad request: {path}, {query_params}, {headers}", status_code=400)
+        redirect = _route_authenticated_request(path, query_params, headers)
     elif path == '/logout':
         redirect = logout(headers=headers, query_params=query_params)
     else:
@@ -112,6 +88,38 @@ def lambda_handler(event, context):
         redirect = close(headers, f"Runtime error", status_code=500)
 
     return redirect
+
+
+def _route_authenticated_request(path, query_params, headers):
+    """
+    Validates the ALB-injected OIDC headers and dispatches to the handler
+    for the requested path. Split out of lambda_handler to keep each
+    function's branching simple enough to follow.
+    """
+    encoded_jwt = headers['x-amzn-oidc-data'][0]
+    encoded_access_token = headers['x-amzn-oidc-accesstoken'][0]
+
+    user_claims = validate_jwt_and_get_jwt_claims(encoded_jwt, 'oidc-data')
+    decoded_access_token = validate_jwt_and_get_jwt_claims(encoded_access_token, 'oidc-accesstoken')
+
+    # Check for invalid tokens
+    if user_claims is None or decoded_access_token is None:
+        logger.error("Invalid token")
+        return close(headers, "Unauthorized", status_code=401)
+
+    iam_role_arn = get_iam_role_arn(decoded_access_token)
+
+    if iam_role_arn is None:
+        logger.error("Invalid token")
+        return close(headers, "Unauthorized", status_code=401)
+
+    if path.lower() == '/nucleus/products':
+        user_name = user_claims.get('username', "") if user_claims else ""
+        return search_products(headers=headers, query_params=query_params,
+                                iam_role_arn=iam_role_arn, user=user_name)
+    if path.lower().startswith('/nucleus') or path == '/aws_mwaa/aws-console-sso':
+        return login(headers=headers, query_params=query_params, user_claims=user_claims, iam_role_arn=iam_role_arn)
+    return close(headers, f"Bad request: {path}, {query_params}, {headers}", status_code=400)
 
 
 def logout(headers, query_params):
@@ -231,7 +239,9 @@ def get_rds_data_client(role_arn, user):
     try:
         response = sts.assume_role(RoleArn=role_arn, RoleSessionName=user, DurationSeconds=900)
         credentials = response.get('Credentials')
-        config = Config(user_agent=user)
+        # Explicit timeouts so a hung RDS Data API call can't hold the
+        # Lambda invocation open until the function's own timeout.
+        config = Config(user_agent=user, connect_timeout=5, read_timeout=25)
 
         rds_data = boto3.client(
             'rds-data',
@@ -240,8 +250,8 @@ def get_rds_data_client(role_arn, user):
             aws_session_token=credentials.get('SessionToken'),
             region_name=AWS_REGION,
             config=config)
-    except Exception as error:
-        logger.error(str(error))
+    except Exception:
+        logger.exception("Failed to create RDS Data API client")
     return rds_data
 
 
@@ -356,7 +366,7 @@ def _build_product_tracking_summary_query(query_params):
 def _compute_product_tracking_summary(rds_data, query_params):
     """Sums the per-database aggregate counts into one summary dict."""
     sql, parameters = _build_product_tracking_summary_query(query_params)
-    totals = {col: 0 for col in PRODUCT_TRACKING_SUMMARY_COLUMNS}
+    totals = dict.fromkeys(PRODUCT_TRACKING_SUMMARY_COLUMNS, 0)
 
     for database in PDS_TRACKING_DATABASE_NAMES:
         try:
@@ -380,8 +390,8 @@ def _compute_product_tracking_summary(rds_data, query_params):
                 # column if not coerced here. float() first since int()
                 # rejects a decimal-point string directly.
                 totals[col] += int(float(row.get(col) or 0))
-        except Exception as error:
-            logger.error(f"product_tracking summary query failed for {database}: {error}")
+        except Exception:
+            logger.exception(f"product_tracking summary query failed for {database}")
 
     # Anything that hasn't reached DATA_INTEGRITY_CHECKED yet, derived
     # rather than queried again -- status can only be NULL, RECEIVED,
@@ -437,8 +447,8 @@ def search_products(headers, query_params, iam_role_arn, user):
                 parameters=parameters,
             )
             products.extend(_record_to_dict(r) for r in response.get("records", []))
-        except Exception as error:
-            logger.error(f"product_tracking query failed for {database}: {error}")
+        except Exception:
+            logger.exception(f"product_tracking query failed for {database}")
 
     accept = (headers.get("accept") or headers.get("Accept") or [""])[0]
     if "application/json" in accept:

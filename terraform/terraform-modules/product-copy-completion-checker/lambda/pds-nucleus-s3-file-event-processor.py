@@ -237,9 +237,9 @@ def upsert_ingestion_source(s3_url_of_product_label, ingestion_source):
             parameters=param_set)
         logger.debug(str(response))
 
-    except Exception as e:
-        logger.error(f"Error writing to product_tracking table. Exception: {str(e)}")
-        raise e
+    except Exception:
+        logger.exception("Error writing to product_tracking table")
+        raise
 
 
 def save_data_file_in_database(s3_url_of_data_file):

@@ -126,6 +126,116 @@ def batch_number_from_config_dir(config_dir: str) -> str:
     return config_dir.rstrip("/").rsplit("/", 1)[-1]
 
 
+def _summary_row(label, value):
+    return f"  {label:<22}{value}"
+
+
+def _summary_header_lines(summary, counts):
+    return [
+        "PDS BATCH SUMMARY",
+        "=" * 60,
+        # The batch name the pipeline works in terms of, and the Airflow run
+        # that processed it. Two different identifiers: one names the work,
+        # the other names the attempt, and a batch can be re-run.
+        _summary_row("Batch number", summary.get("batch_number") or "(unknown)"),
+        _summary_row("Airflow run", summary["dag_run_id"]),
+        _summary_row("Status", summary["status"]),
+        _summary_row("Started", summary["timing"]["start_time"] or "unknown"),
+        _summary_row("Ended", summary["timing"]["end_time"]),
+        # Printed once. Every product path below is relative to this, so a
+        # reader can reconstruct the full S3 URL without it being repeated
+        # on all N lines.
+        _summary_row("S3 location", summary.get("s3_prefix") or "(mixed)"),
+        # Which harvest flags this run used. Whether a re-run updated the
+        # registry or skipped every product turns on this line.
+        _summary_row("Harvest args", summary.get("harvest_extra_args") or "(none)"),
+        "",
+        "COUNTS",
+        "-" * 60,
+        _summary_row("Received", counts["received"]),
+        _summary_row("Validated", counts["validated"]),
+        _summary_row("Validation failed", counts["validation_failed"]),
+        _summary_row("Validation skipped", counts["validation_skipped"]),
+        _summary_row(
+            "Harvested",
+            counts["harvested"] if counts["harvested"] is not None else "not reported",
+        ),
+        _summary_row("Harvest skipped", counts["harvest_skipped"]),
+        _summary_row("Registry checked", counts.get("registry_checked", 0)),
+        _summary_row("Registry confirmed", counts.get("registry_confirmed", 0)),
+        _summary_row("Registry mismatch", counts.get("registry_harvest_mismatch", 0)),
+    ]
+
+
+def _integrity_section_lines(integrity):
+    lines = [
+        "",
+        "DATA INTEGRITY",
+        "-" * 60,
+        _summary_row("Result", integrity["status"]),
+        _summary_row("Not validated", len(integrity["not_validated"])),
+        _summary_row("Unexpected products", len(integrity["unexpected_products"])),
+    ]
+    # The reasons behind the status, exactly as the summary task classified
+    # them. Deriving them a second time here would let the report and the
+    # DAG's pass/fail decision drift apart.
+    for failure in integrity.get("failures", []):
+        lines.append(f"  FAILED   {failure}")
+    for warning in integrity.get("warnings", []):
+        lines.append(f"  WARNING  {warning}")
+    return lines
+
+
+def _format_product_line(product, prefix):
+    # Products carry their full S3 URL so an entry means something on its
+    # own. The report already prints the shared prefix as a heading, so it
+    # shows only the part below it rather than repeating the prefix on
+    # every line.
+    location = product.get("s3_url") or product["name"]
+    location = relative_path(location, prefix)
+    validate_status = product.get("validate_status", product.get("status", ""))
+    harvest_status = product.get("harvest_status", "")
+    registry_status = product.get("registry_status", "")
+    return (
+        f"  {validate_status:<14}{harvest_status:<20}{registry_status:<14}{location}  "
+        f"{product['lidvid'] or ''}"
+    ).rstrip()
+
+
+def _product_needs_attention(product):
+    if product.get("validate_status", product.get("status")) != "passed":
+        return True
+    # The actionable case this feature exists to surface: harvest claims the
+    # product is loaded/registered, but the live registry doesn't confirm
+    # it -- worth a look even though validation passed.
+    harvest_status = product.get("harvest_status")
+    registry_status = product.get("registry_status")
+    return harvest_status in ("loaded", "already_registered") and registry_status not in (
+        "confirmed",
+        "not_checked",
+        None,
+    )
+
+
+def _product_listing_lines(products, prefix):
+    # Three columns, each headed, because "passed" alone does not say what
+    # passed. Validation checking a product out, harvest loading it, and the
+    # live registry actually holding it are three different facts.
+    header = f"  {'VALIDATE':<14}{'HARVEST':<20}{'REGISTRY':<14}PRODUCT"
+    issues = [product for product in products if _product_needs_attention(product)]
+
+    lines = ["", f"PRODUCTS NEEDING ATTENTION ({len(issues)})", "-" * 60]
+    if issues:
+        lines += [header] + [_format_product_line(p, prefix) for p in issues]
+    else:
+        lines.append("  none")
+
+    lines += ["", f"ALL PRODUCTS ({len(products)})", "-" * 60]
+    if products:
+        lines += [header] + [_format_product_line(p, prefix) for p in products]
+    return lines
+
+
 def format_human_report(summary: Dict, products: List[Dict]) -> str:
     """Render the batch summary as plain text for the Airflow UI XCom tab.
 
@@ -134,109 +244,10 @@ def format_human_report(summary: Dict, products: List[Dict]) -> str:
     everything the JSON event already carries. XCom lives in the Airflow
     metadata database and is shown in the UI only.
     """
-    counts = summary["counts"]
-    integrity = summary["data_integrity"]
-
-    def row(label, value):
-        return f"  {label:<22}{value}"
-
-    lines = [
-        "PDS BATCH SUMMARY",
-        "=" * 60,
-        # The batch name the pipeline works in terms of, and the Airflow run
-        # that processed it. Two different identifiers: one names the work,
-        # the other names the attempt, and a batch can be re-run.
-        row("Batch number", summary.get("batch_number") or "(unknown)"),
-        row("Airflow run", summary["dag_run_id"]),
-        row("Status", summary["status"]),
-        row("Started", summary["timing"]["start_time"] or "unknown"),
-        row("Ended", summary["timing"]["end_time"]),
-        # Printed once. Every product path below is relative to this, so a
-        # reader can reconstruct the full S3 URL without it being repeated
-        # on all N lines.
-        row("S3 location", summary.get("s3_prefix") or "(mixed)"),
-        # Which harvest flags this run used. Whether a re-run updated the
-        # registry or skipped every product turns on this line.
-        row("Harvest args", summary.get("harvest_extra_args") or "(none)"),
-        "",
-        "COUNTS",
-        "-" * 60,
-        row("Received", counts["received"]),
-        row("Validated", counts["validated"]),
-        row("Validation failed", counts["validation_failed"]),
-        row("Validation skipped", counts["validation_skipped"]),
-        row(
-            "Harvested",
-            counts["harvested"] if counts["harvested"] is not None else "not reported",
-        ),
-        row("Harvest skipped", counts["harvest_skipped"]),
-        row("Registry checked", counts.get("registry_checked", 0)),
-        row("Registry confirmed", counts.get("registry_confirmed", 0)),
-        row("Registry mismatch", counts.get("registry_harvest_mismatch", 0)),
-        "",
-        "DATA INTEGRITY",
-        "-" * 60,
-        row("Result", integrity["status"]),
-        row("Not validated", len(integrity["not_validated"])),
-        row("Unexpected products", len(integrity["unexpected_products"])),
-    ]
-
-    # The reasons behind the status, exactly as the summary task classified
-    # them. Deriving them a second time here would let the report and the
-    # DAG's pass/fail decision drift apart.
-    for failure in integrity.get("failures", []):
-        lines.append(f"  FAILED   {failure}")
-    for warning in integrity.get("warnings", []):
-        lines.append(f"  WARNING  {warning}")
-
-    # Three columns, each headed, because "passed" alone does not say what
-    # passed. Validation checking a product out, harvest loading it, and the
-    # live registry actually holding it are three different facts.
-    header = f"  {'VALIDATE':<14}{'HARVEST':<20}{'REGISTRY':<14}PRODUCT"
-
-    # Products carry their full S3 URL so an entry means something on its
-    # own. The report already prints the shared prefix as a heading, so it
-    # shows only the part below it rather than repeating the prefix on
-    # every line.
     prefix = summary.get("s3_prefix") or ""
-
-    def product_line(product):
-        location = product.get("s3_url") or product["name"]
-        location = relative_path(location, prefix)
-        validate_status = product.get("validate_status", product.get("status", ""))
-        harvest_status = product.get("harvest_status", "")
-        registry_status = product.get("registry_status", "")
-        return (
-            f"  {validate_status:<14}{harvest_status:<20}{registry_status:<14}{location}  "
-            f"{product['lidvid'] or ''}"
-        ).rstrip()
-
-    def needs_attention(product):
-        if product.get("validate_status", product.get("status")) != "passed":
-            return True
-        # The actionable case this feature exists to surface: harvest
-        # claims the product is loaded/registered, but the live registry
-        # doesn't confirm it -- worth a look even though validation passed.
-        harvest_status = product.get("harvest_status")
-        registry_status = product.get("registry_status")
-        if harvest_status in ("loaded", "already_registered") and registry_status not in (
-            "confirmed",
-            "not_checked",
-            None,
-        ):
-            return True
-        return False
-
-    issues = [product for product in products if needs_attention(product)]
-    lines += ["", f"PRODUCTS NEEDING ATTENTION ({len(issues)})", "-" * 60]
-    if issues:
-        lines += [header] + [product_line(product) for product in issues]
-    else:
-        lines.append("  none")
-
-    lines += ["", f"ALL PRODUCTS ({len(products)})", "-" * 60]
-    if products:
-        lines += [header] + [product_line(product) for product in products]
+    lines = _summary_header_lines(summary, summary["counts"])
+    lines += _integrity_section_lines(summary["data_integrity"])
+    lines += _product_listing_lines(products, prefix)
     return "\n".join(lines)
 
 

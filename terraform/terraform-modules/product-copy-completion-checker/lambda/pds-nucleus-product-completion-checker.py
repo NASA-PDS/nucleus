@@ -582,6 +582,59 @@ def upload_text(s3_dir, name, content):
 # MWAA Trigger
 # -------------------------------------------------------------------
 
+def _decode_mwaa_cli_response(raw):
+    """
+    Decodes an MWAA CLI response body (JSON envelope with base64-encoded
+    stdout/stderr), falling back to plain text if it isn't that envelope.
+    """
+    try:
+        resp_json = json.loads(raw)
+        stdout = base64.b64decode(resp_json.get("stdout", "")).decode("utf-8", errors="replace")
+        stderr = base64.b64decode(resp_json.get("stderr", "")).decode("utf-8", errors="replace")
+        return stdout + stderr
+    except (json.JSONDecodeError, binascii.Error):
+        return raw.decode("utf-8", errors="replace")
+
+
+def _trigger_airflow_once(run_id, cmd):
+    """
+    Makes one MWAA CLI trigger attempt. Returns once the DAG run is
+    triggered (or already existed); raises otherwise, including for a
+    non-2xx/error response, so the caller's retry loop can decide whether
+    that's transient (network) or terminal (bad response).
+    """
+    token = mwaa.create_cli_token(Name=MWAA_ENV_NAME)
+    conn = http.client.HTTPSConnection(token["WebServerHostname"], timeout=30)
+    try:
+        conn.request(
+            "POST",
+            "/aws_mwaa/cli/",
+            cmd,
+            headers={
+                "Authorization": f"Bearer {token['CliToken']}",
+                "Content-Type": "text/plain",
+            },
+        )
+
+        resp = conn.getresponse()
+        body = _decode_mwaa_cli_response(resp.read())
+
+        logger.info(f"MWAA status={resp.status}")
+        logger.debug(body)
+
+        # A prior attempt for this exact run_id may have already succeeded
+        # server-side even though that attempt raised (e.g. response timeout).
+        # Treat "already exists" as confirmation of success, not a failure.
+        if "already exists" in body.lower():
+            logger.info(f"DAG run {run_id} already exists — treating as already triggered")
+            return
+
+        if resp.status >= 300 or "Error" in body or "Traceback" in body:
+            raise RuntimeError(f"MWAA trigger failed: status={resp.status} body={body}")
+    finally:
+        conn.close()
+
+
 def trigger_airflow(batch, s3_config_dir, efs_config_dir):
     payload = {
         "batch_number": batch,
@@ -607,58 +660,16 @@ def trigger_airflow(batch, s3_config_dir, efs_config_dir):
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            token = mwaa.create_cli_token(Name=MWAA_ENV_NAME)
-            conn = http.client.HTTPSConnection(token["WebServerHostname"], timeout=30)
-
-            try:
-                conn.request(
-                    "POST",
-                    "/aws_mwaa/cli/",
-                    cmd,
-                    headers={
-                        "Authorization": f"Bearer {token['CliToken']}",
-                        "Content-Type": "text/plain",
-                    },
-                )
-
-                resp = conn.getresponse()
-                raw = resp.read()
-
-                try:
-                    resp_json = json.loads(raw)
-                    stdout = base64.b64decode(resp_json.get("stdout", "")).decode("utf-8", errors="replace")
-                    stderr = base64.b64decode(resp_json.get("stderr", "")).decode("utf-8", errors="replace")
-                    body = stdout + stderr
-                except (json.JSONDecodeError, binascii.Error):
-                    body = raw.decode("utf-8", errors="replace")
-
-                logger.info(f"MWAA status={resp.status}")
-                logger.debug(body)
-
-                # A prior attempt for this exact run_id may have already succeeded
-                # server-side even though that attempt raised (e.g. response timeout).
-                # Treat "already exists" as confirmation of success, not a failure.
-                if "already exists" in body.lower():
-                    logger.info(f"DAG run {run_id} already exists — treating as already triggered")
-                    return
-
-                if resp.status >= 300 or "Error" in body or "Traceback" in body:
-                    raise RuntimeError(f"MWAA trigger failed: status={resp.status} body={body}")
-
-                # Success
-                return
-
-            finally:
-                conn.close()
-
+            _trigger_airflow_once(run_id, cmd)
+            return
         except (socket_timeout, TimeoutError, ConnectionError) as e:
             if attempt < max_retries - 1:
                 wait_time = 2 ** attempt  # exponential backoff: 1s, 2s, 4s
                 logger.warning(f"MWAA trigger attempt {attempt + 1} timed out: {e}. Retrying in {wait_time}s...")
                 time.sleep(wait_time)
             else:
-                logger.error(f"MWAA trigger failed after {max_retries} attempts: {e}")
+                logger.exception(f"MWAA trigger failed after {max_retries} attempts")
                 raise
-        except Exception as e:
-            logger.error(f"MWAA trigger failed (non-retryable): {e}")
+        except Exception:
+            logger.exception("MWAA trigger failed (non-retryable)")
             raise
