@@ -679,7 +679,7 @@ def _products_html_response(headers, query_params, products, summary):
     has_more = len(products) >= PRODUCT_TRACKING_PAGE_SIZE
 
     body = (
-        "<html><head>" + PDS_PAGE_STYLE + "</head><body>"
+        '<html><head><meta charset="utf-8">' + PDS_PAGE_STYLE + "</head><body>"
         '<div class="pds-header"><h1>PDS Nucleus Product Tracking</h1></div>'
         '<div class="pds-content">'
         f'<div class="pds-panel">{_summary_panel_html(summary)}</div>'
@@ -693,7 +693,11 @@ def _products_html_response(headers, query_params, products, summary):
         '</div>'
         "</body></html>"
     )
-    headers['Content-Type'] = ['text/html']
+    # Explicit charset -- without it, a browser that can't sniff one from
+    # the response falls back to Latin-1/Windows-1252, mangling the
+    # UTF-8-encoded "—" placeholder (and anything else non-ASCII) into
+    # "â€"" mojibake.
+    headers['Content-Type'] = ['text/html; charset=utf-8']
     return {
         'statusCode': 200,
         'multiValueHeaders': headers,
@@ -802,8 +806,8 @@ def parse_groups(groups):
 
 
 def close(headers, message, status_code=200):
-    body = f'<html><body><h3>{message}</h3></body></html>'
-    headers['Content-Type'] = ['text/html']
+    body = f'<html><head><meta charset="utf-8"></head><body><h3>{message}</h3></body></html>'
+    headers['Content-Type'] = ['text/html; charset=utf-8']
     return {
         'statusCode': status_code,
         'multiValueHeaders': headers,
