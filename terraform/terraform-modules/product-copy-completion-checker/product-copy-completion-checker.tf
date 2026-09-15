@@ -46,13 +46,15 @@ resource "aws_rds_cluster" "default" {
   database_name                = var.database_name
   master_username              = var.database_user
   master_password              = random_password.pds_nucleus_rds_password.result
-  backup_retention_period      = 5
+  backup_retention_period      = 14
   preferred_backup_window      = "07:00-09:00"
   preferred_maintenance_window = "Mon:00:00-Mon:02:00"
   storage_encrypted            = true
   enable_http_endpoint         = true
   backtrack_window             = 0
-  skip_final_snapshot          = true
+  skip_final_snapshot          = false
+  final_snapshot_identifier    = "${var.rds_cluster_id}-final-snapshot"
+  deletion_protection          = true
   vpc_security_group_ids       = [var.nucleus_security_group_id]
 
   serverlessv2_scaling_configuration {
