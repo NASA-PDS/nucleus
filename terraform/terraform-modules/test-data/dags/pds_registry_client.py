@@ -6,7 +6,6 @@ independent of Nucleus's own harvest result. Stdlib urllib only -- no new
 MWAA dependency -- since this only needs a single GET per product.
 """
 
-import socket
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -31,7 +30,11 @@ def check_registry_status(lidvid: str, url_prefix: str, timeout: float = DEFAULT
             return "confirmed" if resp.status == 200 else "unknown"
     except urllib.error.HTTPError as e:
         return "not_found" if e.code == 404 else "unknown"
-    except (urllib.error.URLError, socket.timeout, OSError):
+    except OSError:
+        # Covers urllib.error.URLError and socket.timeout/TimeoutError too --
+        # both are OSError subclasses, so listing them separately was
+        # redundant. Any other network failure (DNS, connection refused,
+        # etc.) lands here as well.
         return "unknown"
 
 

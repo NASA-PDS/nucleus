@@ -663,50 +663,53 @@ def _format_epoch_ms(value):
     return html.escape(f"{utc_str} / {pacific_str}")
 
 
+def _cell(value):
+    return html.escape(str(value)) if value is not None else ""
+
+
+# registry_url is server-computed (registry_url_for(), built from a trusted
+# Terraform-configured prefix + an escaped lidvid), never from user input --
+# still, only linkify it if it genuinely looks like an http(s) URL, so
+# nothing else in this column could ever become a javascript: link or
+# similar by accident.
+def _cell_for_column(col, value):
+    if col == "registry_url" and isinstance(value, str) and value.startswith(("http://", "https://")):
+        escaped = html.escape(value)
+        return f'<a href="{escaped}" target="_blank" rel="noopener noreferrer">{escaped}</a>'
+    if col == "last_updated_epoch_time":
+        return _format_epoch_ms(value)
+    if col in PDS_STATUS_COLUMNS:
+        text = _cell(value) or "—"
+        return f'<span class="pds-badge {_badge_class(value)}">{text}</span>'
+    if col in PDS_CATEGORY_COLUMNS:
+        text = _cell(value) or "—"
+        return f'<span class="pds-badge {_category_class(value)}">{text}</span>'
+    return _cell(value)
+
+
+def _filter_field_html(f, query_params):
+    current = _single_query_param(query_params, f)
+    options = PRODUCT_TRACKING_FIELD_OPTIONS.get(f)
+    if options:
+        opts = [f'<option value="">{_cell(_column_label(f))} (any)</option>']
+        opts += [
+            f'<option value="{_cell(v)}"{" selected" if v == current else ""}>{_cell(v)}</option>'
+            for v in options
+        ]
+        return f'<select name="{f}" title="{_cell(_column_label(f))}">{"".join(opts)}</select> '
+    placeholder = PRODUCT_TRACKING_FIELD_HINTS.get(f, _column_label(f))
+    return (
+        f'<input type="text" name="{f}" placeholder="{_cell(placeholder)}" '
+        f'value="{_cell(current)}"> '
+    )
+
+
 def _products_html_response(headers, query_params, products, summary):
-    def cell(value):
-        return html.escape(str(value)) if value is not None else ""
-
-    # registry_url is server-computed (registry_url_for(), built from a
-    # trusted Terraform-configured prefix + an escaped lidvid), never from
-    # user input -- still, only linkify it if it genuinely looks like an
-    # http(s) URL, so nothing else in this column could ever become a
-    # javascript: link or similar by accident.
-    def cell_for_column(col, value):
-        if col == "registry_url" and isinstance(value, str) and value.startswith(("http://", "https://")):
-            escaped = html.escape(value)
-            return f'<a href="{escaped}" target="_blank" rel="noopener noreferrer">{escaped}</a>'
-        if col == "last_updated_epoch_time":
-            return _format_epoch_ms(value)
-        if col in PDS_STATUS_COLUMNS:
-            text = cell(value) or "—"
-            return f'<span class="pds-badge {_badge_class(value)}">{text}</span>'
-        if col in PDS_CATEGORY_COLUMNS:
-            text = cell(value) or "—"
-            return f'<span class="pds-badge {_category_class(value)}">{text}</span>'
-        return cell(value)
-
-    def _filter_field_html(f):
-        current = _single_query_param(query_params, f)
-        options = PRODUCT_TRACKING_FIELD_OPTIONS.get(f)
-        if options:
-            opts = [f'<option value="">{cell(_column_label(f))} (any)</option>']
-            opts += [
-                f'<option value="{cell(v)}"{" selected" if v == current else ""}>{cell(v)}</option>'
-                for v in options
-            ]
-            return f'<select name="{f}" title="{cell(_column_label(f))}">{"".join(opts)}</select> '
-        placeholder = PRODUCT_TRACKING_FIELD_HINTS.get(f, _column_label(f))
-        return (
-            f'<input type="text" name="{f}" placeholder="{cell(placeholder)}" '
-            f'value="{cell(current)}"> '
-        )
-
     filter_fields = list(PRODUCT_TRACKING_FILTERABLE_COLUMNS.keys())
-    form_inputs = "".join(_filter_field_html(f) for f in filter_fields)
-    header_row = "".join(f"<th>{cell(_column_label(col))}</th>" for col in PRODUCT_TRACKING_COLUMNS)
+    form_inputs = "".join(_filter_field_html(f, query_params) for f in filter_fields)
+    header_row = "".join(f"<th>{_cell(_column_label(col))}</th>" for col in PRODUCT_TRACKING_COLUMNS)
     body_rows = "".join(
-        "<tr>" + "".join(f"<td>{cell_for_column(col, p.get(col))}</td>" for col in PRODUCT_TRACKING_COLUMNS) + "</tr>"
+        "<tr>" + "".join(f"<td>{_cell_for_column(col, p.get(col))}</td>" for col in PRODUCT_TRACKING_COLUMNS) + "</tr>"
         for p in products
     )
 
