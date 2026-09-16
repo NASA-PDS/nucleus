@@ -53,6 +53,28 @@ PRODUCT_TRACKING_FILTERABLE_COLUMNS = {
     "pds_node": "=",
 }
 
+# The exact values each status column can hold -- rendered as a <select> in
+# the search form instead of a blank text box, so a caller doesn't have to
+# already know (or guess the capitalization/wording of) "passed" vs "PASSED"
+# vs "Passed". Kept in sync with where each value is actually written:
+# status by _upsert_tracking_sent_to_nucleus (this file's sibling Lambda)
+# and _upsert_product_tracking in the DAG template; the other three by
+# generate_summary_report in template-pds-validate-and-harvest.py.
+PRODUCT_TRACKING_FIELD_OPTIONS = {
+    "status": ["RECEIVED", "SENT_TO_NUCLEUS", "DATA_INTEGRITY_CHECKED"],
+    "validate_status": ["passed", "failed", "skipped", "not_validated", "unknown"],
+    "harvest_status": ["loaded", "already_registered", "unknown"],
+    "registry_status": ["confirmed", "not_found", "unknown", "not_checked"],
+}
+
+# Example-format hints for the free-text fields, which have no fixed value
+# set to offer as a dropdown.
+PRODUCT_TRACKING_FIELD_HINTS = {
+    "lidvid": "urn:nasa:pds:...",
+    "s3_url_of_product_label": "s3://... (partial match)",
+    "pds_node": "e.g. PDS_IMG",
+}
+
 COGNITO_GROUP_TO_ROLE_MAP = json.loads(os.environ.get('COGNITO_GROUP_TO_ROLE_MAP', '{}'))
 
 if not COGNITO_GROUP_TO_ROLE_MAP:
@@ -664,12 +686,24 @@ def _products_html_response(headers, query_params, products, summary):
             return f'<span class="pds-badge {_category_class(value)}">{text}</span>'
         return cell(value)
 
+    def _filter_field_html(f):
+        current = _single_query_param(query_params, f)
+        options = PRODUCT_TRACKING_FIELD_OPTIONS.get(f)
+        if options:
+            opts = [f'<option value="">{cell(_column_label(f))} (any)</option>']
+            opts += [
+                f'<option value="{cell(v)}"{" selected" if v == current else ""}>{cell(v)}</option>'
+                for v in options
+            ]
+            return f'<select name="{f}" title="{cell(_column_label(f))}">{"".join(opts)}</select> '
+        placeholder = PRODUCT_TRACKING_FIELD_HINTS.get(f, _column_label(f))
+        return (
+            f'<input type="text" name="{f}" placeholder="{cell(placeholder)}" '
+            f'value="{cell(current)}"> '
+        )
+
     filter_fields = list(PRODUCT_TRACKING_FILTERABLE_COLUMNS.keys())
-    form_inputs = "".join(
-        f'<input type="text" name="{f}" placeholder="{cell(_column_label(f))}" '
-        f'value="{cell(_single_query_param(query_params, f))}"> '
-        for f in filter_fields
-    )
+    form_inputs = "".join(_filter_field_html(f) for f in filter_fields)
     header_row = "".join(f"<th>{cell(_column_label(col))}</th>" for col in PRODUCT_TRACKING_COLUMNS)
     body_rows = "".join(
         "<tr>" + "".join(f"<td>{cell_for_column(col, p.get(col))}</td>" for col in PRODUCT_TRACKING_COLUMNS) + "</tr>"

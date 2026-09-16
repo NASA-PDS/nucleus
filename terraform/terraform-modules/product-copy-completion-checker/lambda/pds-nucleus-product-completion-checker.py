@@ -157,10 +157,20 @@ def lambda_handler(event, context):
                 s3_config_dir=s3_config_dir,
             )
             trigger_airflow(batch, s3_config_dir, efs_config_dir)
-            mark_products_complete(products)
         except Exception:
+            # Nothing external has happened yet for these products -- safe
+            # to roll back to INCOMPLETE so a later invocation retries the
+            # whole dispatch attempt from scratch.
             mark_products_incomplete(products)
             raise
+
+        # The DAG has been triggered for these products. From here on, a
+        # failure must never roll back to INCOMPLETE: that would let a later
+        # invocation re-claim and re-dispatch the same products under a new
+        # batch/run_id, triggering the DAG a second time for work already in
+        # flight. trigger_airflow's own run_id idempotency only protects
+        # against retrying *this* dispatch attempt, not a fresh one later.
+        _finalize_dispatched_batch(products, batch)
 
         # Archive is best-effort: DAG is already triggered so a failure here
         # must not roll back to INCOMPLETE (that would cause a duplicate DAG run).
@@ -313,6 +323,51 @@ def mark_products_incomplete(products):
     # since this path runs before a product has ever been dispatched
     # successfully), which is already the correct state to leave it in.
     _set_product_status(products, 'INCOMPLETE', with_timestamp=False, clear_claim=True)
+
+
+def _finalize_dispatched_batch(products, batch, max_retries=3):
+    """
+    Marks products COMPLETE and updates product_tracking after trigger_airflow()
+    has already succeeded for them. Retried with backoff rather than rolled
+    back to INCOMPLETE on failure -- the DAG has already been triggered at
+    this point, so treating a finalize failure the same as a dispatch failure
+    would let a later invocation re-claim and re-dispatch these same products
+    under a new batch/run_id, triggering the DAG a second time for work
+    already in flight. Both of mark_products_complete's steps are idempotent
+    (re-setting the same status; ON DUPLICATE KEY UPDATE), so retrying the
+    whole thing is safe.
+
+    If retries are exhausted, the exception is re-raised (loud failure,
+    visible in Lambda error metrics) but products are deliberately left in
+    DISPATCHING rather than reset -- see reset_stale_dispatching, which will
+    still reclaim them as INCOMPLETE after its 30-minute window if this isn't
+    fixed first. That residual risk is accepted here rather than solved
+    structurally (e.g. a distinct "triggered but not finalized" status that
+    reset_stale_dispatching skips), since retrying first makes actually
+    exhausting max_retries rare.
+    """
+    for attempt in range(max_retries):
+        try:
+            mark_products_complete(products)
+            return
+        except Exception:
+            if attempt < max_retries - 1:
+                wait_time = 2 ** attempt  # exponential backoff: 1s, 2s, 4s
+                logger.warning(
+                    f"Finalizing batch {batch} as COMPLETE failed (attempt {attempt + 1}); "
+                    f"retrying in {wait_time}s..."
+                )
+                time.sleep(wait_time)
+            else:
+                logger.critical(
+                    f"Batch {batch} was dispatched to Airflow successfully, but finalizing "
+                    f"it as COMPLETE failed after {max_retries} attempts. These products "
+                    f"remain DISPATCHING -- NOT rolled back to INCOMPLETE, since the DAG has "
+                    f"already been triggered for them and rolling back would risk a duplicate "
+                    f"dispatch. Needs manual intervention before reset_stale_dispatching's "
+                    f"30-minute window would otherwise make them eligible for re-claim."
+                )
+                raise
 
 
 def _upsert_tracking_sent_to_nucleus(products):
