@@ -12,3 +12,8 @@ output "pds_nucleus_rds_secret_arn" {
   description = "RDS credentials secret ARN, for consumers (e.g. the validate-and-harvest DAG) that write to product_tracking via the RDS Data API"
   value       = aws_secretsmanager_secret.pds_nucleus_rds_credentials.arn
 }
+
+output "pds_nucleus_rds_readonly_secret_arn" {
+  description = "SELECT-only RDS credentials secret ARN, for the /nucleus/products search page (cognito-auth module) -- never the master secret"
+  value       = aws_secretsmanager_secret.pds_nucleus_readonly_db_credentials.arn
+}

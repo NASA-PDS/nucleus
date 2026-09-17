@@ -96,12 +96,15 @@ data "aws_iam_policy_document" "pds_nucleus_airflow_admin_policy" {
   # For the /nucleus/products search route: this is the role search_products
   # actually assumes (via iam_role_arn, the Cognito-group-mapped role), not
   # the ALB-auth Lambda's own execution role -- that grant alone doesn't
-  # cover these RDS Data API calls.
+  # cover these RDS Data API calls. ExecuteStatement only (search never
+  # batches), and scoped to the SELECT-only secret below, never the master
+  # one -- IAM can't restrict what SQL gets sent through RDS Data API, only
+  # who can call it, so the actual restriction to read-only has to come from
+  # which DB user's credentials this role can fetch.
   statement {
     effect = "Allow"
     actions = [
-      "rds-data:ExecuteStatement",
-      "rds-data:BatchExecuteStatement"
+      "rds-data:ExecuteStatement"
     ]
     resources = [
       "arn:aws:rds:*:${data.aws_caller_identity.current.account_id}:cluster:${var.rds_cluster_id}"
@@ -114,7 +117,7 @@ data "aws_iam_policy_document" "pds_nucleus_airflow_admin_policy" {
       "secretsmanager:GetSecretValue"
     ]
     resources = [
-      "arn:aws:secretsmanager:*:${data.aws_caller_identity.current.account_id}:secret:pds/nucleus/rds/*"
+      "arn:aws:secretsmanager:*:${data.aws_caller_identity.current.account_id}:secret:pds/nucleus/rds-readonly/*"
     ]
   }
 }
@@ -149,8 +152,7 @@ data "aws_iam_policy_document" "pds_nucleus_airflow_op_policy" {
   statement {
     effect = "Allow"
     actions = [
-      "rds-data:ExecuteStatement",
-      "rds-data:BatchExecuteStatement"
+      "rds-data:ExecuteStatement"
     ]
     resources = [
       "arn:aws:rds:*:${data.aws_caller_identity.current.account_id}:cluster:${var.rds_cluster_id}"
@@ -163,7 +165,7 @@ data "aws_iam_policy_document" "pds_nucleus_airflow_op_policy" {
       "secretsmanager:GetSecretValue"
     ]
     resources = [
-      "arn:aws:secretsmanager:*:${data.aws_caller_identity.current.account_id}:secret:pds/nucleus/rds/*"
+      "arn:aws:secretsmanager:*:${data.aws_caller_identity.current.account_id}:secret:pds/nucleus/rds-readonly/*"
     ]
   }
 }
@@ -199,8 +201,7 @@ data "aws_iam_policy_document" "pds_nucleus_airflow_user_policy" {
   statement {
     effect = "Allow"
     actions = [
-      "rds-data:ExecuteStatement",
-      "rds-data:BatchExecuteStatement"
+      "rds-data:ExecuteStatement"
     ]
     resources = [
       "arn:aws:rds:*:${data.aws_caller_identity.current.account_id}:cluster:${var.rds_cluster_id}"
@@ -213,7 +214,7 @@ data "aws_iam_policy_document" "pds_nucleus_airflow_user_policy" {
       "secretsmanager:GetSecretValue"
     ]
     resources = [
-      "arn:aws:secretsmanager:*:${data.aws_caller_identity.current.account_id}:secret:pds/nucleus/rds/*"
+      "arn:aws:secretsmanager:*:${data.aws_caller_identity.current.account_id}:secret:pds/nucleus/rds-readonly/*"
     ]
   }
 }
@@ -248,8 +249,7 @@ data "aws_iam_policy_document" "pds_nucleus_airflow_viewer_policy" {
   statement {
     effect = "Allow"
     actions = [
-      "rds-data:ExecuteStatement",
-      "rds-data:BatchExecuteStatement"
+      "rds-data:ExecuteStatement"
     ]
     resources = [
       "arn:aws:rds:*:${data.aws_caller_identity.current.account_id}:cluster:${var.rds_cluster_id}"
@@ -262,7 +262,7 @@ data "aws_iam_policy_document" "pds_nucleus_airflow_viewer_policy" {
       "secretsmanager:GetSecretValue"
     ]
     resources = [
-      "arn:aws:secretsmanager:*:${data.aws_caller_identity.current.account_id}:secret:pds/nucleus/rds/*"
+      "arn:aws:secretsmanager:*:${data.aws_caller_identity.current.account_id}:secret:pds/nucleus/rds-readonly/*"
     ]
   }
 }

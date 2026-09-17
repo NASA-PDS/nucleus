@@ -16,7 +16,7 @@ resource "aws_security_group" "nucleus_security_group" {
   name        = var.nucleus_security_group_name
   description = "PDS Nucleus security group"
   vpc_id      = var.vpc_id
-  
+
   tags = var.tags
 
   ingress {
@@ -60,7 +60,7 @@ resource "aws_security_group" "nucleus_alb_security_group" {
   name        = var.nucleus_auth_alb_security_group_name
   description = "PDS Nucleus ALB security group"
   vpc_id      = var.vpc_id
-  
+
   tags = var.tags
 
   ingress {

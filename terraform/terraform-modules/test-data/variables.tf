@@ -20,7 +20,7 @@ variable "mwaa_dag_s3_bucket_name" {
   description = "The name of the S3 bucket containing MWAA DAG files"
   type        = string
   #  default     = "pds-nucleus-airflow-dags-bucket-mcp-dev-2"
-  sensitive   = true
+  sensitive = true
 }
 
 variable "pds_validate_and_harvest_dag_file_name" {

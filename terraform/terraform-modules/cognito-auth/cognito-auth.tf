@@ -17,7 +17,7 @@ resource "aws_lb" "pds_nucleus_auth_alb" {
   load_balancer_type = "application"
   security_groups    = [var.nucleus_auth_alb_security_group_id]
   subnets            = var.auth_alb_subnet_ids
-  
+
   tags = var.tags
 
   access_logs {
@@ -31,7 +31,7 @@ resource "aws_ssm_parameter" "pds_nucleus_auth_alb_dns_name" {
   name  = var.auth_alb_dns_name_ssm_param
   type  = "String"
   value = aws_lb.pds_nucleus_auth_alb.dns_name
-  
+
   tags = var.tags
 }
 
@@ -39,7 +39,7 @@ resource "aws_lb_target_group" "mwaa_auth_alb_lambda_tg" {
   name                               = "pds-nucleus-auth-alb-lambda-tg"
   lambda_multi_value_headers_enabled = true
   target_type                        = "lambda"
-  
+
   tags = var.tags
 }
 
@@ -106,17 +106,17 @@ resource "aws_lambda_function" "pds_nucleus_auth_alb_function" {
   runtime          = var.lambda_runtime
   handler          = "pds_nucleus_alb_auth.lambda_handler"
   timeout          = 10
-  
+
   tags = var.tags
 
   environment {
     variables = {
-      AWS_ACCOUNT_ID       = data.aws_caller_identity.current.account_id
-      COGNITO_USER_POOL_ID = var.cognito_user_pool_id
-      AIRFLOW_ENV_NAME     = var.airflow_env_name
-      DB_CLUSTER_ARN               = var.pds_db_cluster_arn
-      DB_SECRET_ARN                = var.pds_db_secret_arn
-      PDS_TRACKING_DATABASE_NAMES  = jsonencode(var.pds_tracking_database_names)
+      AWS_ACCOUNT_ID              = data.aws_caller_identity.current.account_id
+      COGNITO_USER_POOL_ID        = var.cognito_user_pool_id
+      AIRFLOW_ENV_NAME            = var.airflow_env_name
+      DB_CLUSTER_ARN              = var.pds_db_cluster_arn
+      DB_READONLY_SECRET_ARN      = var.pds_db_readonly_secret_arn
+      PDS_TRACKING_DATABASE_NAMES = jsonencode(var.pds_tracking_database_names)
     }
   }
 
@@ -126,7 +126,7 @@ resource "aws_lambda_function" "pds_nucleus_auth_alb_function" {
 resource "aws_cloudwatch_log_group" "pds_nucleus_auth_alb" {
   name              = "/aws/lambda/${var.pds_nucleus_auth_alb_function_name}"
   retention_in_days = 30
-  
+
   tags = var.tags
 }
 
@@ -154,7 +154,7 @@ resource "aws_lb_listener" "front_end" {
   protocol          = "HTTPS"
   ssl_policy        = "ELBSecurityPolicy-TLS-1-2-2017-01"
   certificate_arn   = var.auth_alb_listener_certificate_arn
-  
+
   tags = var.tags
 
   default_action {
@@ -175,7 +175,7 @@ resource "aws_lb_listener" "front_end" {
 resource "aws_lb_listener_rule" "aws_console_sso_rule" {
   listener_arn = aws_lb_listener.front_end.arn
   priority     = 100
-  
+
   tags = var.tags
 
   action {
@@ -200,10 +200,10 @@ resource "aws_lb_listener_rule" "aws_console_sso_rule" {
 }
 
 resource "aws_cognito_user_pool_client" "cognito_user_pool_client_for_mwaa" {
-  name                                 = "pds-nucleus-airflow-ui-client"
-  user_pool_id                         = data.aws_cognito_user_pool.cognito_user_pool.id
-  generate_secret                      = true
-  callback_urls                        = [
+  name            = "pds-nucleus-airflow-ui-client"
+  user_pool_id    = data.aws_cognito_user_pool.cognito_user_pool.id
+  generate_secret = true
+  callback_urls = [
     "https://${aws_lb.pds_nucleus_auth_alb.dns_name}/oauth2/idpresponse",
     "https://${var.nucleus_cloudfront_origin_hostname}/oauth2/idpresponse"
   ]
@@ -216,9 +216,9 @@ resource "aws_cognito_user_pool_client" "cognito_user_pool_client_for_mwaa" {
 # Create Cognito groups only if they do not already exist
 locals {
   cognito_groups = [
-    { name = "PDS_NUCLEUS_AIRFLOW_ADMIN",  description = "PDS Nucleus Airflow Admin Cognito User Group",  precedence = 50 },
-    { name = "PDS_NUCLEUS_AIRFLOW_OP",     description = "PDS Nucleus Airflow Op Cognito User Group",     precedence = 55 },
-    { name = "PDS_NUCLEUS_AIRFLOW_USER",   description = "PDS Nucleus Airflow User Cognito User Group",   precedence = 60 },
+    { name = "PDS_NUCLEUS_AIRFLOW_ADMIN", description = "PDS Nucleus Airflow Admin Cognito User Group", precedence = 50 },
+    { name = "PDS_NUCLEUS_AIRFLOW_OP", description = "PDS Nucleus Airflow Op Cognito User Group", precedence = 55 },
+    { name = "PDS_NUCLEUS_AIRFLOW_USER", description = "PDS Nucleus Airflow User Cognito User Group", precedence = 60 },
     { name = "PDS_NUCLEUS_AIRFLOW_VIEWER", description = "PDS Nucleus Airflow Viewer Cognito User Group", precedence = 65 }
   ]
 }

@@ -36,7 +36,9 @@ AIRFLOW_ENV_NAME = os.getenv("AIRFLOW_ENV_NAME")
 
 # For the /nucleus/products search route.
 DB_CLUSTER_ARN = os.getenv("DB_CLUSTER_ARN")
-DB_SECRET_ARN = os.getenv("DB_SECRET_ARN")
+# SELECT-only secret, never the master one -- IAM alone can't restrict what
+# SQL a caller sends through RDS Data API, only who can call it.
+DB_READONLY_SECRET_ARN = os.getenv("DB_READONLY_SECRET_ARN")
 PDS_TRACKING_DATABASE_NAMES = json.loads(os.environ.get("PDS_TRACKING_DATABASE_NAMES", "[]"))
 PRODUCT_TRACKING_PAGE_SIZE = 100
 
@@ -398,7 +400,7 @@ def _compute_product_tracking_summary(rds_data, query_params):
         try:
             response = rds_data.execute_statement(
                 resourceArn=DB_CLUSTER_ARN,
-                secretArn=DB_SECRET_ARN,
+                secretArn=DB_READONLY_SECRET_ARN,
                 database=database,
                 sql=sql,
                 parameters=parameters,
@@ -467,7 +469,7 @@ def search_products(headers, query_params, iam_role_arn, user):
         try:
             response = rds_data.execute_statement(
                 resourceArn=DB_CLUSTER_ARN,
-                secretArn=DB_SECRET_ARN,
+                secretArn=DB_READONLY_SECRET_ARN,
                 database=database,
                 sql=sql,
                 parameters=parameters,

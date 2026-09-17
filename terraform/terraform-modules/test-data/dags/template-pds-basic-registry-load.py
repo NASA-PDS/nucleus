@@ -83,6 +83,13 @@ with TaskGroup(group_id="Harvest_Restart_On_Failure", dag=dag) as harvest_restar
 
         conf["dag_restart_attempt"] = attempt + 1
         new_run_id = f"{dag_run.run_id}__restart{attempt + 1}"
+        # Restart-specific dirs -- reusing the originals would race with
+        # this run's own ALL_DONE cleanup chain, which deletes them too.
+        restart_suffix = f"__restart{attempt + 1}"
+        if conf.get("s3_config_dir"):
+            conf["s3_config_dir"] = conf["s3_config_dir"] + restart_suffix
+        if conf.get("efs_config_dir"):
+            conf["efs_config_dir"] = conf["efs_config_dir"] + restart_suffix
         print(
             f"Harvest failed; restarting whole DAG as {new_run_id} "
             f"(attempt {attempt + 1} of {MAX_DAG_RESTARTS_ON_HARVEST_FAILURE})"

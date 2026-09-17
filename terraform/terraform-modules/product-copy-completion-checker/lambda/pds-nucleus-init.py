@@ -31,6 +31,8 @@ rds_data = boto3.client('rds-data')
 
 db_clust_arn = os.environ.get('DB_CLUSTER_ARN')
 db_secret_arn = os.environ.get('DB_SECRET_ARN')
+readonly_db_username = os.environ.get('READONLY_DB_USERNAME')
+readonly_db_password = os.environ.get('READONLY_DB_PASSWORD')
 
 
 def db_name_for_data_source(pds_node_name: str, pds_data_source_name: str) -> str:
@@ -81,6 +83,7 @@ def lambda_handler(event, context):
         create_product_datafile_mapping_archive_table(db_name)
         create_product_tracking_table(db_name)
         rename_product_tracking_completion_status_to_status(db_name)
+        grant_readonly_access(db_name)
 
         return f"Processed lambda request ID: {context.aws_request_id}"
     except Exception as e:
@@ -321,3 +324,15 @@ def rename_product_tracking_completion_status_to_status(db_name):
     _execute("UPDATE product_tracking SET status = 'SENT_TO_NUCLEUS' WHERE status = 'COMPLETE';", db_name)
     _execute("UPDATE product_tracking SET status = NULL WHERE status = 'INCOMPLETE';", db_name)
     logger.info(f"rename_product_tracking_completion_status_to_status: migrated {db_name}")
+
+
+def grant_readonly_access(db_name):
+    """SELECT-only DB user for the /nucleus/products search page. IAM alone
+    can't restrict what SQL a caller sends through RDS Data API, only who
+    can call it -- this grant is what actually stops a search-page caller
+    from writing, or reading anything beyond product_tracking.
+    """
+    _execute(f"CREATE USER IF NOT EXISTS '{readonly_db_username}'@'%' IDENTIFIED BY '{readonly_db_password}';")
+    _execute(f"GRANT SELECT ON `{db_name}`.product_tracking TO '{readonly_db_username}'@'%';")
+    _execute("FLUSH PRIVILEGES;")
+    logger.debug(f"grant_readonly_access: granted SELECT on {db_name}.product_tracking to {readonly_db_username}")
