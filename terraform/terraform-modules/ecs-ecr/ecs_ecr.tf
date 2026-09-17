@@ -2,6 +2,12 @@
 
 resource "aws_ecs_cluster" "pds_nucleus_ecs_cluster" {
   name = var.pds_nucleus_ecs_cluster_name
+
+  setting {
+    name  = "containerInsights"
+    value = "enabled"
+  }
+
   tags = var.tags
 }
 
@@ -183,8 +189,8 @@ resource "aws_ecs_task_definition" "pds-registry-loader-harvest" {
   family                   = "pds-registry-loader-harvest-task-definition-${var.pds_node_names[count.index]}"
   requires_compatibilities = ["EC2", "FARGATE"]
   network_mode             = "awsvpc"
-  cpu                      = 4096
-  memory                   = 8192
+  cpu                      = 2048
+  memory                   = 4096
 
   runtime_platform {
     operating_system_family = "LINUX"
@@ -243,8 +249,8 @@ resource "aws_ecs_task_definition" "pds-validate-task-definition" {
   family                   = "pds-validate-task-definition-${var.pds_node_names[count.index]}"
   requires_compatibilities = ["EC2", "FARGATE"]
   network_mode             = "awsvpc"
-  cpu                      = 4096
-  memory                   = 8192
+  cpu                      = 2048
+  memory                   = 4096
 
   runtime_platform {
     operating_system_family = "LINUX"
@@ -327,8 +333,8 @@ resource "aws_ecs_task_definition" "pds-nucleus-config-init-task-definition" {
   family                   = "pds-nucleus-config-init-task-definition-${var.pds_node_names[count.index]}"
   requires_compatibilities = ["EC2", "FARGATE"]
   network_mode             = "awsvpc"
-  cpu                      = 4096
-  memory                   = 8192
+  cpu                      = 2048
+  memory                   = 4096
 
   runtime_platform {
     operating_system_family = "LINUX"
@@ -378,8 +384,8 @@ resource "aws_ecs_task_definition" "pds-nucleus-s3-to-efs-copy-task-definition" 
   family                   = "pds-nucleus-s3-to-efs-copy-task-definition-${var.pds_node_names[count.index]}"
   requires_compatibilities = ["EC2", "FARGATE"]
   network_mode             = "awsvpc"
-  cpu                      = 4096
-  memory                   = 8192
+  cpu                      = 2048
+  memory                   = 4096
 
   runtime_platform {
     operating_system_family = "LINUX"
@@ -437,8 +443,8 @@ resource "aws_ecs_task_definition" "pds-nucleus-s3-backlog-processor-task-defini
   family                   = "pds-nucleus-s3-backlog-processor-task-definition-${var.pds_node_names[count.index]}"
   requires_compatibilities = ["EC2", "FARGATE"]
   network_mode             = "awsvpc"
-  cpu                      = 4096
-  memory                   = 8192
+  cpu                      = 2048
+  memory                   = 4096
 
   runtime_platform {
     operating_system_family = "LINUX"
