@@ -97,8 +97,8 @@ dag = DAG(
     # division when another node (e.g. SBN) starts running -- or better,
     # replace it with a shared Airflow Pool sized to the real 50-task budget
     # so it doesn't need re-dividing by hand every time a node is added.
-    max_active_runs=25,
-    max_active_tasks=25,
+    max_active_runs=260,
+    max_active_tasks=260,
     default_args={
         "retries": 5,
         "retry_delay": timedelta(minutes=2),
