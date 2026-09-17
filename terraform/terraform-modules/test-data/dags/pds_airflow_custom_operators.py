@@ -26,6 +26,41 @@ from pds_log_parsers import parse_harvest_messages, parse_validate_messages
 class CloudWatchReadingEcsOperator(EcsRunTaskOperator):
     """Base class adding a helper to re-read this task's CloudWatch log stream."""
 
+    def _read_all_log_events(self, log_stream, first_page_may_be_premature):
+        """One full paginated pass over a CloudWatch log stream.
+
+        Raises if the very first page comes back empty and the caller says
+        that might just be premature (logs not yet queryable) rather than a
+        genuinely empty stream, so _read_log_messages's retry loop can tell
+        "try again" apart from "done".
+        """
+        logs_client = AwsLogsHook(aws_conn_id=self.aws_conn_id, region_name=self.awslogs_region).conn
+        messages: List[str] = []
+        next_token = None
+        first_page = True
+        while True:
+            kwargs = {
+                "logGroupName": self.awslogs_group,
+                "logStreamName": log_stream,
+                "startFromHead": True,
+            }
+            if next_token:
+                kwargs["nextToken"] = next_token
+
+            response = logs_client.get_log_events(**kwargs)
+            events = response.get("events", [])
+            if first_page and not events and first_page_may_be_premature:
+                raise RuntimeError("empty first page")
+            first_page = False
+            messages.extend(event["message"] for event in events)
+
+            token = response.get("nextForwardToken")
+            if not events or token == next_token:
+                break
+            next_token = token
+
+        return messages
+
     def _read_log_messages(self, max_attempts=3, retry_delay=2) -> List[str]:
         """Return every log message this ECS task wrote, oldest first.
 
@@ -49,35 +84,11 @@ class CloudWatchReadingEcsOperator(EcsRunTaskOperator):
         # CloudWatch rejects with InvalidParameterException.
         task_id = self.arn.rsplit("/", 1)[-1]
         log_stream = f"{self.awslogs_stream_prefix}/{task_id}"
-        logs_client = AwsLogsHook(aws_conn_id=self.aws_conn_id, region_name=self.awslogs_region).conn
 
         last_error = None
         for attempt in range(max_attempts):
             try:
-                messages: List[str] = []
-                next_token = None
-                first_page = True
-                while True:
-                    kwargs = {
-                        "logGroupName": self.awslogs_group,
-                        "logStreamName": log_stream,
-                        "startFromHead": True,
-                    }
-                    if next_token:
-                        kwargs["nextToken"] = next_token
-
-                    response = logs_client.get_log_events(**kwargs)
-                    events = response.get("events", [])
-                    if first_page and not events and attempt < max_attempts - 1:
-                        raise RuntimeError("empty first page")
-                    first_page = False
-                    messages.extend(event["message"] for event in events)
-
-                    token = response.get("nextForwardToken")
-                    if not events or token == next_token:
-                        break
-                    next_token = token
-
+                messages = self._read_all_log_events(log_stream, first_page_may_be_premature=attempt < max_attempts - 1)
                 self.log.info("Read %d log lines from %s", len(messages), log_stream)
                 return messages
             except Exception as exc:
