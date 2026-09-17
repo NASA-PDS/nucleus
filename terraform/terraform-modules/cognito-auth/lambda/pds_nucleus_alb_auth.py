@@ -630,6 +630,10 @@ PDS_PAGE_STYLE = """
   .pds-badge-teal   { background: #ccfbf1; color: #0f766e; }
   .pds-badge-blue  { background: #d1e9ff; color: #175cd3; }
   .pds-badge-gray  { background: #eaecf0; color: #475467; }
+  /* validate/harvest/registry badge carried over from a prior check while
+     status != DATA_INTEGRITY_CHECKED -- e.g. a re-dispatch is in progress
+     and this isn't confirmed for the current pass yet. */
+  .pds-badge-stale { opacity: 0.5; }
   .pds-pagination a { color: #1570ef; text-decoration: none; }
   .pds-pagination a:hover { text-decoration: underline; }
   .pds-result-count { color: #667085; font-size: 13px; margin: 4px 0 10px; }
@@ -684,7 +688,7 @@ def _cell(value):
 # still, only linkify it if it genuinely looks like an http(s) URL, so
 # nothing else in this column could ever become a javascript: link or
 # similar by accident.
-def _cell_for_column(col, value):
+def _cell_for_column(col, value, row):
     if col == "registry_url" and isinstance(value, str) and value.startswith(("http://", "https://")):
         escaped = html.escape(value)
         return f'<a href="{escaped}" target="_blank" rel="noopener noreferrer">{escaped}</a>'
@@ -692,7 +696,16 @@ def _cell_for_column(col, value):
         return _format_epoch_ms(value)
     if col in PDS_STATUS_COLUMNS:
         text = _cell(value) or "—"
-        return f'<span class="pds-badge {_badge_class(value)}">{text}</span>'
+        # validate_status/harvest_status/registry_status are only written
+        # together with status='DATA_INTEGRITY_CHECKED' -- if status has
+        # since moved on (e.g. RECEIVED/SENT_TO_NUCLEUS from a re-dispatch),
+        # these three are carried over from that earlier check, not yet
+        # reconfirmed for the current pass. Dimmed rather than cleared, since
+        # the last-known result is still useful, just not current.
+        is_stale = col != "status" and row.get("status") != "DATA_INTEGRITY_CHECKED"
+        extra_class = " pds-badge-stale" if is_stale else ""
+        title = ' title="From a previous check -- not yet reconfirmed for the current pass"' if is_stale else ""
+        return f'<span class="pds-badge {_badge_class(value)}{extra_class}"{title}>{text}</span>'
     if col in PDS_CATEGORY_COLUMNS:
         text = _cell(value) or "—"
         return f'<span class="pds-badge {_category_class(value)}">{text}</span>'
@@ -721,7 +734,7 @@ def _products_html_response(headers, query_params, products, summary):
     form_inputs = "".join(_filter_field_html(f, query_params) for f in filter_fields)
     header_row = "".join(f"<th>{_cell(_column_label(col))}</th>" for col in PRODUCT_TRACKING_COLUMNS)
     body_rows = "".join(
-        "<tr>" + "".join(f"<td>{_cell_for_column(col, p.get(col))}</td>" for col in PRODUCT_TRACKING_COLUMNS) + "</tr>"
+        "<tr>" + "".join(f"<td>{_cell_for_column(col, p.get(col), p)}</td>" for col in PRODUCT_TRACKING_COLUMNS) + "</tr>"
         for p in products
     )
 
