@@ -13,6 +13,7 @@ execute inside the MWAA worker, which does not mount the EFS volume used by
 the ECS containers.
 """
 
+import time
 from typing import Any, Dict, List
 
 from airflow.exceptions import AirflowFailException
@@ -25,11 +26,19 @@ from pds_log_parsers import parse_harvest_messages, parse_validate_messages
 class CloudWatchReadingEcsOperator(EcsRunTaskOperator):
     """Base class adding a helper to re-read this task's CloudWatch log stream."""
 
-    def _read_log_messages(self) -> List[str]:
+    def _read_log_messages(self, max_attempts=3, retry_delay=2) -> List[str]:
         """Return every log message this ECS task wrote, oldest first.
 
-        Returns an empty list rather than raising if the logs are unavailable,
-        so log parsing can never turn a successful ECS run into a failure.
+        Retries before giving up, both on a CloudWatch API error (e.g.
+        GetLogEvents throttling) and on an empty first page -- CloudWatch can
+        return zero events on the very first read right after a task stops,
+        before its logs are fully queryable, which looks identical to a
+        genuinely empty stream. Raises after exhausting retries rather than
+        returning an empty list: silently treating "couldn't confirm the
+        result" as "nothing to report" let a transient read failure report a
+        false success for Harvest_Data, which -- since it runs with
+        retries=0 by design -- skipped the whole-DAG restart that exists for
+        exactly this kind of failure.
         """
         if not (self.awslogs_group and self.awslogs_stream_prefix and self.arn):
             return []
@@ -40,37 +49,47 @@ class CloudWatchReadingEcsOperator(EcsRunTaskOperator):
         # CloudWatch rejects with InvalidParameterException.
         task_id = self.arn.rsplit("/", 1)[-1]
         log_stream = f"{self.awslogs_stream_prefix}/{task_id}"
+        logs_client = AwsLogsHook(aws_conn_id=self.aws_conn_id, region_name=self.awslogs_region).conn
 
-        messages: List[str] = []
-        try:
-            logs_client = AwsLogsHook(
-                aws_conn_id=self.aws_conn_id, region_name=self.awslogs_region
-            ).conn
+        last_error = None
+        for attempt in range(max_attempts):
+            try:
+                messages: List[str] = []
+                next_token = None
+                first_page = True
+                while True:
+                    kwargs = {
+                        "logGroupName": self.awslogs_group,
+                        "logStreamName": log_stream,
+                        "startFromHead": True,
+                    }
+                    if next_token:
+                        kwargs["nextToken"] = next_token
 
-            next_token = None
-            while True:
-                kwargs = {
-                    "logGroupName": self.awslogs_group,
-                    "logStreamName": log_stream,
-                    "startFromHead": True,
-                }
-                if next_token:
-                    kwargs["nextToken"] = next_token
+                    response = logs_client.get_log_events(**kwargs)
+                    events = response.get("events", [])
+                    if first_page and not events and attempt < max_attempts - 1:
+                        raise RuntimeError("empty first page")
+                    first_page = False
+                    messages.extend(event["message"] for event in events)
 
-                response = logs_client.get_log_events(**kwargs)
-                events = response.get("events", [])
-                messages.extend(event["message"] for event in events)
+                    token = response.get("nextForwardToken")
+                    if not events or token == next_token:
+                        break
+                    next_token = token
 
-                token = response.get("nextForwardToken")
-                if not events or token == next_token:
-                    break
-                next_token = token
-        except Exception as exc:
-            self.log.warning("Could not read CloudWatch stream %s: %s", log_stream, exc)
-            return messages
+                self.log.info("Read %d log lines from %s", len(messages), log_stream)
+                return messages
+            except Exception as exc:
+                last_error = exc
+                if attempt < max_attempts - 1:
+                    self.log.warning(
+                        "Could not read CloudWatch stream %s (attempt %d/%d): %s; retrying in %ds",
+                        log_stream, attempt + 1, max_attempts, exc, retry_delay,
+                    )
+                    time.sleep(retry_delay)
 
-        self.log.info("Read %d log lines from %s", len(messages), log_stream)
-        return messages
+        raise RuntimeError(f"Could not read CloudWatch stream {log_stream} after {max_attempts} attempts") from last_error
 
 
 class ValidateEcsRunTaskOperator(CloudWatchReadingEcsOperator):

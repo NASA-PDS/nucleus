@@ -46,13 +46,13 @@ PRODUCT_TRACKING_PAGE_SIZE = 100
 # interpolation of arbitrary query-string keys, keeps this from becoming a
 # SQL injection point through the column name itself.
 PRODUCT_TRACKING_FILTERABLE_COLUMNS = {
-    "lidvid": "=",
     "s3_url_of_product_label": "LIKE",
+    "lidvid": "LIKE",
+    "pds_node": "LIKE",
     "status": "=",
     "validate_status": "=",
     "harvest_status": "=",
     "registry_status": "=",
-    "pds_node": "=",
 }
 
 # The exact values each status column can hold -- rendered as a <select> in
@@ -72,9 +72,9 @@ PRODUCT_TRACKING_FIELD_OPTIONS = {
 # Example-format hints for the free-text fields, which have no fixed value
 # set to offer as a dropdown.
 PRODUCT_TRACKING_FIELD_HINTS = {
-    "lidvid": "urn:nasa:pds:...",
+    "lidvid": "urn:nasa:pds:... (partial match)",
     "s3_url_of_product_label": "s3://... (partial match)",
-    "pds_node": "e.g. PDS_IMG",
+    "pds_node": "e.g. PDS_IMG (partial match)",
 }
 
 COGNITO_GROUP_TO_ROLE_MAP = json.loads(os.environ.get('COGNITO_GROUP_TO_ROLE_MAP', '{}'))
@@ -291,6 +291,16 @@ def _single_query_param(query_params, key):
     return values[0] if values else None
 
 
+def _escape_like(value):
+    """Escapes LIKE wildcard characters in a literal search value, so they
+    match themselves instead of being interpreted as SQL wildcards -- e.g.
+    "LROLRC_0001" (underscores are common in these filenames/lidvids) would
+    otherwise have its "_" match any single character, not just "_". MySQL's
+    default LIKE escape character is backslash, so that's escaped too.
+    """
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def _build_where_clause(query_params):
     """
     Builds a parameterized WHERE clause from an allowlisted set of filters,
@@ -310,7 +320,7 @@ def _build_where_clause(query_params):
         param_name = f"{column}_param"
         if operator == "LIKE":
             where_parts.append(f"{column} LIKE :{param_name}")
-            parameters.append({"name": param_name, "value": {"stringValue": f"%{value}%"}})
+            parameters.append({"name": param_name, "value": {"stringValue": f"%{_escape_like(value)}%"}})
         else:
             where_parts.append(f"{column} = :{param_name}")
             parameters.append({"name": param_name, "value": {"stringValue": value}})
@@ -849,7 +859,11 @@ def parse_groups(groups):
 
 
 def close(headers, message, status_code=200):
-    body = f'<html><head><meta charset="utf-8"></head><body><h3>{message}</h3></body></html>'
+    # message includes attacker-controlled request data in some callers
+    # (e.g. the "Bad request: {path}, ..." messages), so it's escaped here
+    # rather than trusted at each call site -- otherwise this is a
+    # reflected-XSS vector off the request path/query string/headers.
+    body = f'<html><head><meta charset="utf-8"></head><body><h3>{html.escape(str(message))}</h3></body></html>'
     headers['Content-Type'] = ['text/html; charset=utf-8']
     return {
         'statusCode': status_code,
