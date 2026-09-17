@@ -20,7 +20,7 @@ variable "mwaa_dag_s3_bucket_name" {
   description = "The name of the S3 bucket containing MWAA DAG files"
   type        = string
   #  default     = "pds-nucleus-airflow-dags-bucket-mcp-dev-2"
-  sensitive   = true
+  sensitive = true
 }
 
 variable "pds_validate_and_harvest_dag_file_name" {
@@ -109,6 +109,21 @@ variable "pds_nucleus_files_to_save_in_database_sqs_queue_urls" {
     condition     = length(var.pds_nucleus_files_to_save_in_database_sqs_queue_urls) == length(var.pds_data_source_names)
     error_message = "pds_nucleus_files_to_save_in_database_sqs_queue_urls must have exactly one entry per data source."
   }
+}
+
+variable "pds_db_cluster_arn" {
+  description = "Aurora cluster ARN, passed into the validate-and-harvest DAG template so Generate_Summary_Report can write to product_tracking via the RDS Data API"
+  type        = string
+}
+
+variable "pds_db_secret_arn" {
+  description = "RDS credentials secret ARN, passed into the validate-and-harvest DAG template so Generate_Summary_Report can write to product_tracking via the RDS Data API"
+  type        = string
+}
+
+variable "pds_registry_search_url_prefix" {
+  description = "Prefix of the public PDS registry search API, passed into the validate-and-harvest DAG template's params default"
+  type        = string
 }
 
 variable "tags" {

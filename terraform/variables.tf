@@ -149,6 +149,12 @@ variable "pds_nucleus_opensearch_collection_arns" {
   sensitive   = true
 }
 
+variable "pds_registry_search_url_prefix" {
+  description = "Prefix of the public PDS registry search API, used to build a per-product lookup URL by appending a lidvid (e.g. \"https://pds.mcp.nasa.gov/api/search/1/products/\" + lidvid). Passed to the product-completion-checker Lambda and from there into each DAG run's conf, so the Airflow registry-verification check and the registry_url stored per product both use this same, Terraform-configured value instead of a constant duplicated in the DAG template."
+  type        = string
+  default     = "https://pds.mcp.nasa.gov/api/search/1/products/"
+}
+
 variable "pds_nucleus_harvest_replace_prefix_with_list" {
   description = "List of PDS Nucleus Harvest Replace Prefix With, one entry per data source (parallel to pds_data_source_names)"
   type        = list(string)
@@ -312,7 +318,7 @@ variable "database_name" {
 
 variable "airflow_version" {
   description = "PDS Nucleus Airflow Version"
-  default     = "3.2.1"
+  default     = "3.3.1"
   type        = string
 }
 

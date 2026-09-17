@@ -17,6 +17,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from botocore.exceptions import ClientError
 from botocore.config import Config
+from socket import timeout as socket_timeout
 
 # -------------------------------------------------------------------
 # AWS Clients
@@ -63,7 +64,24 @@ OPENSEARCH_CRED_URL = os.environ["OPENSEARCH_CREDENTIAL_RELATIVE_URL"]
 REPLACE_PREFIX_WITH = os.environ["REPLACE_PREFIX_WITH"]
 HARVEST_REPLACE_PREFIX = os.environ["HARVEST_REPLACE_PREFIX"]
 
-PRODUCT_BATCH_SIZE = int(os.environ.get("PRODUCT_BATCH_SIZE", "200"))
+# Owned here, not hardcoded in the DAG template: passed through to Airflow via
+# trigger_airflow()'s payload so the DAG's registry check uses the same,
+# Terraform-configured prefix rather than duplicating it as a DAG constant.
+PDS_REGISTRY_SEARCH_URL_PREFIX = os.environ["PDS_REGISTRY_SEARCH_URL_PREFIX"]
+
+PRODUCT_BATCH_SIZE = int(os.environ.get("PRODUCT_BATCH_SIZE", "500"))
+
+# Delay between successive batch dispatches within one invocation's drain
+# loop (lambda_handler), so a large backlog doesn't fire DAG triggers (and
+# the ECS task-launch/poll traffic each one starts) back-to-back with no
+# pacing at all.
+DRAIN_LOOP_PACING_SECONDS = float(os.environ.get("DRAIN_LOOP_PACING_SECONDS", "1"))
+
+# fetch_data_files() looks up data files with one query per chunk instead of
+# one per product. A 500-product IN clause is only ~95 KB at realistic PDS
+# URL lengths (comfortably under the Data API's request size limit), but
+# chunking bounds how large a single query gets if PRODUCT_BATCH_SIZE grows.
+DATA_FILE_QUERY_CHUNK_SIZE = 200
 
 # -------------------------------------------------------------------
 # Constants
@@ -139,10 +157,20 @@ def lambda_handler(event, context):
                 s3_config_dir=s3_config_dir,
             )
             trigger_airflow(batch, s3_config_dir, efs_config_dir)
-            mark_products_complete(products)
         except Exception:
+            # Nothing external has happened yet for these products -- safe
+            # to roll back to INCOMPLETE so a later invocation retries the
+            # whole dispatch attempt from scratch.
             mark_products_incomplete(products)
             raise
+
+        # The DAG has been triggered for these products. From here on, a
+        # failure must never roll back to INCOMPLETE: that would let a later
+        # invocation re-claim and re-dispatch the same products under a new
+        # batch/run_id, triggering the DAG a second time for work already in
+        # flight. trigger_airflow's own run_id idempotency only protects
+        # against retrying *this* dispatch attempt, not a fresh one later.
+        _finalize_dispatched_batch(products, batch)
 
         # Archive is best-effort: DAG is already triggered so a failure here
         # must not roll back to INCOMPLETE (that would cause a duplicate DAG run).
@@ -155,6 +183,14 @@ def lambda_handler(event, context):
 
         if len(products) < PRODUCT_BATCH_SIZE:
             break  # fewer than limit → queue is drained
+
+        # Pace successive DAG triggers. An unpaced drain loop fires
+        # trigger_airflow() as fast as it can loop -- fine for a handful of
+        # batches, but against a large backlog it's what drove ECS
+        # DescribeTasks (and, per the same throttle-error handling just
+        # added to trigger_airflow, potentially MWAA's own trigger API)
+        # past their account-level rate limits.
+        time.sleep(DRAIN_LOOP_PACING_SECONDS)
 
     return {
         "status": "SUCCESS",
@@ -179,10 +215,14 @@ def reset_stale_dispatching():
         sql="""
             UPDATE product
             SET completion_status = 'INCOMPLETE', dispatch_claim = NULL
-            WHERE completion_status = 'DISPATCHING'
+            WHERE pds_node = :node
+              AND completion_status = 'DISPATCHING'
               AND last_updated_epoch_time < :threshold
         """,
-        parameters=[{"name": "threshold", "value": {"longValue": threshold}}],
+        parameters=[
+            {"name": "node", "value": {"stringValue": PDS_NODE}},
+            {"name": "threshold", "value": {"longValue": threshold}},
+        ],
     )
     count = resp.get("numberOfRecordsUpdated", 0)
     if count:
@@ -194,6 +234,13 @@ def claim_completed_products(claim_id: str) -> list:
     Atomically mark eligible INCOMPLETE products as DISPATCHING under claim_id,
     then return their URLs. Two concurrent invocations get disjoint sets because
     MySQL serialises the UPDATE on the completion_status='INCOMPLETE' predicate.
+
+    The pds_node predicate is what makes this an index seek rather than a full
+    table scan. The only index covering completion_status is idx_node_status
+    (pds_node, completion_status), and MySQL cannot use a composite index whose
+    leading column is absent from the WHERE clause. Every row in this database
+    belongs to PDS_NODE already -- one database per data source -- so the
+    predicate selects nothing different, it just lets the planner reach the index.
     """
     rds.execute_statement(
         resourceArn=DB_CLUSTER_ARN,
@@ -204,7 +251,8 @@ def claim_completed_products(claim_id: str) -> list:
             SET p.completion_status = 'DISPATCHING',
                 p.dispatch_claim = :claim,
                 p.last_updated_epoch_time = :ts
-            WHERE p.completion_status = 'INCOMPLETE'
+            WHERE p.pds_node = :node
+              AND p.completion_status = 'INCOMPLETE'
               AND EXISTS (
                   SELECT 1 FROM product_data_file_mapping m
                   WHERE m.s3_url_of_product_label = p.s3_url_of_product_label
@@ -220,6 +268,7 @@ def claim_completed_products(claim_id: str) -> list:
             LIMIT :limit
         """,
         parameters=[
+            {"name": "node",  "value": {"stringValue": PDS_NODE}},
             {"name": "claim", "value": {"stringValue": claim_id}},
             {"name": "ts",    "value": {"longValue": int(time.time() * 1000)}},
             {"name": "limit", "value": {"longValue": PRODUCT_BATCH_SIZE}},
@@ -262,8 +311,125 @@ def _set_product_status(products, status, with_timestamp=True, clear_claim=False
     )
 
 
-def mark_products_complete(products):   _set_product_status(products, 'COMPLETE')
-def mark_products_incomplete(products): _set_product_status(products, 'INCOMPLETE', with_timestamp=False, clear_claim=True)
+def mark_products_complete(products):
+    _set_product_status(products, 'COMPLETE')
+    _upsert_tracking_sent_to_nucleus(products)
+
+
+def mark_products_incomplete(products):
+    # No product_tracking write here: there is no clean SENT_TO_NUCLEUS-
+    # equivalent stage for "dispatch attempt failed" -- the row just stays
+    # at whatever stage it already reached (typically still RECEIVED,
+    # since this path runs before a product has ever been dispatched
+    # successfully), which is already the correct state to leave it in.
+    _set_product_status(products, 'INCOMPLETE', with_timestamp=False, clear_claim=True)
+
+
+def _finalize_dispatched_batch(products, batch, max_retries=3):
+    """
+    Marks products COMPLETE and updates product_tracking after trigger_airflow()
+    has already succeeded for them. Retried with backoff rather than rolled
+    back to INCOMPLETE on failure -- the DAG has already been triggered at
+    this point, so treating a finalize failure the same as a dispatch failure
+    would let a later invocation re-claim and re-dispatch these same products
+    under a new batch/run_id, triggering the DAG a second time for work
+    already in flight. Both of mark_products_complete's steps are idempotent
+    (re-setting the same status; ON DUPLICATE KEY UPDATE), so retrying the
+    whole thing is safe.
+
+    If retries are exhausted, the exception is re-raised (loud failure,
+    visible in Lambda error metrics) but products are deliberately left in
+    DISPATCHING rather than reset -- see reset_stale_dispatching, which will
+    still reclaim them as INCOMPLETE after its 30-minute window if this isn't
+    fixed first. That residual risk is accepted here rather than solved
+    structurally (e.g. a distinct "triggered but not finalized" status that
+    reset_stale_dispatching skips), since retrying first makes actually
+    exhausting max_retries rare.
+    """
+    for attempt in range(max_retries):
+        try:
+            mark_products_complete(products)
+            return
+        except Exception:
+            if attempt < max_retries - 1:
+                wait_time = 2 ** attempt  # exponential backoff: 1s, 2s, 4s
+                logger.warning(
+                    f"Finalizing batch {batch} as COMPLETE failed (attempt {attempt + 1}); "
+                    f"retrying in {wait_time}s..."
+                )
+                time.sleep(wait_time)
+            else:
+                logger.critical(
+                    f"Batch {batch} was dispatched to Airflow successfully, but finalizing "
+                    f"it as COMPLETE failed after {max_retries} attempts. These products "
+                    f"remain DISPATCHING -- NOT rolled back to INCOMPLETE, since the DAG has "
+                    f"already been triggered for them and rolling back would risk a duplicate "
+                    f"dispatch. Needs manual intervention before reset_stale_dispatching's "
+                    f"30-minute window would otherwise make them eligible for re-claim."
+                )
+                raise
+
+
+def _upsert_tracking_sent_to_nucleus(products):
+    """Advance product_tracking.status to SENT_TO_NUCLEUS for a successfully
+    dispatched batch, alongside the existing write to product above.
+
+    Always overwritten on duplicate -- unlike RECEIVED (set once, at file
+    arrival, and never regressed after), reaching this function means a
+    real dispatch just happened, so SENT_TO_NUCLEUS is correct to write
+    even if the product had already been dispatched before (e.g. a
+    reprocessed/re-harvested product legitimately re-enters the pipeline).
+
+    One parameter set per product via batch_execute_statement (a multi-row
+    insert, not an IN-clause update, since each row's s3 url differs) --
+    same pattern as save_product_data_file_mappings_in_database in the
+    sibling s3-file-event-processor Lambda.
+    """
+    if not products:
+        return
+
+    sql = """
+            INSERT INTO product_tracking
+            (
+                s3_url_of_product_label,
+                status,
+                pds_node,
+                first_seen_epoch_time,
+                last_updated_epoch_time)
+            VALUES(
+                :s3_url_of_product_label_param,
+                'SENT_TO_NUCLEUS',
+                :pds_node_param,
+                :first_seen_epoch_time_param,
+                :last_updated_epoch_time_param
+                )
+            ON DUPLICATE KEY UPDATE
+                status = VALUES(status),
+                last_updated_epoch_time = VALUES(last_updated_epoch_time)
+            """
+
+    ts = int(time.time() * 1000)
+    param_sets = [
+        [
+            {"name": "s3_url_of_product_label_param", "value": {"stringValue": p}},
+            {"name": "pds_node_param",                  "value": {"stringValue": PDS_NODE}},
+            {"name": "first_seen_epoch_time_param",     "value": {"longValue": ts}},
+            {"name": "last_updated_epoch_time_param",   "value": {"longValue": ts}},
+        ]
+        for p in products
+    ]
+
+    try:
+        rds.batch_execute_statement(
+            resourceArn=DB_CLUSTER_ARN,
+            secretArn=DB_SECRET_ARN,
+            database=DB_NAME,
+            sql=sql,
+            parameterSets=param_sets,
+        )
+    except Exception as e:
+        logger.exception(f"Error upserting product_tracking status. Exception: {str(e)}")
+        raise e
 
 
 def archive_completed_products(products):
@@ -299,13 +465,49 @@ def archive_completed_products(products):
             FROM product_data_file_mapping
             WHERE s3_url_of_product_label IN ({placeholders})
         """,
-        # 3. delete active mappings
+        # 3. archive data_file rows referenced by these products
+        f"""
+            INSERT IGNORE INTO data_file_archive
+                (s3_url_of_data_file, original_s3_url_of_data_file_name,
+                 last_updated_epoch_time, pds_node, archived_epoch_time)
+            SELECT DISTINCT df.s3_url_of_data_file, df.original_s3_url_of_data_file_name,
+                   df.last_updated_epoch_time, df.pds_node, :ts
+            FROM data_file df
+            WHERE df.s3_url_of_data_file IN (
+                SELECT DISTINCT m.s3_url_of_data_file
+                FROM product_data_file_mapping m
+                WHERE m.s3_url_of_product_label IN ({placeholders})
+            )
+        """,
+        # 4. delete active mappings
         f"DELETE FROM product_data_file_mapping WHERE s3_url_of_product_label IN ({placeholders})",
-        # 4. delete active product rows last
+        # 5. delete orphaned data_file rows -- but only if no OTHER, still-
+        # active product also maps to it. Step 4 already removed this
+        # batch's own mappings above, so anything still in
+        # product_data_file_mapping at this point belongs to a different,
+        # not-yet-archived product. Without this guard, a data file shared
+        # between two products gets deleted the moment the first product is
+        # archived, permanently stranding the second: its NOT EXISTS check
+        # in claim_completed_products() would find that data_file missing
+        # forever, even though the file genuinely exists in S3.
+        f"""
+            DELETE FROM data_file
+            WHERE s3_url_of_data_file IN (
+                SELECT DISTINCT m.s3_url_of_data_file
+                FROM product_data_file_mapping_archive m
+                WHERE m.s3_url_of_product_label IN ({placeholders})
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM product_data_file_mapping m2
+                WHERE m2.s3_url_of_data_file = data_file.s3_url_of_data_file
+            )
+        """,
+        # 6. delete active product rows last
         f"DELETE FROM product WHERE s3_url_of_product_label IN ({placeholders})",
     ]
 
     deleted_products = None
+    deleted_data_files = None
     for i, sql in enumerate(steps):
         resp = rds.execute_statement(
             resourceArn=DB_CLUSTER_ARN,
@@ -314,7 +516,9 @@ def archive_completed_products(products):
             sql=sql,
             parameters=params,
         )
-        if i == 3:  # DELETE FROM product
+        if i == 4:  # DELETE FROM data_file
+            deleted_data_files = resp.get("numberOfRecordsUpdated")
+        elif i == 5:  # DELETE FROM product
             deleted_products = resp.get("numberOfRecordsUpdated")
 
     if deleted_products != len(products):
@@ -323,7 +527,7 @@ def archive_completed_products(products):
             f"deleted {deleted_products} rows from 'product' table"
         )
 
-    logger.info(f"Archived {len(products)} completed products")
+    logger.info(f"Archived {len(products)} completed products and {deleted_data_files} data files")
 
 
 # -------------------------------------------------------------------
@@ -358,13 +562,20 @@ def _build_connection_xml():
 
 
 def prepare_harvest_files(batch, products, s3_config_dir):
+    chunks = [
+        products[i : i + DATA_FILE_QUERY_CHUNK_SIZE]
+        for i in range(0, len(products), DATA_FILE_QUERY_CHUNK_SIZE)
+    ]
+
     # Phase 1: static files and DB fetches run fully in parallel
-    with ThreadPoolExecutor(max_workers=min(12, len(products) + 2)) as pool:
+    with ThreadPoolExecutor(max_workers=min(12, len(chunks) + 2)) as pool:
         f_cfg  = pool.submit(upload_text, s3_config_dir, "harvest.cfg",   _build_harvest_cfg(batch))
         f_conn = pool.submit(upload_text, s3_config_dir, "connection.xml", _build_connection_xml())
-        data_futures = {pool.submit(fetch_data_files, p): p for p in products}
+        data_futures = [pool.submit(fetch_data_files, chunk) for chunk in chunks]
         try:
-            data_files_by_product = {data_futures[f]: f.result() for f in as_completed(data_futures)}
+            data_files_by_product = {}
+            for f in as_completed(data_futures):
+                data_files_by_product.update(f.result())
         finally:
             # Always surface upload errors even if a DB fetch failed first
             f_cfg.result()
@@ -384,24 +595,44 @@ def prepare_harvest_files(batch, products, s3_config_dir):
         f_products.result()
 
 
-def fetch_data_files(product_label):
-    sql = """
-        SELECT df.original_s3_url_of_data_file_name
+def fetch_data_files(product_labels):
+    """Look up data files for a chunk of products in a single query.
+
+    One round trip per chunk instead of one per product: at 500 products
+    and DATA_FILE_QUERY_CHUNK_SIZE=200 that's 3 RDS Data API calls instead
+    of 500, which was the dominant cost of preparing a large batch.
+    """
+    if not product_labels:
+        return {}
+
+    placeholders = ", ".join(f":p{i}" for i in range(len(product_labels)))
+    sql = f"""
+        SELECT m.s3_url_of_product_label, df.original_s3_url_of_data_file_name
         FROM product_data_file_mapping m
         JOIN data_file df
           ON df.s3_url_of_data_file = m.s3_url_of_data_file
-        WHERE m.s3_url_of_product_label = :p
+        WHERE m.s3_url_of_product_label IN ({placeholders})
     """
+    parameters = [
+        {"name": f"p{i}", "value": {"stringValue": label}}
+        for i, label in enumerate(product_labels)
+    ]
 
     resp = rds.execute_statement(
         resourceArn=DB_CLUSTER_ARN,
         secretArn=DB_SECRET_ARN,
         database=DB_NAME,
         sql=sql,
-        parameters=[{"name": "p", "value": {"stringValue": product_label}}],
+        parameters=parameters,
     )
 
-    return [r[0]["stringValue"] for r in resp.get("records", [])]
+    # Every product in the chunk gets an entry, even with no data files, so
+    # callers can index this dict by product label the same way they could
+    # index the old per-product list result.
+    files_by_product = {label: [] for label in product_labels}
+    for record in resp.get("records", []):
+        files_by_product[record[0]["stringValue"]].append(record[1]["stringValue"])
+    return files_by_product
 
 
 def upload_text(s3_dir, name, content):
@@ -420,50 +651,82 @@ def upload_text(s3_dir, name, content):
 # MWAA Trigger
 # -------------------------------------------------------------------
 
-def trigger_airflow(batch, s3_config_dir, efs_config_dir):
-    payload = {
-        "batch_number": batch,
-        "pds_node_name": PDS_NODE,
-        "s3_config_dir": s3_config_dir,
-        "efs_config_dir": efs_config_dir,
-        "pds_hot_archive_bucket_name": HOT_ARCHIVE_BUCKET,
-    }
+_THROTTLING_ERROR_CODES = {
+    "ThrottlingException",
+    "Throttling",
+    "TooManyRequestsException",
+    "RequestLimitExceeded",
+    "ProvisionedThroughputExceededException",
+}
 
-    # batch is already a globally-unique name; using it as the Airflow run_id
-    # makes triggering idempotent — if a retry occurs after an ambiguous
-    # failure (e.g. response timeout after MWAA already started the run),
-    # MWAA rejects the duplicate trigger instead of starting a second DAG run.
-    run_id = f"batch__{batch}"
 
-    logger.info(f"Triggering DAG {DAG_NAME} batch={batch} run_id={run_id}")
+def _is_throttling_error(client_error: ClientError) -> bool:
+    return client_error.response.get("Error", {}).get("Code") in _THROTTLING_ERROR_CODES
 
-    token = mwaa.create_cli_token(Name=MWAA_ENV_NAME)
-    conn = http.client.HTTPSConnection(token["WebServerHostname"], timeout=10)
 
-    conf = json.dumps(payload).replace('"', '\\"')
-    cmd = f'{MWAA_CMD} {DAG_NAME} -r "{run_id}" -c "{conf}"'
+def _decode_mwaa_cli_response(raw):
+    """
+    Decodes an MWAA CLI response body (JSON envelope with base64-encoded
+    stdout/stderr), falling back to plain text if it isn't that envelope.
+    """
+    try:
+        resp_json = json.loads(raw)
+        stdout = base64.b64decode(resp_json.get("stdout", "")).decode("utf-8", errors="replace")
+        stderr = base64.b64decode(resp_json.get("stderr", "")).decode("utf-8", errors="replace")
+        return stdout + stderr
+    except (json.JSONDecodeError, binascii.Error):
+        return raw.decode("utf-8", errors="replace")
 
+
+# MWAA CLI tokens are valid for 60 seconds (AWS-documented). Cached and
+# reused across batches within one invocation instead of refetched per
+# batch -- the drain loop below can dispatch dozens of batches per
+# invocation, and CreateCliToken is a control-plane API call with its own
+# throttle limit, the same class of problem as the ECS DescribeTasks
+# throttling this pipeline hit under burst load.
+_MWAA_TOKEN_TTL_SECONDS = 60
+_MWAA_TOKEN_REFRESH_MARGIN_SECONDS = 10
+_mwaa_token_cache = {"host": None, "token": None, "expires_at": 0.0}
+
+
+def _get_mwaa_cli_token():
+    now = time.monotonic()
+    if now < _mwaa_token_cache["expires_at"]:
+        return _mwaa_token_cache["host"], _mwaa_token_cache["token"]
+
+    response = mwaa.create_cli_token(Name=MWAA_ENV_NAME)
+    _mwaa_token_cache["host"] = response["WebServerHostname"]
+    _mwaa_token_cache["token"] = response["CliToken"]
+    _mwaa_token_cache["expires_at"] = now + _MWAA_TOKEN_TTL_SECONDS - _MWAA_TOKEN_REFRESH_MARGIN_SECONDS
+    return _mwaa_token_cache["host"], _mwaa_token_cache["token"]
+
+
+def _invalidate_mwaa_cli_token():
+    _mwaa_token_cache["expires_at"] = 0.0
+
+
+def _trigger_airflow_once(run_id, cmd):
+    """
+    Makes one MWAA CLI trigger attempt. Returns once the DAG run is
+    triggered (or already existed); raises otherwise, including for a
+    non-2xx/error response, so the caller's retry loop can decide whether
+    that's transient (network) or terminal (bad response).
+    """
+    host, cli_token = _get_mwaa_cli_token()
+    conn = http.client.HTTPSConnection(host, timeout=30)
     try:
         conn.request(
             "POST",
             "/aws_mwaa/cli/",
             cmd,
             headers={
-                "Authorization": f"Bearer {token['CliToken']}",
+                "Authorization": f"Bearer {cli_token}",
                 "Content-Type": "text/plain",
             },
         )
 
         resp = conn.getresponse()
-        raw = resp.read()
-
-        try:
-            resp_json = json.loads(raw)
-            stdout = base64.b64decode(resp_json.get("stdout", "")).decode("utf-8", errors="replace")
-            stderr = base64.b64decode(resp_json.get("stderr", "")).decode("utf-8", errors="replace")
-            body = stdout + stderr
-        except (json.JSONDecodeError, binascii.Error):
-            body = raw.decode("utf-8", errors="replace")
+        body = _decode_mwaa_cli_response(resp.read())
 
         logger.info(f"MWAA status={resp.status}")
         logger.debug(body)
@@ -477,6 +740,52 @@ def trigger_airflow(batch, s3_config_dir, efs_config_dir):
 
         if resp.status >= 300 or "Error" in body or "Traceback" in body:
             raise RuntimeError(f"MWAA trigger failed: status={resp.status} body={body}")
-
     finally:
         conn.close()
+
+
+def trigger_airflow(batch, s3_config_dir, efs_config_dir):
+    payload = {
+        "batch_number": batch,
+        "pds_node_name": PDS_NODE,
+        "s3_config_dir": s3_config_dir,
+        "efs_config_dir": efs_config_dir,
+        "pds_hot_archive_bucket_name": HOT_ARCHIVE_BUCKET,
+        "registry_search_url_prefix": PDS_REGISTRY_SEARCH_URL_PREFIX,
+    }
+
+    # batch is already a globally-unique name; using it as the Airflow run_id
+    # makes triggering idempotent — if a retry occurs after an ambiguous
+    # failure (e.g. response timeout after MWAA already started the run),
+    # MWAA rejects the duplicate trigger instead of starting a second DAG run.
+    run_id = f"batch__{batch}"
+
+    logger.info(f"Triggering DAG {DAG_NAME} batch={batch} run_id={run_id}")
+
+    conf = json.dumps(payload).replace('"', '\\"')
+    cmd = f'{MWAA_CMD} {DAG_NAME} -r "{run_id}" -c "{conf}"'
+
+    # Retry with exponential backoff for transient failures
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            _trigger_airflow_once(run_id, cmd)
+            return
+        except (socket_timeout, TimeoutError, ConnectionError, ClientError) as e:
+            # A ClientError that isn't throttling (e.g. a permissions error)
+            # won't be fixed by retrying -- fail fast the same as any other
+            # non-retryable error below.
+            if isinstance(e, ClientError) and not _is_throttling_error(e):
+                logger.exception("MWAA trigger failed (non-retryable)")
+                raise
+            _invalidate_mwaa_cli_token()
+            if attempt < max_retries - 1:
+                wait_time = 2 ** attempt  # exponential backoff: 1s, 2s, 4s
+                logger.warning(f"MWAA trigger attempt {attempt + 1} failed transiently: {e}. Retrying in {wait_time}s...")
+                time.sleep(wait_time)
+            else:
+                logger.exception(f"MWAA trigger failed after {max_retries} attempts")
+                raise
+        except Exception:
+            logger.exception("MWAA trigger failed (non-retryable)")
+            raise

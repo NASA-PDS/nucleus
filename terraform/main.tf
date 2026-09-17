@@ -3,11 +3,11 @@
 # Configure default tags for all resources
 locals {
   default_tags = {
-    Tenant     = var.tag_tenant
-    Venue      = var.tag_venue
-    Component  = var.tag_component
-    CICD       = var.tag_cicd
-    ManagedBy  = var.tag_managedby
+    Tenant    = var.tag_tenant
+    Venue     = var.tag_venue
+    Component = var.tag_component
+    CICD      = var.tag_cicd
+    ManagedBy = var.tag_managedby
   }
 }
 
@@ -16,7 +16,7 @@ module "security-groups" {
 
   auth_alb_listener_port = var.auth_alb_listener_port
   vpc_id                 = var.vpc_id
-  tags                  = local.default_tags
+  tags                   = local.default_tags
 }
 
 module "common" {
@@ -130,6 +130,7 @@ module "product-copy-completion-checker" {
   pds_nucleus_opensearch_credential_relative_url = var.pds_nucleus_opensearch_credential_relative_url
   pds_nucleus_harvest_replace_prefix_with_list   = var.pds_nucleus_harvest_replace_prefix_with_list
   pds_nucleus_harvest_replace_prefix_list        = var.pds_nucleus_harvest_replace_prefix_list
+  pds_registry_search_url_prefix                 = var.pds_registry_search_url_prefix
 
   database_availability_zones            = var.database_availability_zones
   airflow_env_name                       = var.airflow_env_name
@@ -147,18 +148,21 @@ module "product-copy-completion-checker" {
 module "test-data" {
   source = "./terraform-modules/test-data"
 
-  pds_nucleus_ecs_cluster_name            = var.pds_nucleus_ecs_cluster_name
-  pds_nucleus_ecs_subnets                 = var.subnet_ids
-  pds_nucleus_security_group_id           = module.security-groups.nucleus_security_group_id
-  mwaa_dag_s3_bucket_name                 = var.mwaa_dag_s3_bucket_name
-  pds_nucleus_default_airflow_dag_id      = var.pds_nucleus_default_airflow_dag_id
-  pds_nucleus_s3_backlog_processor_dag_id = var.pds_nucleus_s3_backlog_processor_dag_id
-  pds_node_names                          = var.pds_node_names
-  pds_data_source_names                   = var.pds_data_source_names
-  pds_data_source_node_names              = var.pds_data_source_node_names
+  pds_nucleus_ecs_cluster_name                         = var.pds_nucleus_ecs_cluster_name
+  pds_nucleus_ecs_subnets                              = var.subnet_ids
+  pds_nucleus_security_group_id                        = module.security-groups.nucleus_security_group_id
+  mwaa_dag_s3_bucket_name                              = var.mwaa_dag_s3_bucket_name
+  pds_nucleus_default_airflow_dag_id                   = var.pds_nucleus_default_airflow_dag_id
+  pds_nucleus_s3_backlog_processor_dag_id              = var.pds_nucleus_s3_backlog_processor_dag_id
+  pds_node_names                                       = var.pds_node_names
+  pds_data_source_names                                = var.pds_data_source_names
+  pds_data_source_node_names                           = var.pds_data_source_node_names
   pds_nucleus_files_to_save_in_database_sqs_queue_urls = module.product-copy-completion-checker.pds_nucleus_files_to_save_in_database_sqs_queue_urls
-  region                                  = var.region
-  tags                                    = local.default_tags
+  pds_db_cluster_arn                                   = module.product-copy-completion-checker.pds_nucleus_rds_cluster_arn
+  pds_db_secret_arn                                    = module.product-copy-completion-checker.pds_nucleus_rds_secret_arn
+  pds_registry_search_url_prefix                       = var.pds_registry_search_url_prefix
+  region                                               = var.region
+  tags                                                 = local.default_tags
 
   depends_on = [module.common, module.ecs_ecr, module.product-copy-completion-checker]
 }
@@ -169,7 +173,7 @@ module "cognito-auth" {
   source = "./terraform-modules/cognito-auth"
 
   vpc_id                                         = var.vpc_id
-  depends_on                                     = [module.common, module.iam, module.security-groups]
+  depends_on                                     = [module.common, module.iam, module.security-groups, module.product-copy-completion-checker]
   region                                         = var.region
   venue                                          = var.venue
   airflow_env_name                               = var.airflow_env_name
@@ -191,7 +195,17 @@ module "cognito-auth" {
   nucleus_auth_alb_security_group_id             = module.security-groups.nucleus_alb_security_group_id
   pds_shared_logs_bucket_name                    = var.pds_shared_logs_bucket_name
   lambda_runtime                                 = var.lambda_runtime
-  tags                                           = local.default_tags
+  # For the /nucleus/products search route: product_tracking lives once per
+  # node/data-source database, same naming as db_name_for_data_source() in
+  # pds-nucleus-init.py. Deliberately the SELECT-only secret, never the
+  # master one -- see iam.tf's Airflow role policies for why.
+  pds_db_cluster_arn         = module.product-copy-completion-checker.pds_nucleus_rds_cluster_arn
+  pds_db_readonly_secret_arn = module.product-copy-completion-checker.pds_nucleus_rds_readonly_secret_arn
+  pds_tracking_database_names = [
+    for i in range(length(var.pds_data_source_names)) :
+    "pds_nucleus_${lower(var.pds_data_source_node_names[i])}_${lower(var.pds_data_source_names[i])}"
+  ]
+  tags = local.default_tags
 }
 
 # Output the ALB URL for Airflow UI

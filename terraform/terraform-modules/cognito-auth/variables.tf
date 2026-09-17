@@ -53,8 +53,8 @@ variable "aws_elb_account_id_for_the_region" {
 
 variable "airflow_env_name" {
   description = "MWAA Airflow Environment Name"
-  type = string
-  sensitive = true
+  type        = string
+  sensitive   = true
 }
 
 variable "pds_nucleus_auth_alb_function_name" {
@@ -65,32 +65,47 @@ variable "pds_nucleus_auth_alb_function_name" {
 
 variable "pds_nucleus_alb_auth_lambda_execution_role_arn" {
   description = "PDS Nucleus ALB Auth Lambda Execution Role ARN"
-  type = string
-  sensitive = true
+  type        = string
+  sensitive   = true
 }
 
 variable "pds_nucleus_admin_role_arn" {
   description = "PDS Nucleus Airflow Admin Role ARN"
-  type = string
-  sensitive = true
+  type        = string
+  sensitive   = true
 }
 
 variable "pds_nucleus_op_role_arn" {
   description = "PDS Nucleus Airflow Op Role ARN"
-  type = string
-  sensitive = true
+  type        = string
+  sensitive   = true
 }
 
 variable "pds_nucleus_user_role_arn" {
   description = "PDS Nucleus Airflow User Role ARN"
-  type = string
-  sensitive = true
+  type        = string
+  sensitive   = true
 }
 
 variable "pds_nucleus_viewer_role_arn" {
   description = "PDS Nucleus Airflow Viewer Role ARN"
-  type = string
-  sensitive = true
+  type        = string
+  sensitive   = true
+}
+
+variable "pds_db_cluster_arn" {
+  description = "Aurora cluster ARN, for the /nucleus/products search route"
+  type        = string
+}
+
+variable "pds_db_readonly_secret_arn" {
+  description = "SELECT-only RDS credentials secret ARN, for the /nucleus/products search route -- never the master secret, since IAM alone can't restrict what SQL a caller sends through RDS Data API"
+  type        = string
+}
+
+variable "pds_tracking_database_names" {
+  description = "product_tracking lives once per node/data-source database; the search route queries each of these and merges results"
+  type        = list(string)
 }
 
 variable "nucleus_auth_alb_security_group_id" {

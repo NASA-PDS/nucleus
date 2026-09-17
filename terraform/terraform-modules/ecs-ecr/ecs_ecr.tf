@@ -2,6 +2,12 @@
 
 resource "aws_ecs_cluster" "pds_nucleus_ecs_cluster" {
   name = var.pds_nucleus_ecs_cluster_name
+
+  setting {
+    name  = "containerInsights"
+    value = "enabled"
+  }
+
   tags = var.tags
 }
 
@@ -17,10 +23,10 @@ data "aws_caller_identity" "current" {}
 data "template_file" "deploy_ecr_images_script_template" {
   template = file("terraform-modules/ecs-ecr/docker/template-deploy-ecr-images.sh")
   vars = {
-    aws_region               = var.region
-    ecs_registry             = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.region}.amazonaws.com"
-    registry_loader_version  = var.pds_registry_loader_harvest_version
-    validate_version         = var.pds_validate_version
+    aws_region              = var.region
+    ecs_registry            = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.region}.amazonaws.com"
+    registry_loader_version = var.pds_registry_loader_harvest_version
+    validate_version        = var.pds_validate_version
   }
   depends_on = [data.aws_caller_identity.current]
 }
@@ -41,8 +47,9 @@ resource "local_file" "deploy_ecr_images_script_file" {
 resource "aws_efs_file_system" "nucleus_efs" {
   count = length(var.pds_node_names)
 
-  creation_token = "pds-nucleus-efs-${var.pds_node_names[count.index]}"
-  encrypted      = true
+  creation_token  = "pds-nucleus-efs-${var.pds_node_names[count.index]}"
+  encrypted       = true
+  throughput_mode = "elastic"
   tags = merge(var.tags, {
     Name = "pds-nucleus-efs-${var.pds_node_names[count.index]}"
   })
@@ -100,7 +107,7 @@ resource "aws_ecr_repository" "pds_nucleus_config_init" {
   image_scanning_configuration {
     scan_on_push = true
   }
-  
+
   tags = var.tags
 }
 
@@ -112,7 +119,7 @@ resource "aws_ecr_repository" "pds_nucleus_s3_to_efs_copy" {
   image_scanning_configuration {
     scan_on_push = true
   }
-  
+
   tags = var.tags
 }
 
@@ -124,7 +131,7 @@ resource "aws_ecr_repository" "pds_registry_loader_harvest" {
   image_scanning_configuration {
     scan_on_push = true
   }
-  
+
   tags = var.tags
 }
 
@@ -136,7 +143,7 @@ resource "aws_ecr_repository" "pds_validate" {
   image_scanning_configuration {
     scan_on_push = true
   }
-  
+
   tags = var.tags
 }
 
@@ -148,7 +155,7 @@ resource "aws_ecr_repository" "pds_nucleus_tools_java" {
   image_scanning_configuration {
     scan_on_push = true
   }
-  
+
   tags = var.tags
 }
 
@@ -182,8 +189,8 @@ resource "aws_ecs_task_definition" "pds-registry-loader-harvest" {
   family                   = "pds-registry-loader-harvest-task-definition-${var.pds_node_names[count.index]}"
   requires_compatibilities = ["EC2", "FARGATE"]
   network_mode             = "awsvpc"
-  cpu                      = 4096
-  memory                   = 8192
+  cpu                      = 2048
+  memory                   = 4096
 
   runtime_platform {
     operating_system_family = "LINUX"
@@ -220,9 +227,9 @@ resource "aws_ecs_task_definition" "pds-registry-loader-harvest" {
 
 # CloudWatch Log Group for PDS Validate ECS Task
 resource "aws_cloudwatch_log_group" "pds-validate-log-group" {
-  count    = length(var.pds_node_names)
-  name = "${var.pds_validate_cloudwatch_logs_group}-${var.pds_node_names[count.index]}"
-  tags = var.tags
+  count = length(var.pds_node_names)
+  name  = "${var.pds_validate_cloudwatch_logs_group}-${var.pds_node_names[count.index]}"
+  tags  = var.tags
 }
 
 # Replace PDS Validate ECR Image Path in pds-validate-containers.json
@@ -242,8 +249,8 @@ resource "aws_ecs_task_definition" "pds-validate-task-definition" {
   family                   = "pds-validate-task-definition-${var.pds_node_names[count.index]}"
   requires_compatibilities = ["EC2", "FARGATE"]
   network_mode             = "awsvpc"
-  cpu                      = 4096
-  memory                   = 8192
+  cpu                      = 2048
+  memory                   = 4096
 
   runtime_platform {
     operating_system_family = "LINUX"
@@ -278,9 +285,9 @@ resource "aws_ecs_task_definition" "pds-validate-task-definition" {
 
 # CloudWatch Log Group for PDS Validate Ref ECS Task
 resource "aws_cloudwatch_log_group" "pds-validate-ref-log-group" {
-  count    = length(var.pds_node_names)
-  name = "${var.pds_validate_ref_cloudwatch_logs_group}-${var.pds_node_names[count.index]}"
-  tags = var.tags
+  count = length(var.pds_node_names)
+  name  = "${var.pds_validate_ref_cloudwatch_logs_group}-${var.pds_node_names[count.index]}"
+  tags  = var.tags
 }
 
 # Replace PDS Validate Ref ECR Image Path in pds-validate-refs-containers.json
@@ -304,8 +311,8 @@ data "template_file" "pds-validate-ref-containers-json-template" {
 # CloudWatch Log Group for PDS Nucleus Config Init ECS Task
 resource "aws_cloudwatch_log_group" "pds-nucleus-config-init-log-group" {
   count = length(var.pds_node_names)
-  name = "${var.pds_nucleus_config_init_cloudwatch_logs_group}-${var.pds_node_names[count.index]}"
-  tags = var.tags
+  name  = "${var.pds_nucleus_config_init_cloudwatch_logs_group}-${var.pds_node_names[count.index]}"
+  tags  = var.tags
 }
 
 # Replace PDS Nucleus Config Init ECR Image Path in pds-nucleus-config-init-containers.json
@@ -326,8 +333,8 @@ resource "aws_ecs_task_definition" "pds-nucleus-config-init-task-definition" {
   family                   = "pds-nucleus-config-init-task-definition-${var.pds_node_names[count.index]}"
   requires_compatibilities = ["EC2", "FARGATE"]
   network_mode             = "awsvpc"
-  cpu                      = 4096
-  memory                   = 8192
+  cpu                      = 2048
+  memory                   = 4096
 
   runtime_platform {
     operating_system_family = "LINUX"
@@ -377,8 +384,8 @@ resource "aws_ecs_task_definition" "pds-nucleus-s3-to-efs-copy-task-definition" 
   family                   = "pds-nucleus-s3-to-efs-copy-task-definition-${var.pds_node_names[count.index]}"
   requires_compatibilities = ["EC2", "FARGATE"]
   network_mode             = "awsvpc"
-  cpu                      = 4096
-  memory                   = 8192
+  cpu                      = 2048
+  memory                   = 4096
 
   runtime_platform {
     operating_system_family = "LINUX"
@@ -416,7 +423,7 @@ resource "aws_cloudwatch_log_group" "pds-nucleus-s3-backlog-processor-log-group"
   count             = length(var.pds_node_names)
   name              = "${var.pds_nucleus_s3_backlog_processor_cloudwatch_logs_group}-${var.pds_node_names[count.index]}"
   retention_in_days = 30
-  tags             = var.tags
+  tags              = var.tags
 }
 
 # Replace PDS Nucleus S3 Backlog Processor Image Path in pds-nucleus-s3-backlog-processor-containers.json
@@ -436,8 +443,8 @@ resource "aws_ecs_task_definition" "pds-nucleus-s3-backlog-processor-task-defini
   family                   = "pds-nucleus-s3-backlog-processor-task-definition-${var.pds_node_names[count.index]}"
   requires_compatibilities = ["EC2", "FARGATE"]
   network_mode             = "awsvpc"
-  cpu                      = 4096
-  memory                   = 8192
+  cpu                      = 2048
+  memory                   = 4096
 
   runtime_platform {
     operating_system_family = "LINUX"

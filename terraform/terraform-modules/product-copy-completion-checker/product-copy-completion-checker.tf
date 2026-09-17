@@ -6,14 +6,16 @@
 # pds_nucleus_lambda_execution_role_arns still comes from the existing IAM
 # module output, indexed by the untouched var.pds_node_names order.
 locals {
-  node_role_arn_map = zipmap(var.pds_node_names, var.pds_nucleus_lambda_execution_role_arns)
-  node_archive_bucket_map = zipmap(var.pds_node_names, var.pds_archive_bucket_names)
+  node_role_arn_map            = zipmap(var.pds_node_names, var.pds_nucleus_lambda_execution_role_arns)
+  node_archive_bucket_map      = zipmap(var.pds_node_names, var.pds_archive_bucket_names)
   node_opensearch_registry_map = zipmap(var.pds_node_names, var.pds_nucleus_opensearch_registry_names)
   # Populated below, after the data.aws_s3_bucket.pds_nucleus_s3_staging_bucket data source is declared.
   node_staging_bucket_arn_map = zipmap(var.pds_node_names, data.aws_s3_bucket.pds_nucleus_s3_staging_bucket[*].arn)
   # Populated below, after aws_s3_bucket.pds_nucleus_s3_config_bucket is declared. Config bucket is
   # shared per node (not per data source) to keep the original IAM S3 resource pattern intact.
   node_config_bucket_name_map = zipmap(var.pds_node_names, aws_s3_bucket.pds_nucleus_s3_config_bucket[*].bucket)
+
+  pds_nucleus_readonly_db_username = "pds_nucleus_readonly"
 }
 
 resource "random_password" "pds_nucleus_rds_password" {
@@ -24,7 +26,7 @@ resource "random_password" "pds_nucleus_rds_password" {
 resource "aws_db_subnet_group" "default" {
   name       = "main"
   subnet_ids = var.subnet_ids
-  
+
   tags = var.tags
 }
 
@@ -34,25 +36,27 @@ resource "random_string" "random_secret_postfix" {
 }
 
 resource "aws_rds_cluster" "default" {
-  cluster_identifier           = var.rds_cluster_id
-  engine                       = "aurora-mysql"
-  engine_mode                  = "provisioned"
-  engine_version               = var.aws_rds_cluster_engine_version
-  availability_zones           = var.database_availability_zones
-  db_subnet_group_name         = aws_db_subnet_group.default.id
+  cluster_identifier   = var.rds_cluster_id
+  engine               = "aurora-mysql"
+  engine_mode          = "provisioned"
+  engine_version       = var.aws_rds_cluster_engine_version
+  availability_zones   = var.database_availability_zones
+  db_subnet_group_name = aws_db_subnet_group.default.id
   # Bootstrap default database required by Aurora at cluster creation time.
   # Lambdas do not use this database — each PDS node has its own dedicated
   # database (pds_nucleus_<node>) created by pds-nucleus-init at deploy time.
   database_name                = var.database_name
   master_username              = var.database_user
   master_password              = random_password.pds_nucleus_rds_password.result
-  backup_retention_period      = 5
+  backup_retention_period      = 14
   preferred_backup_window      = "07:00-09:00"
   preferred_maintenance_window = "Mon:00:00-Mon:02:00"
   storage_encrypted            = true
   enable_http_endpoint         = true
   backtrack_window             = 0
-  skip_final_snapshot          = true
+  skip_final_snapshot          = false
+  final_snapshot_identifier    = "${var.rds_cluster_id}-final-snapshot"
+  deletion_protection          = true
   vpc_security_group_ids       = [var.nucleus_security_group_id]
 
   serverlessv2_scaling_configuration {
@@ -63,7 +67,7 @@ resource "aws_rds_cluster" "default" {
   lifecycle {
     ignore_changes = [availability_zones]
   }
-  
+
   tags = var.tags
 }
 
@@ -73,7 +77,7 @@ resource "aws_rds_cluster_instance" "rds_cluster_instance" {
   instance_class     = "db.serverless"
   engine             = aws_rds_cluster.default.engine
   engine_version     = aws_rds_cluster.default.engine_version
-  
+
   tags = var.tags
 }
 
@@ -90,6 +94,38 @@ resource "aws_secretsmanager_secret_version" "rds_credentials" {
 {
   "username": "${aws_rds_cluster.default.master_username}",
   "password": "${random_password.pds_nucleus_rds_password.result}",
+  "engine": "mysql",
+  "host": "${aws_rds_cluster.default.endpoint}",
+  "port": ${aws_rds_cluster.default.port},
+  "dbClusterIdentifier": "${aws_rds_cluster.default.cluster_identifier}"
+}
+EOF
+}
+
+# SELECT-only DB user for the /nucleus/products search page. IAM can only
+# restrict who can call RDS Data API, not what SQL they send through it --
+# this is what actually stops a search-page caller from writing or reading
+# anything beyond product_tracking. A separate secret from the master
+# credentials, on a separate name prefix, so its IAM grant (see iam.tf) can't
+# accidentally also match the master secret.
+resource "random_password" "pds_nucleus_readonly_db_password" {
+  length  = 16
+  special = false
+}
+
+resource "aws_secretsmanager_secret" "pds_nucleus_readonly_db_credentials" {
+  name                    = "pds/nucleus/rds-readonly/creds/${random_string.random_secret_postfix.result}"
+  description             = "PDS Nucleus read-only (SELECT-only) database credentials, for the /nucleus/products search page"
+  recovery_window_in_days = 0
+  tags                    = var.tags
+}
+
+resource "aws_secretsmanager_secret_version" "readonly_db_credentials" {
+  secret_id     = aws_secretsmanager_secret.pds_nucleus_readonly_db_credentials.id
+  secret_string = <<EOF
+{
+  "username": "${local.pds_nucleus_readonly_db_username}",
+  "password": "${random_password.pds_nucleus_readonly_db_password.result}",
   "engine": "mysql",
   "host": "${aws_rds_cluster.default.endpoint}",
   "port": ${aws_rds_cluster.default.port},
@@ -129,11 +165,13 @@ resource "aws_lambda_function" "pds_nucleus_init_function" {
 
   environment {
     variables = {
-      DB_CLUSTER_ARN = aws_rds_cluster.default.arn
-      DB_SECRET_ARN  = aws_secretsmanager_secret.pds_nucleus_rds_credentials.arn
+      DB_CLUSTER_ARN       = aws_rds_cluster.default.arn
+      DB_SECRET_ARN        = aws_secretsmanager_secret.pds_nucleus_rds_credentials.arn
+      READONLY_DB_USERNAME = local.pds_nucleus_readonly_db_username
+      READONLY_DB_PASSWORD = random_password.pds_nucleus_readonly_db_password.result
     }
   }
-  
+
   tags = var.tags
 }
 
@@ -144,7 +182,7 @@ resource "aws_s3_bucket" "pds_nucleus_s3_config_bucket" {
   count         = length(var.pds_node_names)
   bucket        = "${lower(replace(var.pds_node_names[count.index], "_", "-"))}-${var.pds_nucleus_config_bucket_name_postfix}"
   force_destroy = true
-  
+
   tags = var.tags
 }
 
@@ -181,7 +219,7 @@ data "aws_s3_bucket" "pds_nucleus_s3_staging_bucket" {
 
 # Create pds_nucleus_s3_file_file_event_processor_function for each data source (IAM role shared per node via local.node_role_arn_map — no IAM created/modified here)
 resource "aws_lambda_function" "pds_nucleus_s3_file_file_event_processor_function" {
-  count            = length(var.pds_data_source_names)
+  count = length(var.pds_data_source_names)
   # Short prefix to stay under the AWS Lambda 64-character function name limit
   # once the node/data-source names are appended.
   function_name    = "pds-nucleus-s3-watch-${var.pds_data_source_node_names[count.index]}-${var.pds_data_source_names[count.index]}"
@@ -191,16 +229,18 @@ resource "aws_lambda_function" "pds_nucleus_s3_file_file_event_processor_functio
   runtime          = var.lambda_runtime
   handler          = "pds-nucleus-s3-file-event-processor.lambda_handler"
   timeout          = 300
+  memory_size      = 1024
   depends_on       = [data.archive_file.pds_nucleus_s3_file_file_event_processor_function_zip]
 
   environment {
     variables = {
-      DB_CLUSTER_ARN = aws_rds_cluster.default.arn
-      DB_SECRET_ARN  = aws_secretsmanager_secret.pds_nucleus_rds_credentials.arn
-      DB_NAME              = "pds_nucleus_${lower(var.pds_data_source_node_names[count.index])}_${lower(var.pds_data_source_names[count.index])}"
-      EFS_MOUNT_PATH       = "/mnt/data/"
-      PDS_NODE_NAME        = var.pds_data_source_node_names[count.index]
-      PDS_DATA_SOURCE_NAME = var.pds_data_source_names[count.index]
+      DB_CLUSTER_ARN         = aws_rds_cluster.default.arn
+      DB_SECRET_ARN          = aws_secretsmanager_secret.pds_nucleus_rds_credentials.arn
+      DB_NAME                = "pds_nucleus_${lower(var.pds_data_source_node_names[count.index])}_${lower(var.pds_data_source_names[count.index])}"
+      EFS_MOUNT_PATH         = "/mnt/data/"
+      PDS_NODE_NAME          = var.pds_data_source_node_names[count.index]
+      PDS_DATA_SOURCE_NAME   = var.pds_data_source_names[count.index]
+      RDS_DATA_API_POOL_SIZE = "10"
     }
   }
 
@@ -209,17 +249,32 @@ resource "aws_lambda_function" "pds_nucleus_s3_file_file_event_processor_functio
 
 # Create SQS queue event source for pds_nucleus_s3_file_file_event_processor_function for each data source
 resource "aws_lambda_event_source_mapping" "event_source_mapping" {
-  count                    = length(var.pds_data_source_names)
-  event_source_arn         = aws_sqs_queue.pds_nucleus_files_to_save_in_database_sqs_queue[count.index].arn
-  enabled                  = true
-  function_name            = aws_lambda_function.pds_nucleus_s3_file_file_event_processor_function[count.index].function_name
-  batch_size               = 10
-  function_response_types  = ["ReportBatchItemFailures"]
+  count                              = length(var.pds_data_source_names)
+  event_source_arn                   = aws_sqs_queue.pds_nucleus_files_to_save_in_database_sqs_queue[count.index].arn
+  enabled                            = true
+  function_name                      = aws_lambda_function.pds_nucleus_s3_file_file_event_processor_function[count.index].function_name
+  batch_size                         = 100
+  maximum_batching_window_in_seconds = 1
+  function_response_types            = ["ReportBatchItemFailures"]
+
+  # scaling_config rather than reserved_concurrent_executions on the function:
+  # reserved concurrency lets the poller over-invoke and be throttled, which
+  # still increments each message's receive count and walks it toward the DLQ.
+  # scaling_config makes Lambda stop polling instead, so nothing is throttled.
+  #
+  # 25 invocations x batch_size 100 = 2,500 messages in flight per data source.
+  # The real ceiling is Aurora, which idles at 0.5 ACU and needs time to scale,
+  # so raise this only while watching ApproximateAgeOfOldestMessage against
+  # ThrottlingException in the processor logs. Halve it if RDS_DATA_API_POOL_SIZE
+  # is ever raised to match the 20-wide thread pool.
+  scaling_config {
+    maximum_concurrency = 25
+  }
 }
 
 # Create pds_nucleus_product_completion_checker_function for each data source (IAM role/DB/OpenSearch/archive bucket shared per node — no IAM created/modified here)
 resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function" {
-  count            = length(var.pds_data_source_names)
+  count = length(var.pds_data_source_names)
   # Short prefix to stay under the AWS Lambda 64-character function name limit
   # once the node/data-source names are appended.
   function_name    = "pds-nucleus-prod-cmpl-chk-${var.pds_data_source_node_names[count.index]}-${var.pds_data_source_names[count.index]}"
@@ -228,8 +283,18 @@ resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function"
   role             = local.node_role_arn_map[var.pds_data_source_node_names[count.index]]
   runtime          = var.lambda_runtime
   handler          = "pds-nucleus-product-completion-checker.lambda_handler"
-  timeout          = 300
+  timeout          = 900
+  memory_size      = 512
   depends_on       = [data.archive_file.pds_nucleus_product_completion_checker_zip]
+
+  # Guarantees this scheduled poller a slot even while the file event processors
+  # are consuming the account's concurrency, and keeps it to one run at a time.
+  # A tick arriving while the previous run is still going is dropped rather than
+  # stacking a second claim query on a database that is evidently already busy;
+  # the next tick picks the work up.
+  #
+  # Consider reserved_concurrent_executions = 2 if a 15-minute stall is unacceptable
+  reserved_concurrent_executions = 2
 
   environment {
     variables = {
@@ -250,15 +315,17 @@ resource "aws_lambda_function" "pds_nucleus_product_completion_checker_function"
       PDS_MWAA_ENV_NAME                  = var.airflow_env_name
       PDS_HOT_ARCHIVE_S3_BUCKET_NAME     = local.node_archive_bucket_map[var.pds_data_source_node_names[count.index]]
       PRODUCT_BATCH_SIZE                 = var.product_batch_size
+      DRAIN_LOOP_PACING_SECONDS          = var.drain_loop_pacing_seconds
+      PDS_REGISTRY_SEARCH_URL_PREFIX     = var.pds_registry_search_url_prefix
     }
   }
-  
+
   tags = var.tags
 }
 
 # One EventBridge scheduled rule per data source (not shared), so each data source's completion checker runs on its own rule.
 resource "aws_cloudwatch_event_rule" "every_one_minute" {
-  count               = length(var.pds_data_source_names)
+  count = length(var.pds_data_source_names)
   # Short prefix to stay under the AWS EventBridge 64-character rule name limit
   # once the node/data-source names are appended.
   name                = "pds-nucleus-minute-${var.pds_data_source_node_names[count.index]}-${var.pds_data_source_names[count.index]}"
@@ -272,7 +339,7 @@ resource "aws_cloudwatch_event_rule" "every_one_minute" {
 resource "aws_cloudwatch_event_target" "check_product_completion_event_target" {
   count = length(var.pds_data_source_names)
 
-  rule      = aws_cloudwatch_event_rule.every_one_minute[count.index].name
+  rule = aws_cloudwatch_event_rule.every_one_minute[count.index].name
   # target_id has a 64-character AWS limit — use a short prefix instead of the full descriptive name.
   target_id = "pds-nucleus-pcc-${var.pds_data_source_node_names[count.index]}-${var.pds_data_source_names[count.index]}"
   arn       = aws_lambda_function.pds_nucleus_product_completion_checker_function[count.index].arn
@@ -298,20 +365,65 @@ resource "aws_lambda_permission" "s3-lambda-permission" {
   source_arn    = local.node_staging_bucket_arn_map[var.pds_data_source_node_names[count.index]]
 }
 
+# Dead letter queue for each data source. Without one, a message the file event
+# processor can never handle (e.g. a malformed product label) stays on the main
+# queue being retried until message_retention_seconds expires — four days of
+# re-invoking the lambda on the same poison record. Parking it here stops the
+# retry loop and keeps the message for inspection.
+resource "aws_sqs_queue" "pds_nucleus_files_to_save_in_database_dlq" {
+  count = length(var.pds_data_source_names)
+  # Same name shape as the source queue, ending with the node name, so the existing
+  # ECS task role IAM SQS resource pattern "pds-nucleus-*-<node>" still covers it
+  # and no IAM changes are needed.
+  name = "pds-nucleus-file-save-dlq-${var.pds_data_source_names[count.index]}-${var.pds_data_source_node_names[count.index]}"
+  # Longer than the source queue's 4 days: a message only lands here after it has
+  # already failed repeatedly, so the clock on investigating it starts later.
+  message_retention_seconds = 1209600 # 14 days, the AWS maximum
+  sqs_managed_sse_enabled   = true
+
+  tags = var.tags
+}
+
+# Restrict the DLQ to its own source queue, so no other queue can be pointed at it.
+# A separate resource rather than a redrive_allow_policy argument on the queue
+# above, because each queue referencing the other's ARN would be a dependency cycle.
+resource "aws_sqs_queue_redrive_allow_policy" "pds_nucleus_files_to_save_in_database_dlq_allow" {
+  count     = length(var.pds_data_source_names)
+  queue_url = aws_sqs_queue.pds_nucleus_files_to_save_in_database_dlq[count.index].id
+
+  redrive_allow_policy = jsonencode({
+    redrivePermission = "byQueue",
+    sourceQueueArns   = [aws_sqs_queue.pds_nucleus_files_to_save_in_database_sqs_queue[count.index].arn]
+  })
+}
+
 # Create an SQS queue to receive S3 bucket notifications for each s3 bucket of each data source
 resource "aws_sqs_queue" "pds_nucleus_files_to_save_in_database_sqs_queue" {
-  count                      = length(var.pds_data_source_names)
+  count = length(var.pds_data_source_names)
   # Queue name ends with the node name (data source placed before it) to match the existing
   # ECS task role IAM SQS resource pattern "pds-nucleus-*-<node>" without any IAM changes.
   # Short prefix to stay well under the AWS SQS 80-character queue name limit
   # once the data-source/node names are appended.
-  name                       = "pds-nucleus-file-save-${var.pds_data_source_names[count.index]}-${var.pds_data_source_node_names[count.index]}"
-  delay_seconds              = 0
-  visibility_timeout_seconds = 300
+  name          = "pds-nucleus-file-save-${var.pds_data_source_names[count.index]}-${var.pds_data_source_node_names[count.index]}"
+  delay_seconds = 0
+  # Six times the 300s timeout of the consuming lambda, per the AWS guidance for
+  # SQS event source mappings. Equal values (both 300s) let a message become
+  # visible again at the instant a full-length invocation finishes, racing the
+  # delete, so the poller could hand the same batch to a second invocation.
+  visibility_timeout_seconds = 1800
   message_retention_seconds  = 345600
   receive_wait_time_seconds  = 0
   sqs_managed_sse_enabled    = true
-  
+
+  # Five attempts before parking the message. High enough to ride out transient
+  # RDS Data API or S3 errors, low enough that a genuinely bad record stops
+  # being retried quickly. Only records that fail are redelivered, because the
+  # event source mapping reports partial batch failures.
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.pds_nucleus_files_to_save_in_database_dlq[count.index].arn
+    maxReceiveCount     = 5
+  })
+
   tags = var.tags
 }
 
@@ -356,8 +468,8 @@ resource "aws_lambda_invocation" "invoke_pds_nucleus_init_function" {
   function_name = aws_lambda_function.pds_nucleus_init_function.function_name
 
   input = jsonencode({
-    pds_node_name         = var.pds_data_source_node_names[count.index]
-    pds_data_source_name  = var.pds_data_source_names[count.index]
+    pds_node_name        = var.pds_data_source_node_names[count.index]
+    pds_data_source_name = var.pds_data_source_names[count.index]
   })
 
   lifecycle {

@@ -31,14 +31,14 @@ resource "local_file" "pds-basic-registry-load-use-case-dag-file" {
 
 # Create an S3 object for default DAG file of each data source
 resource "aws_s3_object" "pds_basic_registry_data_load_dag_file" {
-  count       = length(var.pds_data_source_names)
-  bucket      = var.mwaa_dag_s3_bucket_name
-  key         = "dags/${var.pds_data_source_node_names[count.index]}/${var.pds_data_source_node_names[count.index]}_${var.pds_data_source_names[count.index]}-${var.pds_basic_registry_data_load_dag_file_name}"
-  acl         = "private"
-  source      = local_file.pds-basic-registry-load-use-case-dag-file[count.index].filename
+  count  = length(var.pds_data_source_names)
+  bucket = var.mwaa_dag_s3_bucket_name
+  key    = "dags/${var.pds_data_source_node_names[count.index]}/${var.pds_data_source_node_names[count.index]}_${var.pds_data_source_names[count.index]}-${var.pds_basic_registry_data_load_dag_file_name}"
+  acl    = "private"
+  source = local_file.pds-basic-registry-load-use-case-dag-file[count.index].filename
   # FIX: Use md5() on the template content, not filemd5() on the local resource filename.
   source_hash = md5(data.template_file.pds-basic-registry-load-use-case-dag-template[count.index].rendered)
-  
+
   tags = var.tags
 
   depends_on = [
@@ -60,7 +60,7 @@ data "template_file" "pds-nucleus-s3-backlog-processor-dag-template" {
     pds_nucleus_ecs_subnets                 = jsonencode(var.pds_nucleus_ecs_subnets)
     pds_nucleus_ecs_security_groups         = jsonencode([var.pds_nucleus_security_group_id])
     pds_nucleus_s3_backlog_processor_dag_id = "${var.pds_data_source_node_names[count.index]}_${var.pds_data_source_names[count.index]}-${var.pds_nucleus_s3_backlog_processor_dag_id}"
-    pds_nucleus_sqs_queue_url                = var.pds_nucleus_files_to_save_in_database_sqs_queue_urls[count.index]
+    pds_nucleus_sqs_queue_url               = var.pds_nucleus_files_to_save_in_database_sqs_queue_urls[count.index]
   }
 }
 
@@ -73,11 +73,11 @@ resource "local_file" "pds-nucleus-s3-backlog-processor-dag-file" {
 
 # Create an S3 object for S3 Backlog Processor DAG file of each data source
 resource "aws_s3_object" "pds_nucleus_s3_backlog_processor_dag_file" {
-  count       = length(var.pds_data_source_names)
-  bucket      = var.mwaa_dag_s3_bucket_name
-  key         = "dags/${var.pds_data_source_node_names[count.index]}/${var.pds_data_source_node_names[count.index]}_${var.pds_data_source_names[count.index]}-${var.pds_nucleus_s3_backlog_processor_dag_file_name}"
-  acl         = "private"
-  source      = local_file.pds-nucleus-s3-backlog-processor-dag-file[count.index].filename
+  count  = length(var.pds_data_source_names)
+  bucket = var.mwaa_dag_s3_bucket_name
+  key    = "dags/${var.pds_data_source_node_names[count.index]}/${var.pds_data_source_node_names[count.index]}_${var.pds_data_source_names[count.index]}-${var.pds_nucleus_s3_backlog_processor_dag_file_name}"
+  acl    = "private"
+  source = local_file.pds-nucleus-s3-backlog-processor-dag-file[count.index].filename
   # FIX: Apply the same fix here to prevent a future failure
   source_hash = md5(data.template_file.pds-nucleus-s3-backlog-processor-dag-template[count.index].rendered)
 
@@ -97,12 +97,21 @@ data "template_file" "pds-validate-and-harvest-dag-template" {
   count    = length(var.pds_data_source_names)
   template = file("terraform-modules/test-data/dags/template-${var.pds_validate_and_harvest_dag_file_name}")
   vars = {
-    pds_node_name                      = var.pds_data_source_node_names[count.index]
-    pds_nucleus_ecs_cluster_name       = var.pds_nucleus_ecs_cluster_name
-    pds_nucleus_ecs_subnets            = jsonencode(var.pds_nucleus_ecs_subnets)
-    pds_nucleus_ecs_security_groups    = jsonencode([var.pds_nucleus_security_group_id])
-    pds_validate_and_harvest_dag_id    = "${var.pds_data_source_node_names[count.index]}_${var.pds_data_source_names[count.index]}-pds-validate-and-harvest"
-    aws_region                         = var.region
+    pds_node_name                   = var.pds_data_source_node_names[count.index]
+    pds_nucleus_ecs_cluster_name    = var.pds_nucleus_ecs_cluster_name
+    pds_nucleus_ecs_subnets         = jsonencode(var.pds_nucleus_ecs_subnets)
+    pds_nucleus_ecs_security_groups = jsonencode([var.pds_nucleus_security_group_id])
+    pds_validate_and_harvest_dag_id = "${var.pds_data_source_node_names[count.index]}_${var.pds_data_source_names[count.index]}-pds-validate-and-harvest"
+    aws_region                      = var.region
+    # For Generate_Summary_Report's write to product_tracking. DB name
+    # matches db_name_for_data_source() in pds-nucleus-init.py exactly.
+    pds_db_cluster_arn = var.pds_db_cluster_arn
+    pds_db_secret_arn  = var.pds_db_secret_arn
+    pds_db_name        = "pds_nucleus_${lower(var.pds_data_source_node_names[count.index])}_${lower(var.pds_data_source_names[count.index])}"
+    # Default only -- the Lambda passes the authoritative value via
+    # dag_run.conf at trigger time; this is the fallback for a manual
+    # "Trigger DAG w/ config" run.
+    pds_registry_search_url_prefix_default = var.pds_registry_search_url_prefix
   }
 }
 

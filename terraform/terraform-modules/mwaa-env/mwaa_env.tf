@@ -5,7 +5,7 @@ resource "aws_mwaa_environment" "pds_nucleus_airflow_env" {
   name              = var.airflow_env_name
   airflow_version   = var.airflow_version
   environment_class = var.airflow_env_class
-  
+
   tags = var.tags
 
   dag_s3_path        = var.airflow_dags_path
@@ -14,7 +14,7 @@ resource "aws_mwaa_environment" "pds_nucleus_airflow_env" {
   requirements_s3_path = var.airflow_requirements_path
 
   min_workers           = 1
-  max_workers           = 10
+  max_workers           = 15
   webserver_access_mode = "PUBLIC_ONLY"
 
   network_configuration {
