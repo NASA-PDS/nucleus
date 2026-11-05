@@ -158,7 +158,6 @@ variable "pds_registry_search_url_prefix" {
 variable "pds_nucleus_harvest_replace_prefix_with_list" {
   description = "List of PDS Nucleus Harvest Replace Prefix With, one entry per data source (parallel to pds_data_source_names)"
   type        = list(string)
-  default     = ["s3://pds-nucleus-staging-sbn", "s3://pds-nucleus-staging-img"]
 
   validation {
     condition     = length(var.pds_nucleus_harvest_replace_prefix_with_list) == length(var.pds_data_source_names)
