@@ -143,8 +143,8 @@ Note: A sample `terraform.tfvars` file with placeholder values is available at [
       - pds_nucleus_opensearch_credential_relative_url : Opensearch Credential URL (E.g.: "http://<IP ADDRESS>/AWS_CONTAINER_CREDENTIALS_RELATIVE_URI")
       - pds_nucleus_opensearch_collection_arns : List of Node specific OpenSearch Collection ARNs (E.g.: ["arn:aws:aoss:us-west-2:12345678:collection/abcdefgh", "arn:aws:aoss:us-west-2:12345678:collection/abcdefgh"])
       - pds_nucleus_opensearch_cognito_identity_pool_ids : List of Node specific OpenSearch Cognito Identity Pool IDs (E.g.: ["us-west-2:12345-abcd-abcd-abcd-1234abcdef", "us-west-2:12345-abcd-abcd-abcd-1234abcdef"])
-      - pds_nucleus_harvest_replace_prefix_with_list : List of Node specific harvest replace-with strings (E.g.: ["https://pds.mcp.nasa.gov/data/store/sbn","https://pds.mcp.nasa.gov/data/store/img"])
-      - pds_nucleus_harvest_replace_prefix_list : List of Node specific EFS path prefixes to replace in harvest config (E.g.: ["/mnt/data/pds-sbn-path","/mnt/data/pds-img-path"])
+      - pds_nucleus_harvest_replace_prefix_with_list : List of harvest replace-with strings, one per data source (E.g.: ["https://example.pds.nasa.gov/data/store/node1", "https://example.pds.nasa.gov/data/store/node1", "https://example.pds.nasa.gov/data/store/node2", "https://example.pds.nasa.gov/data/store/node2"])
+      - pds_nucleus_harvest_replace_prefix_list : List of EFS path prefixes to replace in harvest config, one per data source (E.g.: ["/mnt/data/pds-node1-staging", "/mnt/data/pds-node1-staging", "/mnt/data/pds-node2-staging", "/mnt/data/pds-node2-staging"])
 
     - pds_registry_loader_harvest_version : Docker image version tag for nasapds/registry-loader (E.g.: "1.3.2", "latest")
     - pds_validate_version : Docker image version tag for nasapds/validate (E.g.: "latest")
