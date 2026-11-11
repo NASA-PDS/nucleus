@@ -140,7 +140,7 @@ Note: A sample `terraform.tfvars` file with placeholder values is available at [
 
       - pds_nucleus_opensearch_url : OpenSearch URL to be used with Harvest tool
       - pds_nucleus_opensearch_registry_names : List of Node specific OpenSearch registry names (E.g.: ["pds-nucleus-sbn-registry", "pds-nucleus-img-registry"])
-      - pds_nucleus_opensearch_credential_relative_url : Opensearch Credential URL (E.g.: "http://<IP ADDRESS>/AWS_CONTAINER_CREDENTIALS_RELATIVE_URI")
+      - pds_nucleus_opensearch_credential_relative_url : Opensearch Credential URL (E.g.: "http://169.254.170.2$${AWS_CONTAINER_CREDENTIALS_RELATIVE_URI}"; `$$` is Terraform escaping, the Harvest task expands the variable at start-up)
       - pds_nucleus_opensearch_collection_arns : List of Node specific OpenSearch Collection ARNs (E.g.: ["arn:aws:aoss:us-west-2:12345678:collection/abcdefgh", "arn:aws:aoss:us-west-2:12345678:collection/abcdefgh"])
       - pds_nucleus_opensearch_cognito_identity_pool_ids : List of Node specific OpenSearch Cognito Identity Pool IDs (E.g.: ["us-west-2:12345-abcd-abcd-abcd-1234abcdef", "us-west-2:12345-abcd-abcd-abcd-1234abcdef"])
       - pds_nucleus_harvest_replace_prefix_with_list : List of harvest replace-with strings, one per data source (E.g.: ["https://example.pds.nasa.gov/data/store/node1", "https://example.pds.nasa.gov/data/store/node1", "https://example.pds.nasa.gov/data/store/node2", "https://example.pds.nasa.gov/data/store/node2"])
