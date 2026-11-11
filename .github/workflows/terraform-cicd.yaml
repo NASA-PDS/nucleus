@@ -33,7 +33,7 @@ jobs:
         role-session-name: PDS_GitHub_OIDC_TERRAFORM
 
     - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
+      uses: hashicorp/setup-terraform@v4
 
     - name: Terraform Fmt, Init & Validate
       id: fmt_init_validate
