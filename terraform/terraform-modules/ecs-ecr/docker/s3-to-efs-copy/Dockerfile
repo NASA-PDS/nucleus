@@ -29,6 +29,13 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 FROM public.ecr.aws/amazonlinux/amazonlinux:latest
+
+# Patch libbrotli to remediate CVE-2026-111497 before installing anything else.
+# libbrotli isn't installed in the base image yet at this point (it's pulled in
+# transitively by later packages), so "yum update" has nothing to upgrade here --
+# install it explicitly to pin in the current (patched) repo version up front.
+RUN yum -y install libbrotli && yum -y clean all
+
 RUN yum -y install unzip && yum -y install make && yum -y install tar && yum -y groupinstall 'Development Tools'
 
 # Install aws
