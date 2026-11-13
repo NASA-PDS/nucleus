@@ -6,7 +6,10 @@
 version: 2
 updates:
   - package-ecosystem: "pip" # See documentation for possible values
-    directory: "/" # Location of package manifests
+    directories:
+      - "/"
+      - "/terraform/terraform-modules/cognito-auth/lambda"
+      - "/terraform/terraform-modules/mwaa-env"
     schedule:
       interval: "weekly"
 
@@ -20,6 +23,7 @@ updates:
        dev-dependencies:
           # Define patterns to include dependencies in the group (based on
           # dependency name)
+          update-types: [patch, minor]
           applies-to: version-updates # Applies the group rule to version updates
           patterns:
             - "*"       # A wildcard that matches all dependencies in the package
@@ -31,6 +35,9 @@ updates:
       interval: "weekly"
 
   - package-ecosystem: "docker" # See documentation for possible values
-    directory: "/project-specific/" # Location of package manifests
+    directories:
+      - "/terraform/terraform-modules/cognito-auth/lambda"
+      - "/terraform/terraform-modules/ecs-ecr/docker/config-init"
+      - "/terraform/terraform-modules/ecs-ecr/docker/s3-to-efs-copy"
     schedule:
       interval: "weekly"
