@@ -1,0 +1,6 @@
+# Shell scripts must always use LF line endings, regardless of a
+# contributor's local core.autocrlf setting. A CRLF-corrupted shebang
+# (e.g. "#!/bin/bash\r") makes the script fail to exec with
+# "cannot execute: required file not found" -- this bit us in
+# terraform/terraform-modules/cognito-auth/lambda/build-lambda.sh.
+*.sh text eol=lf
