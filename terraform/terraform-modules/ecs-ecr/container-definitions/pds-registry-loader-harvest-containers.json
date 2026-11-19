@@ -8,7 +8,7 @@
     "entryPoint": [
       "/bin/sh",
       "-c",
-      "echo 'user = ' >> /etc/es-auth.cfg && echo 'password = ' >> /etc/es-auth.cfg && harvest -v DEBUG $HARVEST_EXTRA_ARGS -c $HARVEST_CFG"
+      "echo 'user = ' >> /etc/es-auth.cfg && echo 'password = ' >> /etc/es-auth.cfg && D=/tmp/harvest-cfg && mkdir -p $D && sed \"s#\\$[{]AWS_CONTAINER_CREDENTIALS_RELATIVE_URI[}]#$AWS_CONTAINER_CREDENTIALS_RELATIVE_URI#g\" $(dirname $HARVEST_CFG)/connection.xml > $D/connection.xml && sed \"s#file://[^<]*connection.xml#file://$D/connection.xml#\" $HARVEST_CFG > $D/harvest.cfg && harvest -v DEBUG $HARVEST_EXTRA_ARGS -c $D/harvest.cfg"
     ],
     "command": [],
     "environment": [],

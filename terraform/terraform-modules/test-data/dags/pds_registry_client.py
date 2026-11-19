@@ -23,18 +23,32 @@ def check_registry_status(lidvid: str, url_prefix: str, timeout: float = DEFAULT
     failure). "unknown" is kept distinct from "not_found" on purpose: a
     network failure or a 5xx says nothing about whether the registry has
     the product, so it must never be counted as a confirmed absence.
+
+    Every "unknown" is printed with the specific status code/exception
+    that caused it -- otherwise a genuine indexing-lag "not there yet"
+    and a network-level failure reaching the registry at all are
+    indistinguishable from the caller's side, which made a real incident
+    (see NASA-PDS/nucleus issue tracker, Nov 2026) impossible to diagnose
+    from the DAG logs alone.
     """
     url = url_prefix + urllib.parse.quote(lidvid, safe="")
     try:
         with urllib.request.urlopen(url, timeout=timeout) as resp:
-            return "confirmed" if resp.status == 200 else "unknown"
+            if resp.status == 200:
+                return "confirmed"
+            print(f"registry check unknown for {lidvid}: HTTP {resp.status} (expected 200)")
+            return "unknown"
     except urllib.error.HTTPError as e:
-        return "not_found" if e.code == 404 else "unknown"
-    except OSError:
+        if e.code == 404:
+            return "not_found"
+        print(f"registry check unknown for {lidvid}: HTTP {e.code} {e.reason}")
+        return "unknown"
+    except OSError as e:
         # Covers urllib.error.URLError and socket.timeout/TimeoutError too --
         # both are OSError subclasses, so listing them separately was
         # redundant. Any other network failure (DNS, connection refused,
         # etc.) lands here as well.
+        print(f"registry check unknown for {lidvid}: {type(e).__name__}: {e}")
         return "unknown"
 
 
@@ -71,7 +85,12 @@ def verify_products_against_registry(
             name = futures[future]
             try:
                 results[name] = future.result()
-            except Exception:
+            except Exception as e:
+                # check_registry_status already catches and logs
+                # HTTPError/OSError itself -- reaching here means something
+                # it doesn't handle (a bug, not a network condition), so
+                # it's worth printing distinctly from the expected cases.
+                print(f"registry check unknown for {name}: unexpected {type(e).__name__}: {e}")
                 results[name] = "unknown"
 
     return results

@@ -36,13 +36,17 @@ docker tag pds-nucleus-s3-to-efs-copy:latest "${ecs_registry}/pds-nucleus-s3-to-
 docker push "${ecs_registry}/pds-nucleus-s3-to-efs-copy:latest"
 cd - > /dev/null
 
-# --- Deploy pre-built images from public registry ---
-
-# Deploy pds-registry-loader-harvest ECR image
-echo "Pulling nasapds/registry-loader and pushing to ECR repo pds-registry-loader-harvest..."
-docker image pull --platform linux/amd64 nasapds/registry-loader:${registry_loader_version}
-docker tag nasapds/registry-loader:${registry_loader_version} "${ecs_registry}/pds-registry-loader-harvest:latest"
+# --- Deploy pds-registry-loader-harvest ECR image ---
+# Built from source instead of pulled from Docker Hub, so the fixed
+# Dockerfile (Alpine+JRE) actually ships. registry_loader_version is now
+# a git ref (branch or tag), not a Docker Hub tag.
+echo "Building pds-registry-loader-harvest from NASA-PDS/registry-loader@${registry_loader_version} and pushing to ECR..."
+rm -rf /tmp/registry-loader-build
+git clone --depth 1 --branch "${registry_loader_version}" https://github.com/NASA-PDS/registry-loader.git /tmp/registry-loader-build
+docker build --platform linux/amd64 -f /tmp/registry-loader-build/docker/Dockerfile --target full -t pds-registry-loader-harvest /tmp/registry-loader-build
+docker tag pds-registry-loader-harvest:latest "${ecs_registry}/pds-registry-loader-harvest:latest"
 docker push "${ecs_registry}/pds-registry-loader-harvest:latest"
+rm -rf /tmp/registry-loader-build
 
 # Deploy pds-validate ECR image
 echo "Pulling nasapds/validate and pushing to ECR repo pds-validate..."
