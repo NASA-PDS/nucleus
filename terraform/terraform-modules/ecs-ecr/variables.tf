@@ -128,9 +128,9 @@ variable "tags" {
 }
 
 variable "pds_registry_loader_harvest_version" {
-  description = "Docker image version tag for nasapds/registry-loader"
+  description = "Git ref (branch or tag) of NASA-PDS/registry-loader to build the ECR image from (not a Docker Hub tag -- this image is built from source, not pulled)"
   type        = string
-  default     = "latest"
+  default     = "main"
 }
 
 variable "pds_validate_version" {

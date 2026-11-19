@@ -146,7 +146,7 @@ Note: A sample `terraform.tfvars` file with placeholder values is available at [
       - pds_nucleus_harvest_replace_prefix_with_list : List of harvest replace-with strings, one per data source (E.g.: ["https://example.pds.nasa.gov/data/store/node1", "https://example.pds.nasa.gov/data/store/node1", "https://example.pds.nasa.gov/data/store/node2", "https://example.pds.nasa.gov/data/store/node2"])
       - pds_nucleus_harvest_replace_prefix_list : List of EFS path prefixes to replace in harvest config, one per data source (E.g.: ["/mnt/data/pds-node1-staging", "/mnt/data/pds-node1-staging", "/mnt/data/pds-node2-staging", "/mnt/data/pds-node2-staging"])
 
-    - pds_registry_loader_harvest_version : Docker image version tag for nasapds/registry-loader (E.g.: "1.3.2", "latest")
+    - pds_registry_loader_harvest_version : Git ref (branch or tag) of NASA-PDS/registry-loader to build the ECR image from -- built from source, not pulled from Docker Hub (E.g.: "main", "ecr-improvements")
     - pds_validate_version : Docker image version tag for nasapds/validate (E.g.: "latest")
     - airflow_env_name: Name of the Nucleus Airflow environment (E.g.: "pds-nucleus-airflow-env")
     - mwaa_dag_s3_bucket_name : S3 Bucket name to keep Airflow DAG files (E.g.: pds-nucleus-airflow-dags-bucket-mcp-test)
