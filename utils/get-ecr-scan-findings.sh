@@ -1,5 +1,5 @@
 #!/bin/bash
-# Copyright 2024, California Institute of Technology ("Caltech").
+# Copyright 2026, California Institute of Technology ("Caltech").
 # U.S. Government sponsorship acknowledged.
 #
 # All rights reserved.
@@ -108,6 +108,51 @@ fetch_one() {
       "${profile_args[@]}" \
       --query 'sort_by(imageDetails,&imagePushedAt)[-1].imageDigest' \
       --output text 2>/dev/null) || digest=""
+
+  # Some images (e.g. multi-arch ones pulled from Docker Hub, like
+  # pds-nucleus-tools-java) push as an OCI image index / Docker manifest
+  # list, not a single-platform image. describe-images above returns that
+  # list's own digest, but Inspector indexes findings against the actual
+  # linux/amd64 child manifest's digest, not the list digest -- querying
+  # the list digest silently returns 0 findings (confirmed: this is what
+  # made pds-nucleus-tools-java look "unscanned" for a while, when it
+  # genuinely wasn't). Detect a manifest list/index and resolve the
+  # amd64 child digest instead.
+  if [[ -n "$digest" && "$digest" != "None" ]]; then
+    local media_type
+    media_type=$(aws ecr batch-get-image \
+        --repository-name "$repo" \
+        --region "$REGION" \
+        "${profile_args[@]}" \
+        --image-ids imageDigest="$digest" \
+        --query 'images[0].imageManifest' \
+        --output text 2>/dev/null \
+        | python3 -c 'import json,sys; print(json.load(sys.stdin).get("mediaType",""))' 2>/dev/null) || media_type=""
+
+    if [[ "$media_type" == *"manifest.list"* || "$media_type" == *"image.index"* ]]; then
+      local child_digest
+      child_digest=$(aws ecr batch-get-image \
+          --repository-name "$repo" \
+          --region "$REGION" \
+          "${profile_args[@]}" \
+          --image-ids imageDigest="$digest" \
+          --query 'images[0].imageManifest' \
+          --output text 2>/dev/null \
+          | python3 -c '
+import json, sys
+m = json.load(sys.stdin)
+for entry in m.get("manifests", []):
+    p = entry.get("platform", {})
+    if p.get("architecture") == "amd64" and p.get("os") == "linux":
+        print(entry["digest"])
+        break
+' 2>/dev/null) || child_digest=""
+      if [[ -n "$child_digest" ]]; then
+        echo "  (resolved manifest-list digest $digest -> linux/amd64 child $child_digest)"
+        digest="$child_digest"
+      fi
+    fi
+  fi
 
   local filter
   if [[ -n "$digest" && "$digest" != "None" ]]; then
