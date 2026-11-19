@@ -28,26 +28,72 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-FROM public.ecr.aws/amazonlinux/amazonlinux:latest
+# -----------------------------------------------------------------------
+# Builder stage -- compiles funpack from source. Everything installed
+# here (the full 'Development Tools' toolchain, kernel-headers, make,
+# tar, etc.) stays in this stage only. An Inspector scan of the old
+# single-stage build found 614 High findings here, 458 of them just
+# kernel-headers -- none of that is needed to actually run this image,
+# only to build funpack once. Splitting into a builder stage drops the
+# whole toolchain (and its CVEs) from the final image.
+# -----------------------------------------------------------------------
+FROM public.ecr.aws/amazonlinux/amazonlinux:latest AS builder
 
-# Patch libbrotli to remediate CVE-2026-111497 before installing anything else.
-# libbrotli isn't installed in the base image yet at this point (it's pulled in
-# transitively by later packages), so "yum update" has nothing to upgrade here --
-# install it explicitly to pin in the current (patched) repo version up front.
-RUN yum -y install libbrotli \
-    && yum -y install unzip && yum -y install make && yum -y install tar && yum -y groupinstall 'Development Tools' \
+RUN yum -y update \
+    && yum -y install make tar \
+    && yum -y groupinstall 'Development Tools' \
     && yum -y clean all
 
-# Install aws
-RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-RUN unzip awscliv2.zip
-RUN /aws/install
-RUN rm -rf aws*
-
-# Install funpack
 ENV CFITSIO_IMAGE_PATH https://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-4.4.0.tar.gz
 ADD $CFITSIO_IMAGE_PATH cfitsio-4.4.0.tar.gz
-RUN tar xvf cfitsio-4.4.0.tar.gz  && cd /cfitsio-4.4.0 && ./configure && make && make install && make funpack
+RUN tar xvf cfitsio-4.4.0.tar.gz && cd /cfitsio-4.4.0 && ./configure && make && make install && make funpack
+
+# -----------------------------------------------------------------------
+# awscli builder stage -- same reasoning as the final stage below: AL2023's
+# yum/unzip/curl are only needed to install awscli, not to run it.
+# -----------------------------------------------------------------------
+FROM public.ecr.aws/amazonlinux/amazonlinux:latest AS aws-builder
+
+RUN yum -y update \
+    && yum -y install unzip \
+    && curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" \
+    && unzip awscliv2.zip \
+    && /aws/install \
+    && rm -rf aws*
+
+# -----------------------------------------------------------------------
+# Final stage -- debian-slim instead of AL2023: no yum/dnf/rpm, so the
+# rpm*/python3*/openssl-fips-provider CVE set tied to AL2023's package
+# manager (confirmed un-removable via `yum remove`, see git history) isn't
+# present at all, not just patched. glibc-compatible, so both the
+# glibc-linked awscli binaries and the glibc-linked funpack binary (built
+# against AL2023's glibc in the builder stage above) run fine here. Only
+# what's needed at runtime: awscli, libbrotli1/zlib1g (funpack's runtime
+# deps), the compiled funpack binary + its shared libs, and the entrypoint
+# script.
+#
+# Dropped findings from 1527 (234 High) to 19 (2 High). The 2 remaining
+# High findings (CVE-2026-5435, CVE-2026-19499) are both in glibc,
+# confirmed via Inspector as fixAvailable: NO / fixedInVersion:
+# NotAvailable -- there's no patched glibc upstream yet for Debian stable,
+# for anyone, not just us. Same as config-init's Dockerfile: glibc isn't
+# removable, every binary here (bash, aws CLI, funpack) links against it.
+# Left as-is; revisit once Debian ships a fix.
+# -----------------------------------------------------------------------
+FROM debian:stable-slim
+
+RUN apt-get update \
+    && apt-get -y upgrade \
+    && apt-get -y install --no-install-recommends libbrotli1 zlib1g \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=aws-builder /usr/local/aws-cli /usr/local/aws-cli
+COPY --from=aws-builder /usr/local/bin/aws /usr/local/bin/aws
+COPY --from=aws-builder /usr/local/bin/aws_completer /usr/local/bin/aws_completer
+
+COPY --from=builder /cfitsio-4.4.0/funpack /cfitsio-4.4.0/funpack
+COPY --from=builder /cfitsio-4.4.0/lib /cfitsio-4.4.0/lib
 
 ENV PATH="$PATH:/cfitsio-4.4.0"
 ENV LD_LIBRARY_PATH="/cfitsio-4.4.0/lib"
